@@ -1,5 +1,12 @@
 import Foundation
 import P256K
+import Metal
+import Foundation
+
+let device = MTLCreateSystemDefaultDevice()!
+let ITERATIONS = 10000
+
+
 
 
 @main
@@ -8,11 +15,33 @@ struct BitCrackOSX {
         print("Hello, world!")
 
         
+        print("Starting \(ITERATIONS) iterations benchmarks on GPU: \(device.name)\n")
+
+        //------------------------
+        // RIPEMD160 benchmark
+        //------------------------
+        // RIPEMD160.run(on: device)
+
         
+        //------------------------
+        // SHA256 Benchmark
+        //------------------------
+        let result = clock.measure{
+            SHA256gpu.run(on: device, iterations: ITERATIONS)
+        }
+        print("\nAll benchmarks finished after: \(result)s")
  
+        
+        
+        //------------------------
+        // secp256k1 benchmark
+        //------------------------
+        
         // Run UInt256 tests and demonstration
         // UInt256Tests.runTests()
         // demonstrateUsage()
+        
+        exit(0);
         
         // Iterate through a range of private keys
         let start = UInt256(hexString: "0000000000000000000000000000000000000000000000000000000000000001")
@@ -33,7 +62,7 @@ struct BitCrackOSX {
         
         }
         
-        
+        // END ecp256k1 benchmark
         
         
         

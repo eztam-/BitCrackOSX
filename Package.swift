@@ -23,6 +23,7 @@ let package = Package(
                 .product(name: "P256K", package: "swift-secp256k1")
             ],
             path: "Sources",
+            resources: [.process("BitCrackOSX/SHA256/SHA256.metal")],
         ),
     ]
 )

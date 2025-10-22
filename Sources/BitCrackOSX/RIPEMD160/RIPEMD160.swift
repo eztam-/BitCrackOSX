@@ -12,12 +12,7 @@ struct RIPEMD160 {
         // - Converts words to canonical RIPEMD-160 hex (little-endian word order).
         // - Measures GPU execution time for benchmarking.
         
-        func makeDevice() -> MTLDevice {
-            guard let dev = MTLCreateSystemDefaultDevice() else {
-                fatalError("No Metal device found")
-            }
-            return dev
-        }
+
         
         // Convert 5 UInt32 words (as written by kernel) into canonical 20-byte hex string.
         // The kernel produces words in host-endian uints (native endianness). RIPEMD-160 digest bytes are defined
@@ -68,15 +63,21 @@ struct RIPEMD160 {
         
         // ====== Main ======
         
-        let device = makeDevice()
+      
         print("Using Metal device:", device.name)
         
-        guard let library = try? device.makeDefaultLibrary(bundle: .main) else {
-            fatalError("Failed to load default library. Add RIPEMD160_fixed32.metal to the target.")
-        }
+        
+        
+        var library: MTLLibrary! = try? device.makeDefaultLibrary(bundle: Bundle.module)
+        
+        // If you prefer to compile shader from source at runtime, you can use device.makeLibrary(source:options:).
+        // This example assumes SHA256.metal is compiled into app bundle (add file to Xcode target).
         guard let function = library.makeFunction(name: "ripemd160_fixed32_kernel") else {
-            fatalError("Failed to load ripemd160_fixed32_kernel")
+            fatalError("Failed to load function ripemd160_fixed32_kernel from library")
         }
+        
+        
+        
         let pipeline: MTLComputePipelineState
         do {
             pipeline = try device.makeComputePipelineState(function: function)
@@ -138,12 +139,13 @@ struct RIPEMD160 {
             print("Sample[\(i)] -> \(hex)")
         }
         
-        // Optional: verify against CPU reference for selected messages
-        // (You may integrate a CPU RIPEMD-160 implementation if you want a correctness check.)
+
         
         // Example of printing a single RIPEMD-160 for a human string padded to 32 bytes
         let exampleData = dataFromStringFixed32("abc") // padded to 32 bytes
         let exampleOffset = 0 // if you want to place at index 0
+        
+        print("RES: \(exampleData.hex)")
         // (This example program uses prepared deterministic random messages; to test known values,
         // craft the messagesData such that message 0 equals exampleData, then rerun.)
         

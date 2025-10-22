@@ -4,17 +4,12 @@ import Metal
 
 struct SHA256gpu {
     static func run(on device: MTLDevice, iterations: Int) {
-        print("Running SHA-256 benchmark...")
         
-        // === Configuration ===
-        let maxMessages = 1_000_000 // not used directly — dynamic
-        let device = MTLCreateSystemDefaultDevice()!
-        print("Using device: \(device.name)")
+       
         
-        guard let library = try? device.makeDefaultLibrary(bundle: .main) else {
-            // Fallback: try to load library from the .metal file via source
-            fatalError("Failed to make default library. If you run from command line, add the .metal file to a compiled target or use Xcode.")
-        }
+        
+        var library: MTLLibrary! = try? device.makeDefaultLibrary(bundle: Bundle.module)
+        
         
         // If you prefer to compile shader from source at runtime, you can use device.makeLibrary(source:options:).
         // This example assumes SHA256.metal is compiled into app bundle (add file to Xcode target).
