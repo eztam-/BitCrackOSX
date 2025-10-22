@@ -16,7 +16,7 @@ struct BitCrackOSX {
 
         
         print("Starting \(ITERATIONS) iterations benchmarks on GPU: \(device.name)\n")
-
+        let clock = ContinuousClock()
         //------------------------
         // RIPEMD160 benchmark
         //------------------------
