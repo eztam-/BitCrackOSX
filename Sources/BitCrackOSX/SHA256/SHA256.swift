@@ -2,28 +2,35 @@ import Foundation
 import Metal
 
 
-struct SHA256gpu {
-    static func run(on device: MTLDevice, iterations: Int) {
-        
-       
-        
-        
-        var library: MTLLibrary! = try? device.makeDefaultLibrary(bundle: Bundle.module)
+class SHA256gpu {
+    
+    let function : MTLFunction
+    let pipeline: MTLComputePipelineState
+    let device: MTLDevice
+    
+    init(on device: MTLDevice){
+        self.device = device
+        let library: MTLLibrary! = try? device.makeDefaultLibrary(bundle: Bundle.module)
         
         
         // If you prefer to compile shader from source at runtime, you can use device.makeLibrary(source:options:).
         // This example assumes SHA256.metal is compiled into app bundle (add file to Xcode target).
         
-        guard let function = library.makeFunction(name: "sha256_batch_kernel") else {
-            fatalError("Failed to load function sha256_batch_kernel from library")
-        }
+        self.function = library.makeFunction(name: "sha256_batch_kernel")!
         
-        let pipeline: MTLComputePipelineState
         do {
-            pipeline = try device.makeComputePipelineState(function: function)
+            self.pipeline = try device.makeComputePipelineState(function: function)
         } catch {
             fatalError("Failed to create pipeline state: \(error)")
         }
+        
+    }
+    
+    func run(batchOfData: [UInt256]) {
+        
+       
+    
+        
         let commandQueue = device.makeCommandQueue()!
         
         // Helper: pack several messages into a single byte buffer and meta array
@@ -63,14 +70,18 @@ struct SHA256gpu {
         
         
         // Example usage: hash some strings
-        var testStrings = [String]()
+        //var testStrings = [String]()
+        
+        
+        /*
         let range = ClosedRange(uncheckedBounds: (lower: 0, upper: iterations))
         for item in range {
             testStrings.append("Some text \(item)")
             //let data = Data("Some text \(item)".utf8)
         }
-        let messages = testStrings.map { Data($0.utf8) }
-            
+         */
+        let messages = batchOfData.map { Data($0.data.hex.utf8) }
+       
             
         let (messageBytes, metas) = packMessages(messages)
         
@@ -116,7 +127,7 @@ struct SHA256gpu {
         print(String(format: "SHA256 on GPU took: %.4f s", end - start))
         
         // Read results
-        /*
+        
         let outPtr = outBuffer.contents().assumingMemoryBound(to: UInt32.self)
         for i in 0..<metas.count {
             var words: [UInt32] = []
@@ -125,9 +136,9 @@ struct SHA256gpu {
                 words.append(w)
             }
             let hex = hashWordsToHex(words)
-            //print("Message[\(i)] '\(testStrings[i])' -> \(hex)")
+            print("Message[\(i)] '\(batchOfData[i])' -> SHA256: \(hex)")
         }
-         */
+         
         
         
     }
