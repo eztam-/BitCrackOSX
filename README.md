@@ -10,3 +10,7 @@ The CPU handles:
 * Maintaining and querying the Bloom filter, which stores the target addresses (or their hash160 values).
 * Checking candidate hashes returned from the GPU against the Bloom filter to quickly discard non-matching results.
 * False positive results from the bloomfilter will be checked against the blockchain (Can we configure the bloomfilter such that the probability is so low, that we don't need that? How is this done in BitCrack?)
+
+
+
+

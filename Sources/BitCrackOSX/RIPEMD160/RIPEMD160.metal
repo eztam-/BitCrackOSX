@@ -5,7 +5,7 @@ using namespace metal;
   RIPEMD-160 (single-block, fixed-32-byte messages) — Metal kernel.
 
   Assumptions & design:
-  - Each message is exactly 32 bytes long (no variable-length support).
+  - Each message is exactly 32 bytes long (big-endian) (no variable-length support).
     The kernel pads each message into one 64-byte block (32 bytes message +
     0x80 padding byte + zeros + 8-byte little-endian bit-length). For 32 bytes,
     bit-length = 32 * 8 = 256 (0x00000100).
@@ -80,7 +80,7 @@ struct NumMessages {
 };
 
 // Kernel: one thread per fixed-32-byte message.
-// Input buffer layout: messages are contiguous blocks of exactly 32 bytes each.
+// Input buffer layout: messages are contiguous blocks of exactly 32 bytes each in big-endian
 // Output: outWords[gid*5 + 0..4] = resulting 5 uint words for that message.
 kernel void ripemd160_fixed32_kernel(
     const device uchar *       messages        [[ buffer(0) ]],
@@ -131,14 +131,16 @@ kernel void ripemd160_fixed32_kernel(
     // compute message base offset (32 bytes per message)
     uint base = gid * 32u;
 
-    // Read 8 words (little-endian pack)
+    // Read 8 words (big-endian pack)
     for (uint w = 0; w < 8u; ++w) {
         uint b0 = (uint)messages[base + w*4u + 0u];
         uint b1 = (uint)messages[base + w*4u + 1u];
         uint b2 = (uint)messages[base + w*4u + 2u];
         uint b3 = (uint)messages[base + w*4u + 3u];
-        X[w] = (b0) | (b1 << 8u) | (b2 << 16u) | (b3 << 24u);
+        X[w] = (b0 << 24u) | (b1 << 16u) | (b2 << 8u) | (b3); // big-endian
+        // X[w] = (b0) | (b1 << 8u) | (b2 << 16u) | (b3 << 24u); // little-endian
     }
+     
     // padding and length (fixed for 32-byte messages)
     X[8]  = 0x00000080u;
     X[9]  = 0u;

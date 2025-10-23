@@ -44,6 +44,7 @@ struct UInt256: Equatable, Hashable, Comparable, CustomStringConvertible {
         precondition(words.count == 8, "UInt256 requires exactly 8 words")
         self.words = words
     }
+
     
     init(hexString: String) {
         var hex = hexString
