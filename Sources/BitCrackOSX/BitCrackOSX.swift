@@ -11,20 +11,7 @@ let ITERATIONS = 10000
 
 @main
 struct BitCrackOSX {
-    fileprivate static func printSha256Output(_ BATCH_SIZE: Int, _ outPtr: UnsafeMutablePointer<UInt32>, _ hashWordsToHex: ([UInt32]) -> String, _ batch: inout [UInt256]) {
-        // Print output
-        for i in 0..<BATCH_SIZE {
-            var words: [UInt32] = []
-            for j in 0..<8 {
-                let w = outPtr[i*8 + j].bigEndian // convert to big-endian for correct hex order
-                words.append(w)
-                
-            }
-            let hex = hashWordsToHex(words)
-            print("Message[\(i)] Public Key: '\(batch[i])' -> SHA256: \(hex)")
-            
-        }
-    }
+   
     
     static func main() {
 
@@ -93,10 +80,28 @@ struct BitCrackOSX {
                 let ripemd160_input_data = Data(bytesNoCopy: outPtr, count: BATCH_SIZE*32, deallocator: .custom({ (ptr, size) in ptr.deallocate() }))
                 //let ripemd160_input_data = Data(bytes: outPtr, count: BATCH_SIZE*32) // Is an alternative, but copies the data and therefore is slower
                
-                RIPEMD160.run(inputData: ripemd160_input_data)
-            
+                let ripemd160_result = RIPEMD160.run(messagesData: ripemd160_input_data, messageCount: BATCH_SIZE)
+                printRipemd160Output(BATCH_SIZE, ripemd160_result, ripemdWordsToHex)
                 
                 
+                // Add version byte.
+                let versionByte: UInt8 = 0x00 // Mainnet: 0x00, Testnet: 0x6F
+                var versionedHashes = [Data()]
+                
+                for i in 0..<BATCH_SIZE {
+                    
+                    var versionedHash = Data()
+                    let ripemd160hash = Data(bytes: ripemd160_result, count: 5*4) // 5 UInt32 each consists of 4 bytes TODO: I think i need to provide an offset to ripemd160_result or not?
+                    versionedHash.append(ripemd160hash)
+                    versionedHashes.append(versionedHash)
+
+                }
+                
+                
+               
+                
+               
+
 
                 // TODO: Extend with version byte
                 // TODO: perform SHA-256 on the result
@@ -119,6 +124,23 @@ struct BitCrackOSX {
         print("Done")
 
 
+        // Convert 5 UInt32 words (as written by kernel) into canonical 20-byte hex string.
+        // The kernel produces words in host-endian uints (native endianness). RIPEMD-160 digest bytes are defined
+        // as the little-endian concatenation of the 5 32-bit words. So we take each UInt32 and write its bytes LE -> hex.
+        func ripemdWordsToHex(_ words: [UInt32]) -> String {
+            var bytes: [UInt8] = []
+            bytes.reserveCapacity(20)
+            for w in words {
+                let le = w.littleEndian
+                bytes.append(UInt8((le >> 0) & 0xff))
+                bytes.append(UInt8((le >> 8) & 0xff))
+                bytes.append(UInt8((le >> 16) & 0xff))
+                bytes.append(UInt8((le >> 24) & 0xff))
+            }
+            return bytes.map { String(format: "%02x", $0) }.joined()
+        }
+        
+        
         
         // Convert output words (uint32) to hex string (big-endian per SHA-256 spec)
          func hashWordsToHex(_ words: [UInt32]) -> String {
@@ -155,10 +177,39 @@ struct BitCrackOSX {
             //return beBytes.map { String(format: "%02x", $0) }.joined()
         }
         
+        
+
+        
+        
     }
     
     
-
+    fileprivate static func printSha256Output(_ BATCH_SIZE: Int, _ outPtr: UnsafeMutablePointer<UInt32>, _ hashWordsToHex: ([UInt32]) -> String, _ batch: inout [UInt256]) {
+        // Print output
+        for i in 0..<BATCH_SIZE {
+            var words: [UInt32] = []
+            for j in 0..<8 {
+                let w = outPtr[i*8 + j].bigEndian // convert to big-endian for correct hex order
+                words.append(w)
+                
+            }
+            let hex = hashWordsToHex(words)
+            print("Message[\(i)] Public Key: '\(batch[i])' -> SHA256: \(hex)")
+            
+        }
+    }
+    
+    fileprivate static func printRipemd160Output(_ BATCH_SIZE: Int, _ ripemd160_result: UnsafeMutablePointer<UInt32>, _ ripemdWordsToHex: ([UInt32]) -> String) {
+        for i in 0..<BATCH_SIZE {
+            let base = i * 5
+            var words: [UInt32] = []
+            for j in 0..<5 {
+                words.append(ripemd160_result[base + j])
+            }
+            let hex = ripemdWordsToHex(words)
+            print("Sample[\(i)] -> RIPEMD: \(hex)")
+        }
+    }
 }
 
 

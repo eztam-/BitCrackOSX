@@ -11,7 +11,7 @@ using namespace metal;
 
 // Maximum allowed message length in bytes per-message
 // Keep reasonable; increase if you need longer messages.
-#define MAX_MSG_BYTES 4096  // TODO reduce this to the exact number of bytes
+#define MAX_MSG_BYTES 1024  // TODO: reduce this to the exact number of bytes but be aware this includes the meta
 
 // SHA-256 constants
 constant uint K[64] = {

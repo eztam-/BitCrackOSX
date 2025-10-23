@@ -93,7 +93,6 @@ class SHA256gpu {
         let end = CFAbsoluteTimeGetCurrent()
         print(String(format: "SHA256 on GPU took: %.4f s", end - start))
         
-      
         // Read results
         return outBuffer.contents().assumingMemoryBound(to: UInt32.self)
     }

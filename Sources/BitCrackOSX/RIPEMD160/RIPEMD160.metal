@@ -261,11 +261,14 @@ kernel void ripemd160_fixed32_kernel(
 
     // Write output words (host can convert to bytes / hex).
     uint dst = gid * 5u;
+    
+    
     outWords[dst + 0u] = h0;
     outWords[dst + 1u] = h1;
     outWords[dst + 2u] = h2;
     outWords[dst + 3u] = h3;
     outWords[dst + 4u] = h4;
+    
 
     // Undef macros
     #undef LSTEP

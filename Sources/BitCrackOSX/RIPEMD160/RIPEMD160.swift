@@ -4,8 +4,6 @@ import Dispatch
 
 class RIPEMD160 {
     
-    
-    
     let pipeline: MTLComputePipelineState
     let device: MTLDevice
     let commandQueue: MTLCommandQueue
@@ -30,13 +28,7 @@ class RIPEMD160 {
     }
     
     
-    
-    
-    
-    
-    
-    func run(inputData: Data) {
-        print("Running RIPEMD-160 benchmark...")
+    func run(messagesData: Data, messageCount: Int) -> UnsafeMutablePointer<UInt32> {
         
         // Host for ripemd160_fixed32_kernel
         // - Packs N messages, each exactly 32 bytes (if you have shorter strings, left-pad or right-pad them on the host)
@@ -44,7 +36,7 @@ class RIPEMD160 {
         // - Converts words to canonical RIPEMD-160 hex (little-endian word order).
         // - Measures GPU execution time for benchmarking.
         
-        print("Using Metal device:", device.name)
+        print("Running RIPEMD-160 using Metal device:", device.name)
       
         let queue = device.makeCommandQueue()!
         
@@ -53,12 +45,7 @@ class RIPEMD160 {
         //var messagesData = UInt256(hexString: "22a3c85609d4d626bc01cd87df71d01f6bb9a62efce214d37b0d4faf4f3ebb74").data  // Str Hex values length 32 This is what I need but from bytes
         //messagesData.append(Data("xyzaaaaaaaaaaaaaaaaaaaaaaaaaaaaa".utf8)) // other example with Direct String hashing (length 32)
         ////let messagesData = prepareMessages(count: messageCount)
-        
-        let messageCount = 10
-        let messagesData = inputData
-        
-        
-        
+
         
         // Create Metal buffers
         let messagesBuffer = device.makeBuffer(bytes: (messagesData as NSData).bytes, length: messagesData.count, options: [])!
@@ -97,42 +84,13 @@ class RIPEMD160 {
         let hashesPerSec = Double(messageCount) / elapsed
         print(String(format: "GPU elapsed: %.4f s — %0.2f MB processed — %.0f hashes/s", elapsed, mbProcessed, hashesPerSec))
         
-        // Read back a few sample results for verification
-        let outPtr = outBuffer.contents().bindMemory(to: UInt32.self, capacity: outWordCount)
-        for i in 0..<messageCount {
-            let base = i * 5
-            var words: [UInt32] = []
-            for j in 0..<5 {
-                words.append(outPtr[base + j])
-            }
-            let hex = ripemdWordsToHex(words)
-            print("Sample[\(i)] -> RIPEMD: \(hex)")
-        }
         
+        return outBuffer.contents().bindMemory(to: UInt32.self, capacity: outWordCount)
 
-        // (This example program uses prepared deterministic random messages; to test known values,
-        // craft the messagesData such that message 0 equals exampleData, then rerun.)
-        
-        print("Done.")
     }
     
     
-    // Convert 5 UInt32 words (as written by kernel) into canonical 20-byte hex string.
-    // The kernel produces words in host-endian uints (native endianness). RIPEMD-160 digest bytes are defined
-    // as the little-endian concatenation of the 5 32-bit words. So we take each UInt32 and write its bytes LE -> hex.
-    func ripemdWordsToHex(_ words: [UInt32]) -> String {
-        var bytes: [UInt8] = []
-        bytes.reserveCapacity(20)
-        for w in words {
-            let le = w.littleEndian
-            bytes.append(UInt8((le >> 0) & 0xff))
-            bytes.append(UInt8((le >> 8) & 0xff))
-            bytes.append(UInt8((le >> 16) & 0xff))
-            bytes.append(UInt8((le >> 24) & 0xff))
-        }
-        return bytes.map { String(format: "%02x", $0) }.joined()
-    }
-    
+   
   
     
 }
