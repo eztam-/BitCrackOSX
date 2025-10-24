@@ -36,7 +36,7 @@ class RIPEMD160 {
         // - Converts words to canonical RIPEMD-160 hex (little-endian word order).
         // - Measures GPU execution time for benchmarking.
         
-        print("Running RIPEMD-160 using Metal device:", device.name)
+        //print("Running RIPEMD-160 using Metal device:", device.name)
       
         let queue = device.makeCommandQueue()!
         
@@ -75,14 +75,14 @@ class RIPEMD160 {
         encoder.dispatchThreads(threadsPerGrid, threadsPerThreadgroup: threadsPerThreadgroup)
         encoder.endEncoding()
         
-        let start = CFAbsoluteTimeGetCurrent()
+       // let start = CFAbsoluteTimeGetCurrent()
         cmdBuf.commit()
         cmdBuf.waitUntilCompleted()
-        let end = CFAbsoluteTimeGetCurrent()
-        let elapsed = end - start
-        let mbProcessed = Double(messageCount * 32) / (1024.0*1024.0)
-        let hashesPerSec = Double(messageCount) / elapsed
-        print(String(format: "GPU elapsed: %.4f s — %0.2f MB processed — %.0f hashes/s", elapsed, mbProcessed, hashesPerSec))
+       // let end = CFAbsoluteTimeGetCurrent()
+       // let elapsed = end - start
+       // let mbProcessed = Double(messageCount * 32) / (1024.0*1024.0)
+      //  let hashesPerSec = Double(messageCount) / elapsed
+        //print(String(format: "GPU elapsed: %.4f s — %0.2f MB processed — %.0f hashes/s", elapsed, mbProcessed, hashesPerSec))
         
         
         return outBuffer.contents().bindMemory(to: UInt32.self, capacity: outWordCount)

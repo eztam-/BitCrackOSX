@@ -33,9 +33,9 @@ struct BitCrackOSX {
         
         // Iterate through a range of private keys
         let start = UInt256(hexString: "0000000000000000000000000000000000000000000000000000000000000001")
-        let end = UInt256(hexString: "000000000000000000000000000000000000000000000000000000000000000A")
+        let end = UInt256(hexString: "000000000000000000000000000000000000000000000000000000000001000A")
       
-    
+
         // Generate keys in batches
         print("\n=== Batch Generation ===")
         var batch: [Data] = []
@@ -50,23 +50,26 @@ struct BitCrackOSX {
             // Public key
             // TODO: add option to add uncompressed keys
             let pubKey = privateKeyCompressed.publicKey.dataRepresentation
-            print("Private Key Compressed: = \(privateKeyCompressed.dataRepresentation.hex) Pub Key:  \(pubKey.hex)")
+            //print("Private Key Compressed: = \(privateKeyCompressed.dataRepresentation.hex) Pub Key:  \(pubKey.hex)")
             batch.append(pubKey)
             //print("  Public Key:  \(String(bytes: privateKey.publicKey.dataRepresentation))")
             //print("  Public Key Compressed:  \(String(bytes: privateKeyCompressed.publicKey.dataRepresentation))")
            
             // Send data batch wise to the GPU for SHA256 hashing
-            let BATCH_SIZE = 10
+            let BATCH_SIZE = 100
             if batch.count == BATCH_SIZE {
+                let startTime = CFAbsoluteTimeGetCurrent()
+
+                
                 // Calculate SHA256 for the batch of public keys on the GPU
                 let outPtr = SHA256.run(batchOfData: batch)
-                printSha256Output(BATCH_SIZE, outPtr)
+                //printSha256Output(BATCH_SIZE, outPtr)
              
                 let ripemd160_input_data = Data(bytesNoCopy: outPtr, count: BATCH_SIZE*32, deallocator: .custom({ (ptr, size) in ptr.deallocate() }))
                 //let ripemd160_input_data = Data(bytes: outPtr, count: BATCH_SIZE*32) // Is an alternative, but copies the data and therefore is slower
                
                 let ripemd160_result = RIPEMD160.run(messagesData: ripemd160_input_data, messageCount: BATCH_SIZE)
-                printRipemd160Output(BATCH_SIZE, ripemd160_result)
+                //printRipemd160Output(BATCH_SIZE, ripemd160_result)
                 
                 
                 // TODO: This is not very performant. Its better adding it in the metal file of ripemd160 at the end
@@ -78,13 +81,13 @@ struct BitCrackOSX {
                 
                 // Calculate SHA256 for the RIPEMD160 hashes + version byte
                 let sha256_out2 = SHA256.run(batchOfData: versionedRipemd160)
-                printSha256Output(BATCH_SIZE, sha256_out2)
+                //printSha256Output(BATCH_SIZE, sha256_out2)
                                 
                 let sha256_out2_data = convertPointerToDataArray2(ptr:sha256_out2, count: 8*BATCH_SIZE, chunkSize: 8)
-                print(sha256_out2_data[0].hex)
+                //print(sha256_out2_data[0].hex)
                 // Calculate a sechond SHA256 on the previous SHA256 hash
                 let sha256_out3 = SHA256.run(batchOfData: sha256_out2_data)
-                printSha256Output(BATCH_SIZE, sha256_out3)
+                //printSha256Output(BATCH_SIZE, sha256_out3)
                
                 
                 // TODO:
@@ -95,22 +98,34 @@ struct BitCrackOSX {
                 //for i in stride(from: 0, to: BATCH_SIZE*8, by: 8) {
                 for i in 0..<BATCH_SIZE {
                     let checksum = sha256_out3[i*8]
-                    print(String(format: "Checksum: %08X", checksum.bigEndian))
+                    //print(String(format: "Checksum: %08X", checksum.bigEndian))
                     
                     var bitcoinAddress = Data(versionedRipemd160[i])
               
                     bitcoinAddress.append(withUnsafeBytes(of: checksum) { Data($0) })
                     let bitcoinAddressStr = Base58.encode(bitcoinAddress)
-                    print("Bitcoin Address: \(bitcoinAddressStr)")
+                    //print("Bitcoin Address: \(bitcoinAddressStr)")
                 }
                 
         
-                
+                let endTime = CFAbsoluteTimeGetCurrent()
+                let elapsed = endTime - startTime
+                //let mbProcessed = Double(BATCH_SIZE * 32) / (1024.0*1024.0)
+                let hashesPerSec = Double(BATCH_SIZE) / elapsed
+                print(String(format: "GPU elapsed: %.4f s — %.0f hashes/s", elapsed, hashesPerSec))
                 
                 /*
                 
                 
-                sha256_out3
+                 let start = CFAbsoluteTimeGetCurrent()
+                 cmdBuf.commit()
+                 cmdBuf.waitUntilCompleted()
+                 let end = CFAbsoluteTimeGetCurrent()
+                 let elapsed = end - start
+                 let mbProcessed = Double(messageCount * 32) / (1024.0*1024.0)
+                 let hashesPerSec = Double(messageCount) / elapsed
+                 print(String(format: "GPU elapsed: %.4f s — %0.2f MB processed — %.0f hashes/s", elapsed, mbProcessed, hashesPerSec))
+                 sha256_out3
                 
             
                  */
@@ -123,7 +138,6 @@ struct BitCrackOSX {
                 
                 
                 batch = []  //clearing batch
-                print("Batch complete ############################")
             }
             
  
