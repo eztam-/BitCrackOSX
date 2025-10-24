@@ -36,8 +36,6 @@ class SHA256gpu {
     func run(batchOfData: [Data]) -> UnsafeMutablePointer<UInt32> {
 
         
-       
-            
         let (messageBytes, metas) = packMessages(batchOfData)
         
         // Create buffers
@@ -85,7 +83,8 @@ class SHA256gpu {
         return outBuffer.contents().assumingMemoryBound(to: UInt32.self)
     }
     
-    
+    // TODO: the Sha256.metal implementation has support for different input length per nmessage. We dont need taht. Instread we can define the input length once per batch which is more performant. By that we can also remove this MsgMeta completely.
+    // Length can certainly be removed but not sure about offest, because of the multi thread computation
     private func packMessages(_ messages: [Data]) -> (Data, [MsgMeta]) {
         var raw = Data()
         var metas: [MsgMeta] = []

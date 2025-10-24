@@ -14,3 +14,10 @@ The CPU handles:
 
 
 
+Tmp notes:
+
+host-endian == little-endian
+
+host-endian --> SHA256    --> big-endian
+big-endian  --> RIPEMD160 --> host endian
+

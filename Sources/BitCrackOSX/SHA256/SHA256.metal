@@ -11,7 +11,13 @@ using namespace metal;
 
 // Maximum allowed message length in bytes per-message
 // Keep reasonable; increase if you need longer messages.
-#define MAX_MSG_BYTES 1024  // TODO: reduce this to the exact number of bytes but be aware this includes the meta
+#define MAX_MSG_BYTES 1024  // TODO: Better remove this check? 
+
+// For conversion to little-endian
+#define BYTESWAP32(x) (((x & 0x000000FFu) << 24u) | \
+                       ((x & 0x0000FF00u) << 8u)  | \
+                       ((x & 0x00FF0000u) >> 8u)  | \
+                       ((x & 0xFF000000u) >> 24u))
 
 // SHA-256 constants
 constant uint K[64] = {
@@ -174,4 +180,16 @@ kernel void sha256_batch_kernel(
     outHashes[dstIndex + 5u] = f0;
     outHashes[dstIndex + 6u] = g0;
     outHashes[dstIndex + 7u] = h0;
+    
+    // little-endian
+    /*
+    outHashes[dstIndex + 0u] = BYTESWAP32(a0);
+    outHashes[dstIndex + 1u] = BYTESWAP32(b0);
+    outHashes[dstIndex + 2u] = BYTESWAP32(c0);
+    outHashes[dstIndex + 3u] = BYTESWAP32(d0);
+    outHashes[dstIndex + 4u] = BYTESWAP32(e0);
+    outHashes[dstIndex + 5u] = BYTESWAP32(f0);
+    outHashes[dstIndex + 6u] = BYTESWAP32(g0);
+    outHashes[dstIndex + 7u] = BYTESWAP32(h0);
+     */
 }

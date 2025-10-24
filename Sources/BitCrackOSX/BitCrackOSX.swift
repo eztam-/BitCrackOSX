@@ -1,7 +1,7 @@
 import Foundation
 import P256K
 import Metal
-import Foundation
+
 
 let device = MTLCreateSystemDefaultDevice()!
 let ITERATIONS = 10000
@@ -19,22 +19,7 @@ struct BitCrackOSX {
         let RIPEMD160 = RIPEMD160(on: device)
         
         print("Starting \(ITERATIONS) iterations benchmarks on GPU: \(device.name)\n")
-        //let clock = ContinuousClock()
-        //------------------------
-        // RIPEMD160 benchmark
-        //------------------------
-        
-        //RIPEMD160.run()
-        //exit(0);
-        
-        //------------------------
-        // SHA256 Benchmark
-        //------------------------
-        /*let result = clock.measure{
-            SHA256gpu.run(on: device, iterations: ITERATIONS)
-        }
-        print("\nAll benchmarks finished after: \(result)s")
- */
+
         
         
         //------------------------
@@ -75,7 +60,7 @@ struct BitCrackOSX {
             if batch.count == BATCH_SIZE {
                 // Calculate SHA256 for the batch of public keys on the GPU
                 let outPtr = SHA256.run(batchOfData: batch)
-                printSha256Output(BATCH_SIZE, outPtr, &batch)
+                printSha256Output(BATCH_SIZE, outPtr)
              
                 let ripemd160_input_data = Data(bytesNoCopy: outPtr, count: BATCH_SIZE*32, deallocator: .custom({ (ptr, size) in ptr.deallocate() }))
                 //let ripemd160_input_data = Data(bytes: outPtr, count: BATCH_SIZE*32) // Is an alternative, but copies the data and therefore is slower
@@ -84,25 +69,47 @@ struct BitCrackOSX {
                 printRipemd160Output(BATCH_SIZE, ripemd160_result)
                 
                 
-                // Add version byte.
-                let versionByte: UInt8 = 0x00 // Mainnet: 0x00, Testnet: 0x6F
-                var versionedHashes = [Data()]
-                
-                for i in 0..<BATCH_SIZE {
-                    
-                    var versionedHash = Data()
-                    let ripemd160hash = Data(bytes: ripemd160_result, count: 5*4) // 5 UInt32 each consists of 4 bytes TODO: I think i need to provide an offset to ripemd160_result or not?
-                    versionedHash.append(ripemd160hash)
-                    versionedHashes.append(versionedHash)
-
+                // TODO: This is not very performant. Its better adding it in the metal file of ripemd160 at the end
+                var versionedRipemd160 = convertPointerToDataArray(ptr:ripemd160_result, count: 5*BATCH_SIZE, dataItemLength: 5)
+                for i in 0..<BATCH_SIZE{
+                    versionedRipemd160[i].insert( 0x00, at: 0) // 0x00 Mainnet
                 }
                 
                 
+                // Calculate SHA256 for the RIPEMD160 hashes + version byte
+                let sha256_out2 = SHA256.run(batchOfData: versionedRipemd160)
+                printSha256Output(BATCH_SIZE, sha256_out2)
+                
+                // Till here it works fine. The next Sha256 is wrong because big/little endian mismatch
+                
+
+                let sha256_out2_data = convertPointerToDataArray2(ptr:sha256_out2, count: 8*BATCH_SIZE, chunkSize: 8)
+                print(sha256_out2_data[0].hex)
+                // Calculate SHA256 on the results a second time
+                let sha256_out3 = SHA256.run(batchOfData: sha256_out2_data)
+                printSha256Output(BATCH_SIZE, sha256_out3)
                
                 
-               
-
-
+                // TODO:
+                // - Instead of BASE58 encoding each address, we should rather BSAE58 decode the addressess from the file and put them decoded in the bloomfilter. That way we save BASE58 during bruteforce entirely
+                // - To improve pervormance even more, we could even skip the Checksum part including double SHA256 and put addresses with removed checksum into the bloomfilter. Only on a match we can still check the full address
+                
+                /*
+                for i in 0..<BATCH_SIZE {
+                    let checksumBytes = sha256_out3[i*8] // Take the first 4 bytes from the double SHA256 result which is the checksum
+                    ripemd160_result[i]
+                    var words: [UInt32] = []
+                    for j in 0..<8 {
+                        let w = outPtr[i*8 + j].bigEndian // convert to big-endian for correct hex order
+                        words.append(w)
+                        
+                    }
+                
+                sha256_out3
+                
+                let bitcoinAddress = Base58.encode(binaryAddress)
+                print("Bitcoin Address: \(bitcoinAddress)")
+                 */
                 // TODO: Extend with version byte
                 // TODO: perform SHA-256 on the result
                 // TODO: Perform SHA-256 again (note the first four bytes of the result are referred to as the “check sum”)
@@ -123,6 +130,52 @@ struct BitCrackOSX {
  
     }
     
+    
+  
+    
+    /// Converts a pointer to UInt32 values into an array of `Data` objects.
+    /// Each `Data` chunk will contain `chunkSize` UInt32 values (default: 4).
+    fileprivate static func convertPointerToDataArray2(
+        ptr: UnsafeMutablePointer<UInt32>,
+        count: Int,
+        chunkSize: Int
+    ) -> [Data] {
+        precondition(chunkSize > 0, "chunkSize must be greater than zero")
+        precondition(count % chunkSize == 0, "count must be a multiple of chunkSize")
+        
+        var result: [Data] = []
+        result.reserveCapacity(count / chunkSize)
+        
+        for i in stride(from: 0, to: count, by: chunkSize) {
+            let chunkPtr = ptr.advanced(by: i)
+            let data = Data(bytes: chunkPtr, count: chunkSize * MemoryLayout<UInt32>.size)
+            result.append(data)
+        }
+        
+        return result
+    }
+    
+    fileprivate static func convertPointerToDataArray(ptr: UnsafeMutablePointer<UInt32>, count: Int, dataItemLength: Int) -> [Data] {
+        
+        
+        var result: [Data] = []
+        result.reserveCapacity(count / dataItemLength)
+        
+        for i in stride(from: 0, to: count, by: dataItemLength) {
+            // Create a raw pointer for the dateItemLength UInt32 words
+            let chunkPtr = ptr.advanced(by: i)
+            
+            // Create Data directly from memory (no copy)
+            let data = Data(bytes: chunkPtr, count: dataItemLength * MemoryLayout<UInt32>.size)
+            
+            result.append(data)
+        }
+        
+        return result
+    }
+    
+    
+
     
     // Convert 5 UInt32 words (as written by kernel) into canonical 20-byte hex string.
     // The kernel produces words in host-endian uints (native endianness). RIPEMD-160 digest bytes are defined
@@ -176,7 +229,7 @@ struct BitCrackOSX {
     }
     
     
-    fileprivate static func printSha256Output(_ BATCH_SIZE: Int, _ outPtr: UnsafeMutablePointer<UInt32>, _ batch: inout [Data]) {
+    fileprivate static func printSha256Output(_ BATCH_SIZE: Int, _ outPtr: UnsafeMutablePointer<UInt32>) {
         // Print output
         for i in 0..<BATCH_SIZE {
             var words: [UInt32] = []
@@ -186,7 +239,7 @@ struct BitCrackOSX {
                 
             }
             let hex = hashWordsToHex(words)
-            print("Message[\(i)] Public Key: '\(batch[i].hex)' -> SHA256: \(hex)")
+            print("Message[\(i)] -> SHA256: \(hex)")
             
         }
     }

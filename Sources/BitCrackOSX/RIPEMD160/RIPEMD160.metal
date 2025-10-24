@@ -3,8 +3,7 @@ using namespace metal;
 
 /*
   RIPEMD-160 (single-block, fixed-32-byte messages) — Metal kernel.
-
-  Assumptions & design:
+å
   - Each message is exactly 32 bytes long (big-endian) (no variable-length support).
     The kernel pads each message into one 64-byte block (32 bytes message +
     0x80 padding byte + zeros + 8-byte little-endian bit-length). For 32 bytes,
@@ -138,7 +137,7 @@ kernel void ripemd160_fixed32_kernel(
         uint b2 = (uint)messages[base + w*4u + 2u];
         uint b3 = (uint)messages[base + w*4u + 3u];
         X[w] = (b0 << 24u) | (b1 << 16u) | (b2 << 8u) | (b3); // big-endian
-        // X[w] = (b0) | (b1 << 8u) | (b2 << 16u) | (b3 << 24u); // little-endian
+        //X[w] = (b0) | (b1 << 8u) | (b2 << 16u) | (b3 << 24u); // little-endian
     }
      
     // padding and length (fixed for 32-byte messages)
@@ -262,12 +261,13 @@ kernel void ripemd160_fixed32_kernel(
     // Write output words (host can convert to bytes / hex).
     uint dst = gid * 5u;
     
-    
     outWords[dst + 0u] = h0;
     outWords[dst + 1u] = h1;
     outWords[dst + 2u] = h2;
     outWords[dst + 3u] = h3;
     outWords[dst + 4u] = h4;
+    
+
     
 
     // Undef macros
