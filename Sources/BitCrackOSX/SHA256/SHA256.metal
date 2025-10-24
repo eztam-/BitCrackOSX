@@ -172,6 +172,9 @@ kernel void sha256_batch_kernel(
 
     // write final hash to out buffer: 8 uints per message
     uint dstIndex = gid * 8u;
+    
+    // big-endian
+    /*
     outHashes[dstIndex + 0u] = a0;
     outHashes[dstIndex + 1u] = b0;
     outHashes[dstIndex + 2u] = c0;
@@ -180,9 +183,9 @@ kernel void sha256_batch_kernel(
     outHashes[dstIndex + 5u] = f0;
     outHashes[dstIndex + 6u] = g0;
     outHashes[dstIndex + 7u] = h0;
-    
+    */
+     
     // little-endian
-    /*
     outHashes[dstIndex + 0u] = BYTESWAP32(a0);
     outHashes[dstIndex + 1u] = BYTESWAP32(b0);
     outHashes[dstIndex + 2u] = BYTESWAP32(c0);
@@ -191,5 +194,5 @@ kernel void sha256_batch_kernel(
     outHashes[dstIndex + 5u] = BYTESWAP32(f0);
     outHashes[dstIndex + 6u] = BYTESWAP32(g0);
     outHashes[dstIndex + 7u] = BYTESWAP32(h0);
-     */
+
 }

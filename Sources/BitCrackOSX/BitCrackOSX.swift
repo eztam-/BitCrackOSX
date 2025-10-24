@@ -79,13 +79,10 @@ struct BitCrackOSX {
                 // Calculate SHA256 for the RIPEMD160 hashes + version byte
                 let sha256_out2 = SHA256.run(batchOfData: versionedRipemd160)
                 printSha256Output(BATCH_SIZE, sha256_out2)
-                
-                // Till here it works fine. The next Sha256 is wrong because big/little endian mismatch
-                
-
+                                
                 let sha256_out2_data = convertPointerToDataArray2(ptr:sha256_out2, count: 8*BATCH_SIZE, chunkSize: 8)
                 print(sha256_out2_data[0].hex)
-                // Calculate SHA256 on the results a second time
+                // Calculate a sechond SHA256 on the previous SHA256 hash
                 let sha256_out3 = SHA256.run(batchOfData: sha256_out2_data)
                 printSha256Output(BATCH_SIZE, sha256_out3)
                
@@ -94,21 +91,28 @@ struct BitCrackOSX {
                 // - Instead of BASE58 encoding each address, we should rather BSAE58 decode the addressess from the file and put them decoded in the bloomfilter. That way we save BASE58 during bruteforce entirely
                 // - To improve pervormance even more, we could even skip the Checksum part including double SHA256 and put addresses with removed checksum into the bloomfilter. Only on a match we can still check the full address
                 
-                /*
+                
+                //for i in stride(from: 0, to: BATCH_SIZE*8, by: 8) {
                 for i in 0..<BATCH_SIZE {
-                    let checksumBytes = sha256_out3[i*8] // Take the first 4 bytes from the double SHA256 result which is the checksum
-                    ripemd160_result[i]
-                    var words: [UInt32] = []
-                    for j in 0..<8 {
-                        let w = outPtr[i*8 + j].bigEndian // convert to big-endian for correct hex order
-                        words.append(w)
-                        
-                    }
+                    let checksum = sha256_out3[i*8]
+                    print(String(format: "Checksum: %08X", checksum.bigEndian))
+                    
+                    var bitcoinAddress = Data(versionedRipemd160[i])
+              
+                    bitcoinAddress.append(withUnsafeBytes(of: checksum) { Data($0) })
+                    let bitcoinAddressStr = Base58.encode(bitcoinAddress)
+                    print("Bitcoin Address: \(bitcoinAddressStr)")
+                }
+                
+        
+                
+                
+                /*
+                
                 
                 sha256_out3
                 
-                let bitcoinAddress = Base58.encode(binaryAddress)
-                print("Bitcoin Address: \(bitcoinAddress)")
+            
                  */
                 // TODO: Extend with version byte
                 // TODO: perform SHA-256 on the result
@@ -199,7 +203,7 @@ struct BitCrackOSX {
         // SHA-256 words are stored as big-endian words in the algorithm; the kernel computed in uint (host little-endian).
         // We need to print each word as big-endian bytes in hex.
         let beBytes: [UInt8] = words.flatMap { w -> [UInt8] in
-            let be = w.bigEndian
+            let be = w // .bigendian
             return [
                 UInt8((be >> 24) & 0xff),
                 UInt8((be >> 16) & 0xff),

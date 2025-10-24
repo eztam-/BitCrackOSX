@@ -14,10 +14,12 @@ The CPU handles:
 
 
 
-Tmp notes:
+
+# Endians
 
 host-endian == little-endian
 
-host-endian --> SHA256    --> big-endian
-big-endian  --> RIPEMD160 --> host endian
+Input and output endiangs by shader:
+host-endian --> SHA256    --> host-endian
+host-endian --> RIPEMD160 --> host-endian
 
