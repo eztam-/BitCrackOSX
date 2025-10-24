@@ -33,24 +33,12 @@ class SHA256gpu {
         
     }
     
-    func run(batchOfData: [UInt256]) -> UnsafeMutablePointer<UInt32> {
+    func run(batchOfData: [Data]) -> UnsafeMutablePointer<UInt32> {
 
         
-        // Example usage: hash some strings
-        //var testStrings = [String]()
-        
-        
-        /*
-        let range = ClosedRange(uncheckedBounds: (lower: 0, upper: iterations))
-        for item in range {
-            testStrings.append("Some text \(item)")
-            //let data = Data("Some text \(item)".utf8)
-        }
-         */
-        let messages = batchOfData.map { Data($0.data.hex.utf8) }
        
             
-        let (messageBytes, metas) = packMessages(messages)
+        let (messageBytes, metas) = packMessages(batchOfData)
         
         // Create buffers
         let messageBuffer = device.makeBuffer(bytes: (messageBytes as NSData).bytes, length: messageBytes.count, options: [])!

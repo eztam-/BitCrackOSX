@@ -53,7 +53,7 @@ struct BitCrackOSX {
     
         // Generate keys in batches
         print("\n=== Batch Generation ===")
-        var batch: [UInt256] = []
+        var batch: [Data] = []
         let batchIterator = BitcoinPrivateKeyIterator(start: start, end: end)
 
         for privateKey: UInt256 in batchIterator {
@@ -66,8 +66,7 @@ struct BitCrackOSX {
             // TODO: add option to add uncompressed keys
             let pubKey = privateKeyCompressed.publicKey.dataRepresentation
             print("Private Key Compressed: = \(privateKeyCompressed.dataRepresentation.hex) Pub Key:  \(pubKey.hex)")
-            // TODO: use data dicectly wothout uint256
-            batch.append(UInt256(data: pubKey))
+            batch.append(pubKey)
             //print("  Public Key:  \(String(bytes: privateKey.publicKey.dataRepresentation))")
             //print("  Public Key Compressed:  \(String(bytes: privateKeyCompressed.publicKey.dataRepresentation))")
            
@@ -177,7 +176,7 @@ struct BitCrackOSX {
     }
     
     
-    fileprivate static func printSha256Output(_ BATCH_SIZE: Int, _ outPtr: UnsafeMutablePointer<UInt32>, _ batch: inout [UInt256]) {
+    fileprivate static func printSha256Output(_ BATCH_SIZE: Int, _ outPtr: UnsafeMutablePointer<UInt32>, _ batch: inout [Data]) {
         // Print output
         for i in 0..<BATCH_SIZE {
             var words: [UInt32] = []
@@ -187,7 +186,7 @@ struct BitCrackOSX {
                 
             }
             let hex = hashWordsToHex(words)
-            print("Message[\(i)] Public Key: '\(batch[i])' -> SHA256: \(hex)")
+            print("Message[\(i)] Public Key: '\(batch[i].hex)' -> SHA256: \(hex)")
             
         }
     }
