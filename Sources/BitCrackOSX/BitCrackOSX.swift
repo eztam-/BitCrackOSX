@@ -56,7 +56,7 @@ struct BitCrackOSX {
             //print("  Public Key Compressed:  \(String(bytes: privateKeyCompressed.publicKey.dataRepresentation))")
            
             // Send data batch wise to the GPU for SHA256 hashing
-            let BATCH_SIZE = 100
+            let BATCH_SIZE = 10000
             if batch.count == BATCH_SIZE {
                 let startTime = CFAbsoluteTimeGetCurrent()
 
@@ -143,7 +143,7 @@ struct BitCrackOSX {
  
         }
         
-        print("Generated \(batch.count) keys")
+        //print("Generated \(batch.count) keys")
 
  
     }
