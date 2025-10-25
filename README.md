@@ -13,6 +13,7 @@ The CPU handles:
 
 ### Address Types
 |Type|Address Type|Starts With|Address Format|Public Key Format|Supported|
+|----|------------|-----------|--------------|-----------------|---------|
 |Legacy|P2PKH — Pay-to-PubKey-Hash|1|Base58Check|Compresses or Uncompressed|Yes|
 |Legacy|P2SH — Pay-to-Script-Hash|3|Base58Check|Compresses or Uncompressed|TBD|
 |SegWit|P2WPKH — Pay-to-Witness-PubKey-Hash|bc1q|Bech32|Compressed|TBD|
@@ -21,7 +22,6 @@ The CPU handles:
 |Taproot|P2TR — Pay-to-Taproot|bc1p|Bech32m|TBC|No|
 
 ### Address Calculation from Private Key
-![Alt text](https://raw.githubusercontent.com/eztam-/BitCrackOSX/refs/heads/main/img/calc_by_address_types.drawio.svg)
 <img src="https://raw.githubusercontent.com/eztam-/BitCrackOSX/refs/heads/main/img/calc_by_address_types.drawio.svg">
 
 
