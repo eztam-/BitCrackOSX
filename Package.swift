@@ -4,7 +4,7 @@
 import PackageDescription
 
 let package = Package(
-    name: "BitCrackOSX",
+    name: "CryptoKeyFinder",
     platforms: [
         .macOS(.v26), // platform version
     ],
@@ -18,12 +18,12 @@ let package = Package(
         // Targets are the basic building blocks of a package, defining a module or a test suite.
         // Targets can depend on other targets in this package and products from dependencies.
         .executableTarget(
-            name: "BitCrackOSX",
+            name: "CryptoKeyFinder",
             dependencies: [
                 .product(name: "P256K", package: "swift-secp256k1")
             ],
             path: "Sources",
-            resources: [.process("BitCrackOSX/SHA256/SHA256.metal")],
+            resources: [.process("CryptoKeyFinder/SHA256/SHA256.metal")],
         ),
     ]
 )

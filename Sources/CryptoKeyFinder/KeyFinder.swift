@@ -10,18 +10,19 @@ let ITERATIONS = 10000
 
 
 @main
-struct BitCrackOSX {
+struct KeyFinder {
    
     
     static func main() {
-        BitCrackOSX().run()
+        print("hello")
+        KeyFinder().run()
     }
     
     func run(){
         let SHA256 = SHA256gpu(on: device)
         let RIPEMD160 = RIPEMD160(on: device)
         
-        print("Starting \(ITERATIONS) iterations benchmarks on GPU: \(device.name)\n")
+        print("Starting on GPU: \(device.name)\n")
 
         let bloomFilter = AddressFileLoader.load(path: "/Users/x/Downloads/bitcoin_short.tsv")
         
