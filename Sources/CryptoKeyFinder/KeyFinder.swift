@@ -24,8 +24,24 @@ struct KeyFinder {
         
         print("Starting on GPU: \(device.name)\n")
 
-        let bloomFilter = AddressFileLoader.load(path: "/Users/x/Downloads/bitcoin_short.tsv")
+        let bloomFilter = AddressFileLoader.load(path: "/Users/x/Downloads/bitcoin_very_short.tsv")
         
+        /// TEST
+        ///
+        ///
+        /*
+        var data: [UInt32] = [1, 2, 3, 4, 5, 6, 7, 8]
+        data.withUnsafeBufferPointer { ptr in
+           // bloomFilter.insert(pointer: ptr.baseAddress!, length: data.count)
+        }
+        
+        data.withUnsafeBufferPointer { ptr in
+            let exists = bloomFilter.contains(pointer: ptr.baseAddress!, length: data.count)
+            print("Exists:", exists)  // ✅ true
+        }
+        
+        exit(0)
+         */
         //------------------------
         // secp256k1 benchmark
         //------------------------
@@ -36,16 +52,20 @@ struct KeyFinder {
   
         
         // Iterate through a range of private keys
-        let start = UInt256(hexString: "0000000000000000000000000000000000000000000000000000000000000001")
-        let end = UInt256(hexString: "000000000000000000000000000000000000000000000000000000000001000A")
+        let start = UInt256(hexString: "0000000000000000000000000000000000000000000000000001000000000000")
+        let end = UInt256(hexString: "00000000000000000000000000000000000000000000000000010000A0000005")
       
 
         // Generate keys in batches
         print("\n=== Batch Generation ===")
-        var batch: [Data] = []
+        var pubKeyBatch: [Data] = []
+        var privKeyBatch: [UInt256] = []
         let batchIterator = BitcoinPrivateKeyIterator(start: start, end: end)
 
+        // TODO: FIXME: If the key range is smaller than the batch size it doesnt work
         for privateKey: UInt256 in batchIterator {
+            privKeyBatch.append(privateKey)
+            
             // We are running the secp256k1 calculations on the CPU which is very slow.
             // TODO: Do secp256k1 calculations on GPU
             let privateKeyCompressed = try! P256K.Signing.PrivateKey(dataRepresentation: privateKey.data, format: .compressed)
@@ -55,18 +75,18 @@ struct KeyFinder {
             // TODO: add option to add uncompressed keys
             let pubKey = privateKeyCompressed.publicKey.dataRepresentation
             //print("Private Key Compressed: = \(privateKeyCompressed.dataRepresentation.hex) Pub Key:  \(pubKey.hex)")
-            batch.append(pubKey)
+            pubKeyBatch.append(pubKey)
             //print("  Public Key:  \(String(bytes: privateKey.publicKey.dataRepresentation))")
             //print("  Public Key Compressed:  \(String(bytes: privateKeyCompressed.publicKey.dataRepresentation))")
            
             // Send data batch wise to the GPU for SHA256 hashing
             let BATCH_SIZE = 10000
-            if batch.count == BATCH_SIZE {
+            if pubKeyBatch.count == BATCH_SIZE {
                 let startTime = CFAbsoluteTimeGetCurrent()
 
                 
                 // Calculate SHA256 for the batch of public keys on the GPU
-                let outPtr = SHA256.run(batchOfData: batch)
+                let outPtr = SHA256.run(batchOfData: pubKeyBatch)
                 //printSha256Output(BATCH_SIZE, outPtr)
              
                 let ripemd160_input_data = Data(bytesNoCopy: outPtr, count: BATCH_SIZE*32, deallocator: .custom({ (ptr, size) in ptr.deallocate() }))
@@ -79,7 +99,7 @@ struct KeyFinder {
                     let addrExists = bloomFilter.contains(pointer: ripemd160_result, length: 5, offset: i*5)
                     if addrExists {
                         print("#########################################################")
-                        print("Found matching address: \(createData(from: ripemd160_result, offset: i*5, length: 5).hex) for private key: \(batch[i].hex)")
+                        print("Found matching address: \(createData(from: ripemd160_result, offset: i*5, length: 5).hex) for private key: \(privKeyBatch[i].hexString)")
                         print("!!! NOTE !!! At the moment this address is just the RIPEMD160 result, you need to add the address byte and do a base58 decode and a checksum validation to get the actual address.")
                         print("#########################################################")
                     }
@@ -130,7 +150,8 @@ struct KeyFinder {
            
                
                 
-                batch = []  //clearing batch
+                pubKeyBatch = []  //clearing batch
+                privKeyBatch = []  //clearing batch
             }
             
  

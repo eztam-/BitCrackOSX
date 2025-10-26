@@ -34,7 +34,7 @@ struct AddressFileLoader {
         }
      
         
-        var bloomFilter = BloomFilter2(capacity: validAddrCount, falsePositiveRate: 0.001)
+        var bloomFilter = BloomFilter2(capacity: validAddrCount*1000, falsePositiveRate: 0.0001)
 
         
         // Opening the same file again to populate the bloomfilter
@@ -102,20 +102,18 @@ struct AddressFileLoader {
                 
                 decodedAddress = decodedAddress.unsafelyUnwrapped.dropFirst(1).dropLast(4) // Removing the addres byte and checksum
                 
+                //print("Inserting \(decodedAddress.unsafelyUnwrapped.hex) into bloom filter. Original address: \(line.trimmingCharacters(in: .whitespaces)).hex)")
                 let start2 = DispatchTime.now()
-
                 bloomFilter.insert(data: decodedAddress.unsafelyUnwrapped)
                 let end2 = DispatchTime.now()
                 let nanoTime2 = end2.uptimeNanoseconds - start2.uptimeNanoseconds // <<<<< Difference in nano seconds (UInt64)
 
 
                 progressCnt+=1
-                var procressPercent = Int((100.0/Double(validAddrCount))*Double(progressCnt))
-                if lastPerc < procressPercent{
-                    print("Progress: \(procressPercent)%")
-                    //print("Bloom \(nanoTime2)")
-                    print("BASE58 \(nanoTime)")
-                    lastPerc = procressPercent
+                var progressPercent = Int((100.0/Double(validAddrCount))*Double(progressCnt))
+                if lastPerc < progressPercent{
+                    print("Progress: \(progressPercent)%  -  BASE58 takes \(nanoTime)ns  -   Bloomfilter insert takes \(nanoTime2)ns")
+                    lastPerc = progressPercent
                 }
                 
                 
