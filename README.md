@@ -22,11 +22,16 @@ The CPU handles:
 |Taproot|P2TR — Pay-to-Taproot|bc1p|Bech32m|TBC|No|
 
 ### Address Calculation from Private Key
+The following diagram shows the individual stepps to calculate a bitcoin address from a private key
 <img src="https://raw.githubusercontent.com/eztam-/BitCrackOSX/refs/heads/main/img/calc_by_address_types.drawio.svg">
 
+To make the cracking loop as efficient as possible, we only want the non-reversible calculations within the loop.
+The reversible calculations will be reversed before inserting the addresses from the file into the bloomfilter. 
+This leads us to the following application architecture:
 
+<img src="https://raw.githubusercontent.com/eztam-/BitCrackOSX/refs/heads/main/img/architecture.drawio.svg">
 
-
+The bloom filter ingestion only happens once during application start.
 
 ### Endians
 host-endian == little-endian on Apple Silicon GPUs/CPUs<br>
