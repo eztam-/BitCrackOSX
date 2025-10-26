@@ -29,10 +29,9 @@ The CPU handles:
 
 
 ### Endians
-
-host-endian == little-endian on Apple Silicon GPUs/CPUs
-For convenience I have kept all in- and outputs to GPU shaders in host-endian.
-Input and output endiangs by shader:
-host-endian --> SHA256    --> host-endian
-host-endian --> RIPEMD160 --> host-endian
+host-endian == little-endian on Apple Silicon GPUs/CPUs<br>
+For convenience I have kept all in- and outputs to GPU shaders in host-endian.<br>
+Input and output endiangs by shader:<br>
+host-endian --> SHA256    --> host-endian<br>
+host-endian --> RIPEMD160 --> host-endian<br>
 
