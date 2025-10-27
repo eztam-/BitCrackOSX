@@ -19,6 +19,15 @@ struct KeyFinder {
     }
     
     func run(){
+        
+        do {
+            try Secp256k1.test()
+        } catch {
+            print("Secp256k1.test() failed: \(error)")
+            exit(1)
+        }
+        exit(0)
+        
         let SHA256 = SHA256gpu(on: device)
         let RIPEMD160 = RIPEMD160(on: device)
         
@@ -50,7 +59,8 @@ struct KeyFinder {
         // UInt256Tests.runTests()
         // demonstrateUsage()
   
-        
+  
+        // TODO: check for maximum range wich is: 0xFFFF FFFF FFFF FFFF FFFF FFFF FFFF FFFE BAAE DCE6 AF48 A03B BFD2 5E8C D036 4140 
         // Iterate through a range of private keys
         let start = UInt256(hexString: "0000000000000000000000000000000000000000000000000001000000000000")
         let end = UInt256(hexString: "00000000000000000000000000000000000000000000000000010000A0000005")
@@ -295,6 +305,7 @@ struct KeyFinder {
         }
     }
 }
+
 
 
 
