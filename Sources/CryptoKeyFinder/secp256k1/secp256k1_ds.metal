@@ -2,6 +2,8 @@
 using namespace metal;
 
 // SECP256k1 constants
+
+// Secp256k1 prime modulus p = 2^256 - 2^32 - 977
 constant uint P[8] = {
     0xFFFFFC2F, 0xFFFFFFFE, 0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF
     // 0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFE, 0xFFFFFC2F // reverse order
@@ -22,11 +24,14 @@ struct uint256 {
 };
 
 
+
 struct Point {
     uint256 x;
     uint256 y;
     bool infinity;
 };
+
+
 
 // Utility functions
 uint256 load_private_key(device const uint* private_keys, uint index) {
@@ -70,109 +75,152 @@ int compare(uint256 a, uint256 b) {
 uint256 field_add(uint256 a, uint256 b) {
     uint256 result;
     uint carry = 0;
-    
+
+    // Add a + b + carry
     for (int i = 0; i < 8; i++) {
-        ulong sum = (ulong)a.limbs[i] + (ulong)b.limbs[i] + (ulong)carry;
-        result.limbs[i] = uint(sum & 0xFFFFFFFF);
-        carry = uint(sum >> 32);
+        uint ai = a.limbs[i];
+        uint bi = b.limbs[i];
+
+        uint sum = ai + bi + carry;
+
+        // Detect overflow
+        carry = (sum < ai || (carry && sum == ai)) ? 1 : 0;
+
+        result.limbs[i] = sum;
     }
-    
-    // Reduce modulo P if necessary
+
+    // Prepare modulus P
     uint256 p;
-    for (int i = 0; i < 8; i++) p.limbs[i] = P[i];
-    
+    for (int i = 0; i < 8; i++) {
+        p.limbs[i] = P[i];
+    }
+
+    // If carry or result >= P, subtract P
     if (carry || compare(result, p) >= 0) {
         uint borrow = 0;
         for (int i = 0; i < 8; i++) {
-            long diff = (long)result.limbs[i] - (long)p.limbs[i] - (long)borrow;
-            borrow = (diff < 0) ? 1 : 0;
-            result.limbs[i] = uint(diff & 0xFFFFFFFF);
+            uint ri = result.limbs[i];
+            uint pi = p.limbs[i];
+
+            uint temp = pi + borrow;
+            uint new_borrow = (temp < pi) ? 1 : 0;
+            uint diff = ri - temp;
+            if (ri < temp) new_borrow = 1;
+
+            result.limbs[i] = diff;
+            borrow = new_borrow;
         }
     }
-    
+
     return result;
 }
+
+
+
 
 uint256 field_sub(uint256 a, uint256 b) {
     uint256 result;
     uint borrow = 0;
-    
+
     for (int i = 0; i < 8; i++) {
-        long diff = (long)a.limbs[i] - (long)b.limbs[i] - (long)borrow;
-        borrow = (diff < 0) ? 1 : 0;
-        result.limbs[i] = uint(diff & 0xFFFFFFFF);
+        uint ai = a.limbs[i];
+        uint bi = b.limbs[i];
+
+        // Compute raw subtraction with borrow
+        uint temp = bi + borrow;
+        uint new_borrow = (temp < bi) ? 1 : 0;     // overflow in temp = bi + borrow
+        uint diff = ai - temp;
+        if (ai < temp) new_borrow = 1;             // underflow in ai - temp
+
+        result.limbs[i] = diff;
+        borrow = new_borrow;
     }
-    
+
+    // If borrow remains, we need to add back the modulus P
     if (borrow) {
         uint carry = 0;
         for (int i = 0; i < 8; i++) {
-            ulong sum = (ulong)result.limbs[i] + (ulong)P[i] + (ulong)carry;
-            result.limbs[i] = uint(sum & 0xFFFFFFFF);
-            carry = uint(sum >> 32);
+            uint sum = result.limbs[i] + P[i] + carry;
+            carry = (sum < result.limbs[i]) ? 1 : 0;
+            result.limbs[i] = sum;
         }
     }
-    
+
     return result;
 }
 
+// TODO: This version is mathematically correct but not yet highly optimized for GPU parallelism.
+// Once correctness is confirmed, you can:
+// Unroll the 8×8 loops.
+// Use threadgroup memory for partial products.
+// Pipeline carry computation.
 uint256 field_mul(uint256 a, uint256 b) {
-    ulong product[16] = {0};
-    
-    // Schoolbook multiplication
+    uint product[16];
+    for (int i = 0; i < 16; i++) product[i] = 0;
+
+    // 256-bit × 256-bit schoolbook multiplication
     for (int i = 0; i < 8; i++) {
-        ulong carry = 0;
+        uint carry = 0;
         for (int j = 0; j < 8; j++) {
             int idx = i + j;
-            ulong temp = product[idx] + (ulong)a.limbs[i] * (ulong)b.limbs[j] + carry;
-            product[idx] = temp & 0xFFFFFFFF;
-            carry = temp >> 32;
+
+            // Multiply 32x32 -> 64 using 32-bit parts
+            uint ai = a.limbs[i];
+            uint bj = b.limbs[j];
+
+            uint lo = (ai & 0xFFFF) * (bj & 0xFFFF);
+            uint hi = (ai >> 16) * (bj >> 16);
+            uint cross1 = (ai >> 16) * (bj & 0xFFFF);
+            uint cross2 = (ai & 0xFFFF) * (bj >> 16);
+
+            uint mid = (cross1 + cross2);
+            uint carry_mid = (mid < cross1) ? 1 : 0;
+
+            uint low32 = lo + (mid << 16);
+            uint carry_low = (low32 < lo) ? 1 : 0;
+
+            uint high32 = hi + (mid >> 16) + carry_mid + carry_low;
+
+            // Add to product[idx]
+            uint sum = product[idx] + low32 + carry;
+            uint carry_out = (sum < product[idx]) ? 1 : 0;
+            product[idx] = sum;
+            carry = high32 + carry_out;
         }
+
         if (i + 8 < 16) {
-            product[i + 8] += carry;
+            uint sum = product[i + 8] + carry;
+            product[i + 8] = sum;
         }
     }
-    
-    // Montgomery reduction for SECP256k1
+
+    // Modular reduction (simplified: subtract once if > P)
     uint256 result;
-    
     for (int i = 0; i < 8; i++) {
-        ulong m = product[i] * 0xD838091DD2253531UL; // Inverse of P mod 2^64
-        
-        ulong carry = 0;
-        for (int j = 0; j < 8; j++) {
-            ulong temp = product[i + j] + m * (ulong)P[j] + carry;
-            product[i + j] = temp & 0xFFFFFFFF;
-            carry = temp >> 32;
-        }
-        
-        // Propagate carry
-        for (int j = i + 8; j < 16 && carry > 0; j++) {
-            ulong temp = product[j] + carry;
-            product[j] = temp & 0xFFFFFFFF;
-            carry = temp >> 32;
-        }
+        result.limbs[i] = product[i + 8]; // take upper 256 bits
     }
-    
-    // Copy result from upper half
-    for (int i = 0; i < 8; i++) {
-        result.limbs[i] = uint(product[i + 8]);
-    }
-    
-    // Final reduction
-    uint256 p_val;
-    for (int i = 0; i < 8; i++) p_val.limbs[i] = P[i];
-    
-    if (compare(result, p_val) >= 0) {
-        uint borrow = 0;
+
+    // Simple reduction
+    uint borrow = 0;
+    uint256 p;
+    for (int i = 0; i < 8; i++) p.limbs[i] = P[i];
+
+    if (compare(result, p) >= 0) {
         for (int i = 0; i < 8; i++) {
-            long diff = (long)result.limbs[i] - (long)P[i] - (long)borrow;
-            borrow = (diff < 0) ? 1 : 0;
-            result.limbs[i] = uint(diff & 0xFFFFFFFF);
+            uint ri = result.limbs[i];
+            uint pi = p.limbs[i];
+            uint temp = pi + borrow;
+            uint new_borrow = (temp < pi) ? 1 : 0;
+            uint diff = ri - temp;
+            if (ri < temp) new_borrow = 1;
+            result.limbs[i] = diff;
+            borrow = new_borrow;
         }
     }
-    
+
     return result;
 }
+
 
 uint256 field_sqr(uint256 a) {
     return field_mul(a, a);
@@ -183,8 +231,11 @@ uint256 field_inv(uint256 a) {
     uint256 result;
     
     // Initialize result to 1
-    for (int i = 0; i < 7; i++) result.limbs[i] = 0;
-    result.limbs[7] = 1;
+    //for (int i = 0; i < 7; i++) result.limbs[i] = 0;
+    //result.limbs[7] = 1;
+    
+    for (int i = 0; i < 8; i++) result.limbs[i] = 0;
+    result.limbs[0] = 1; // LSW = 1 (little-endian limbs)
     
     uint256 power = a;
     

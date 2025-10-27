@@ -3,7 +3,7 @@ using namespace metal;
 
 /*
   RIPEMD-160 (single-block, fixed-32-byte messages) — Metal kernel.
-å
+
   - Each message is exactly 32 bytes long (little-endian) (no variable-length support).
     The kernel pads each message into one 64-byte block (32 bytes message +
     0x80 padding byte + zeros + 8-byte little-endian bit-length). For 32 bytes,

@@ -19,7 +19,7 @@ struct KeyFinder {
     
     func run(){
         
-        /*
+        
         do {
             let secp256k1obj = SECP256k1GPUds()
             let privKeys = [
@@ -35,6 +35,9 @@ struct KeyFinder {
             
             var correct = res[0].toCompressed().hex == "0279be667ef9dcbbac55a06295ce870b07029bfcdb2dce28d959f2815b16f81798"
             print("\(correct) Expected: 0279be667ef9dcbbac55a06295ce870b07029bfcdb2dce28d959f2815b16f81798 \n        Actual: \(res[0].toCompressed().hex)" )
+            // uncompressed
+            correct = res[0].toUncompressed().hex == "0479be667ef9dcbbac55a06295ce870b07029bfcdb2dce28d959f2815b16f81798483ada7726a3c4655da4fbfc0e1108a8fd17b448a68554199c47d08ffb10d4b8"
+            print("\(correct) Expected: 0479be667ef9dcbbac55a06295ce870b07029bfcdb2dce28d959f2815b16f81798483ada7726a3c4655da4fbfc0e1108a8fd17b448a68554199c47d08ffb10d4b8 \n        Actual: \(res[0].toUncompressed().hex)" )
 
             correct = res[1].toCompressed().hex == "02c6047f9441ed7d6d3045406e95c07cd85c778e4b8cef3ca7abac09b95c709ee5"
             print("\(correct) Expected: 02c6047f9441ed7d6d3045406e95c07cd85c778e4b8cef3ca7abac09b95c709ee5 \n        Actual: \(res[1].toCompressed().hex)" )
@@ -60,8 +63,6 @@ struct KeyFinder {
             exit(1)
         }
         exit(0)
-         
-         */
         
         let SHA256 = SHA256gpu(on: device)
         let RIPEMD160 = RIPEMD160(on: device)
