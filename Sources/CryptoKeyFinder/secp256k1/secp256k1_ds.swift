@@ -6,29 +6,35 @@ public class SECP256k1GPUds {
     private let commandQueue: MTLCommandQueue
     private let pipelineState: MTLComputePipelineState
     
-    public init?() {
+    public init() {
         guard let device = MTLCreateSystemDefaultDevice(),
               let commandQueue = device.makeCommandQueue() else {
             print("Failed to initialize Metal device")
-            return nil
+            //return nil
+            
+            exit(0)
+            // TODO
         }
         
         self.device = device
         self.commandQueue = commandQueue
         
-        // Load the Metal shader
-        guard let defaultLibrary = device.makeDefaultLibrary(),
-              let kernelFunction = defaultLibrary.makeFunction(name: "private_to_public_keys") else {
-            print("Failed to load Metal shader")
-            return nil
-        }
         
-        do {
-            self.pipelineState = try device.makeComputePipelineState(function: kernelFunction)
-        } catch {
-            print("Failed to create pipeline state: \(error)")
-            return nil
+        //
+        let library: MTLLibrary! = try? device.makeDefaultLibrary(bundle: Bundle.module)
+        guard let function = library.makeFunction(name: "private_to_public_keys") else {
+            fatalError("Failed to load function private_to_public_keys from library")
         }
+        do {
+            self.pipelineState = try device.makeComputePipelineState(function: function)
+        } catch {
+            fatalError("Failed to create pipeline state: \(error)")
+            ///
+            
+            
+        }
+    
+
     }
     
     public struct PrivateKey {
@@ -124,7 +130,7 @@ public class SECP256k1GPUds {
         }
     }
     
-    public func generatePublicKeys(privateKeys: [PrivateKey]) -> [PublicKey]? {
+    public func generatePublicKeys(privateKeys: [PrivateKey]) -> [PublicKey] {
         let count = privateKeys.count
         guard count > 0 else { return [] }
         
@@ -144,7 +150,9 @@ public class SECP256k1GPUds {
             options: .storageModeShared
         ) else {
             print("Failed to create Metal buffers")
-            return nil
+            //return nil
+            exit(0)
+            //TODO
         }
         
         // Copy private key data to buffer
@@ -154,7 +162,9 @@ public class SECP256k1GPUds {
         guard let commandBuffer = commandQueue.makeCommandBuffer(),
               let commandEncoder = commandBuffer.makeComputeCommandEncoder() else {
             print("Failed to create command encoder")
-            return nil
+            //return nil
+            exit(0)
+            //TODO
         }
         
         // Configure the compute pipeline
@@ -185,7 +195,9 @@ public class SECP256k1GPUds {
         // Check for errors
         if let error = commandBuffer.error {
             print("Metal execution error: \(error)")
-            return nil
+            //return nil
+            exit(0)
+            //TODO
         }
         
         // Convert results back to PublicKey objects

@@ -3,23 +3,24 @@ using namespace metal;
 
 // SECP256k1 constants
 constant uint P[8] = {
-    0xFFFFFC2F, 0xFFFFFFFE, 0xFFFFFFFF, 0xFFFFFFFF,
-    0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF
+    0xFFFFFC2F, 0xFFFFFFFE, 0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF
+    // 0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFE, 0xFFFFFC2F // reverse order
 };
 
 constant uint GX[8] = {
-    0x16F81798, 0x59F2815B, 0x2DCE28D9, 0x029BFCDB,
-    0xCE870B07, 0x55A06295, 0xF9DCBBAC, 0x79BE667E
+    0x16F81798, 0x59F2815B, 0x2DCE28D9, 0x029BFCDB, 0xCE870B07, 0x55A06295, 0xF9DCBBAC, 0x79BE667E
+    //0x79BE667E, 0xF9DCBBAC, 0x55A06295, 0xCE870B07, 0x029BFCDB, 0x2DCE28D9, 0x59F2815B, 0x16F81798 // reverse order
 };
 
 constant uint GY[8] = {
-    0xFB10D4B8, 0x9C47D08F, 0xA6855419, 0xFD17B448,
-    0x0E1108A8, 0x5DA4FBFC, 0x26A3C465, 0x483ADA77
+    0xFB10D4B8, 0x9C47D08F, 0xA6855419, 0xFD17B448, 0x0E1108A8, 0x5DA4FBFC, 0x26A3C465, 0x483ADA77
+    // 0x483ADA77, 0x26A3C465, 0x5DA4FBFC, 0x0E1108A8, 0xFD17B448, 0xA6855419, 0x9C47D08F, 0xFB10D4B8 // reverse order
 };
 
 struct uint256 {
     uint limbs[8];
 };
+
 
 struct Point {
     uint256 x;
@@ -304,10 +305,10 @@ kernel void private_to_public_keys(
     
     // Create generator point
     Point generator;
-    for (int i = 0; i < 8; i++) {
-        generator.x.limbs[i] = GX[i];
-        generator.y.limbs[i] = GY[i];
-    }
+    generator.x = { GX[0], GX[1], GX[2], GX[3], GX[4], GX[5], GX[6], GX[7] };
+    generator.y = { GY[0], GY[1], GY[2], GY[3], GY[4], GY[5], GY[6], GY[7] };
+    
+    
     generator.infinity = false;
     
     // Multiply generator by private key to get public key
