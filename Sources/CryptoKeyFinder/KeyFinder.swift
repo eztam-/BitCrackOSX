@@ -17,8 +17,8 @@ struct KeyFinder {
         KeyFinder().run()
     }
     
-    func run(){
-        
+    // TODO: move as dedicated file to test folder
+    func testSecp512k1Keys(){
         
         do {
             let secp256k1obj = SECP256k1GPUds()
@@ -62,7 +62,22 @@ struct KeyFinder {
             print("Secp256k1.test() failed: \(error)")
             exit(1)
         }
-        exit(0)
+        
+    }
+    func run(){
+        
+        // Several methods to test the secp512k1 on GPU
+        
+        // ======== Run Tests ========
+        //FieldMulTester()!.runTests()
+        //FieldInvTester()!.runTests()
+
+        
+        //let t = Secp256k1MetalTester()
+        //testSecp512k1Keys(); // TODO: move as dedicated file to test folder
+        //t.runTestFixes()
+        //testModPReduce()
+        //exit(0)
         
         let SHA256 = SHA256gpu(on: device)
         let RIPEMD160 = RIPEMD160(on: device)

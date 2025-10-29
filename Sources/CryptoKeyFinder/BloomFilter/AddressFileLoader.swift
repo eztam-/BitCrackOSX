@@ -3,10 +3,10 @@ import Foundation
 struct AddressFileLoader {
     
     
-    static func load(path: String) -> BloomFilter2 {
-        
-        let BATCH_SIZE = 1000
-        print("Loading address file")
+    
+    
+    static func countValidAddressesInFile(path: String) -> Int {
+        print("Counting supported addresses in file \(path)")
         
         // First we only need to count the relevant addresses, so that we can initialize the BloomFilter with the right capacity
         var validAddrCount: Int = 0
@@ -17,6 +17,18 @@ struct AddressFileLoader {
         defer {
             fclose(file)
         }
+        
+        // Get file size TODO: we could use this to faster calculate the number of addresses once we support all the other address types
+        do {
+          let attribute = try FileManager.default.attributesOfItem(atPath: path)
+          if let size = attribute[FileAttributeKey.size] as? NSNumber {
+            let sizeInMB = size.doubleValue / 1000000.0
+              print("File size is \(sizeInMB) MB")
+          }
+        } catch {
+          print("Error: \(error)")
+        }
+        
         while let line = readLine() {
             if line.starts(with: "1") { // Legacy address
                 validAddrCount+=1;
@@ -32,9 +44,17 @@ struct AddressFileLoader {
             }
             
         }
-     
+        print("Number of supported addresses: \(validAddrCount)")
+        return validAddrCount;
+    }
+    
+    static func load(path: String) -> BloomFilter2 {
         
-        var bloomFilter = BloomFilter2(capacity: validAddrCount*1000, falsePositiveRate: 0.0001)
+        let BATCH_SIZE = 1000
+        let validAddrCount = countValidAddressesInFile(path:path)
+
+        print("Instatiating bloom filter")
+        var bloomFilter = BloomFilter2(capacity: validAddrCount*256, falsePositiveRate: 0.0001)
 
         
         // Opening the same file again to populate the bloomfilter
@@ -46,7 +66,7 @@ struct AddressFileLoader {
             fclose(file)
         }
         
-        print("Building bloom filter")
+        print("Reverse calculating and inserting public key hashes tinto bloom filter")
         var progressCnt:Int = 1;
         var lastPerc :Int = 0
         
@@ -112,7 +132,7 @@ struct AddressFileLoader {
                 progressCnt+=1
                 var progressPercent = Int((100.0/Double(validAddrCount))*Double(progressCnt))
                 if lastPerc < progressPercent{
-                    print("Progress: \(progressPercent)%  -  BASE58 takes \(nanoTime)ns  -   Bloomfilter insert takes \(nanoTime2)ns")
+                    print("Progress: \(progressPercent)%  -  BASE58 took \(nanoTime)ns  -   Bloomfilter insert took \(nanoTime2)ns")
                     lastPerc = progressPercent
                 }
                 
