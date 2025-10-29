@@ -24,8 +24,8 @@ struct KeyFinder {
         //FieldMulTester()!.runTests()
         //FieldInvTester()!.runTests()
         //TestPubKey().runTests()
-        Secp256k1MetalTester().runTestFixes()
-        exit(0)
+        //Secp256k1MetalTester().runTestFixes()
+        //exit(0)
         
         let SHA256 = SHA256gpu(on: device)
         let RIPEMD160 = RIPEMD160(on: device)
@@ -34,30 +34,7 @@ struct KeyFinder {
 
         let bloomFilter = AddressFileLoader.load(path: "/Users/x/Downloads/bitcoin.tsv")
         
-        /// TEST
-        ///
-        ///
-        /*
-        var data: [UInt32] = [1, 2, 3, 4, 5, 6, 7, 8]
-        data.withUnsafeBufferPointer { ptr in
-           // bloomFilter.insert(pointer: ptr.baseAddress!, length: data.count)
-        }
         
-        data.withUnsafeBufferPointer { ptr in
-            let exists = bloomFilter.contains(pointer: ptr.baseAddress!, length: data.count)
-            print("Exists:", exists)  // ✅ true
-        }
-        
-        exit(0)
-         */
-        //------------------------
-        // secp256k1 benchmark
-        //------------------------
-        
-        // Run UInt256 tests and demonstration
-        // UInt256Tests.runTests()
-        // demonstrateUsage()
-  
   
         // TODO: check for maximum range wich is: 0xFFFF FFFF FFFF FFFF FFFF FFFF FFFF FFFE BAAE DCE6 AF48 A03B BFD2 5E8C D036 4140 
         // Iterate through a range of private keys

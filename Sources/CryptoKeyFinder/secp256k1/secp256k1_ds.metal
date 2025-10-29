@@ -293,112 +293,37 @@ add_result add_with_carry(uint a, uint b, uint carry_in) {
 }
 
 
-// Corrected modular reduction for secp256k1
-uint256 mod_p_reduce(uint512 a) {
+
+
+
+// Field addition with modular reduction
+uint256 field_add(uint256 a, uint256 b) {
     uint256 result;
-    
-    // Start with lower 256 bits (limbs 0-7)
-    for (int i = 0; i < 8; i++) {
-        result.limbs[i] = a.limbs[i];
-    }
-    
-    // We need to add: high_part * (2^32 + 977)
-    // Where high_part is the upper 256 bits (limbs 8-15)
-    
-    // First: add high_part * 977
     uint carry = 0;
+    
+    // Add a + b with carry propagation
     for (int i = 0; i < 8; i++) {
-        uint high_limb = a.limbs[i + 8];
-        ulong product = (ulong)high_limb * 977ul + (ulong)result.limbs[i] + (ulong)carry;
-        result.limbs[i] = (uint)(product & 0xFFFFFFFF);
-        carry = (uint)(product >> 32);
+        uint sum, carry_out;
+        add_with_carry(a.limbs[i], b.limbs[i], carry, &sum, &carry_out);
+        result.limbs[i] = sum;
+        carry = carry_out;
     }
     
-    // Second: add high_part * 2^32 (this means shifting high_part left by 32 bits)
-    // This is equivalent to adding high_part starting at limb position 1
-    uint carry2 = 0;
-    for (int i = 0; i < 8; i++) {
-        // We're adding to result.limbs[i+1], so we need to be careful about bounds
-        if (i < 7) {
-            uint high_limb = a.limbs[i + 8];
-            ulong sum = (ulong)result.limbs[i + 1] + (ulong)high_limb + (ulong)carry2;
-            result.limbs[i + 1] = (uint)(sum & 0xFFFFFFFF);
-            carry2 = (uint)(sum >> 32);
-        }
-    }
+    // If there's a carry out, result >= 2^256
+    // We need to reduce: result = (a + b) - P if (a + b) >= P
     
-    // Handle the remaining carry from the 2^32 addition
-    // This goes beyond the 256-bit result, so we need to reduce it
-    if (carry2 > 0) {
-        // Add carry2 * 977 to the first limb
-        ulong product = (ulong)result.limbs[0] + (ulong)carry2 * 977ul;
-        result.limbs[0] = (uint)(product & 0xFFFFFFFF);
-        uint new_carry = (uint)(product >> 32);
-        
-        // Propagate carry through remaining limbs
-        for (int i = 1; i < 8 && new_carry > 0; i++) {
-            ulong sum = (ulong)result.limbs[i] + (ulong)new_carry;
-            result.limbs[i] = (uint)(sum & 0xFFFFFFFF);
-            new_carry = (uint)(sum >> 32);
-        }
-    }
-    
-    // Handle the remaining carry from the 977 multiplication
-    // This also goes beyond the 256-bit result
-    if (carry > 0) {
-        // Add carry * 977 to the first limb
-        ulong product = (ulong)result.limbs[0] + (ulong)carry * 977ul;
-        result.limbs[0] = (uint)(product & 0xFFFFFFFF);
-        uint new_carry = (uint)(product >> 32);
-        
-        // Propagate carry through remaining limbs
-        for (int i = 1; i < 8 && new_carry > 0; i++) {
-            ulong sum = (ulong)result.limbs[i] + (ulong)new_carry;
-            result.limbs[i] = (uint)(sum & 0xFFFFFFFF);
-            new_carry = (uint)(sum >> 32);
-        }
-    }
-    
-    // Final reduction: if result >= P, subtract P
     uint256 p;
     for (int i = 0; i < 8; i++) {
         p.limbs[i] = P[i];
     }
     
-    // Use your working field_sub function for final reduction
-    while (compare(result, p) >= 0) {
-        result = field_sub(result, p);
+    // If carry OR result >= P, subtract P
+    if (carry || compare(result, p) >= 0) {
+        result = sub_uint256(result, p);
     }
     
     return result;
 }
-
-
-
-
-// Optional: Optimized field_add that uses mod_p_reduce
-uint256 field_add(uint256 a, uint256 b) {
-    uint512 sum;
-    
-    // Initialize upper half to zero
-    for (int i = 8; i < 16; i++) {
-        sum.limbs[i] = 0;
-    }
-    
-    // Add with carry
-    uint carry = 0;
-    for (int i = 0; i < 8; i++) {
-        add_result s = add_with_carry(a.limbs[i], b.limbs[i], carry);
-        sum.limbs[i] = s.low;
-        carry = s.high;
-    }
-    
-    // Store carry in limb[8]
-    sum.limbs[8] = carry;
-    
-    return mod_p_reduce(sum);
-}
-//---------------
 
 
 
@@ -539,47 +464,13 @@ Point point_mul(Point base, uint256 scalar) {
 
 
 
-kernel void test_mod_p_reduce(
-    device const uint512* inputs [[buffer(0)]],
-    device uint256* outputs [[buffer(1)]],
-    uint id [[thread_position_in_grid]]
-) {
-    outputs[id] = mod_p_reduce(inputs[id]);
-}
 
 
 
 
 
-kernel void tmp_test_fixes(
-    device const uint* private_keys [[buffer(0)]],
-    device uint* debug_output [[buffer(1)]],
-    uint id [[thread_position_in_grid]]
-) {
-    
 
-    
-    uint256 priv_key = load_private_key(private_keys, id);
-    
-    // Test 1: Multiply private key by 1 (should return private key)
-    uint256 one = {2, 0, 0, 0, 0, 0, 0, 0};
-    //uint256 result = field_mul(priv_key, one);
-    
-    uint512 t1 = {2, 0, 0, 0, 0, 0, 0, 0, 2, 0, 0, 0, 0, 0, 0, 1};
-    
-    uint256 result = mod_p_reduce(t1);
-    //uint256 result = field_inv(priv_key);
-    
-    //uint256 inv = field_inv(one);
-    //uint256 result = field_mul(one, inv);
-    
-    
-    // Store  results for comparison
-    for (int i = 0; i < 8; i++) {
-        debug_output[id * 8 + i] = result.limbs[i];
-       
-    }
-}
+
 
 
 // Main kernel - converts private keys to public keys
@@ -659,5 +550,36 @@ kernel void test_field_inv(
     
     for (int i = 0; i < 8; i++) {
         output[id * 8 + i] = result.limbs[i];
+    }
+}
+
+
+kernel void tmp_test_fixes(
+    device const uint* private_keys [[buffer(0)]],
+    device uint* debug_output [[buffer(1)]],
+    uint id [[thread_position_in_grid]]
+) {
+    
+
+    
+    uint256 priv_key = load_private_key(private_keys, id);
+    
+    // Test 1: Multiply private key by 1 (should return private key)
+    uint256 one = {2, 0, 0, 0, 0, 0, 0, 0};
+    //uint256 result = field_mul(priv_key, one);
+    
+    uint512 t1 = {2, 0, 0, 0, 0, 0, 0, 0, 2, 0, 0, 0, 0, 0, 0, 1};
+    
+    //uint256 result = mod_p_reduce(t1);
+    uint256 result = field_inv(priv_key);
+    
+    //uint256 inv = field_inv(one);
+    //uint256 result = field_mul(one, inv);
+    
+    
+    // Store  results for comparison
+    for (int i = 0; i < 8; i++) {
+        debug_output[id * 8 + i] = result.limbs[i];
+       
     }
 }
