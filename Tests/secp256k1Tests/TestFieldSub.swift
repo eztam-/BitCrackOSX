@@ -14,7 +14,7 @@ class TestFieldSub: TestBase {
     
     @Test func testFieldSubRandomInput() {
         
-        let numTests = 10
+        let numTests = 1000
         print("Running \(numTests) random number tests. Only printing failed results.")
         
         var numFailedTests = 0
@@ -52,7 +52,7 @@ class TestFieldSub: TestBase {
             let passed = limbsToHex(result) == expectedHex
             
             // Only print failed results
-            //if !passed {
+            if !passed {
                 numFailedTests+=1
                 print("  Input A:  \(aHex)")
                 print("  Input B:  \(bHex)")
@@ -62,7 +62,7 @@ class TestFieldSub: TestBase {
             
                // print("  Debug - Expected limbs: \(expectedLimbs.map { String(format: "0x%08X", $0) })")
                // print("  Debug - Got limbs:      \(result.map { String(format: "0x%08X", $0) })")
-           // }
+            }
         }
         print("🧪 \(numFailedTests) of \(numTests) tests have failed")
         assert(numFailedTests==0)

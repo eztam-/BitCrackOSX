@@ -95,34 +95,32 @@ int compare(uint256 a, uint256 b) {
 
 uint256 field_sub(uint256 a, uint256 b) {
     uint256 result;
-    uint borrow = 0;
+    ulong borrow = 0;
 
     for (int i = 0; i < 8; i++) {
-        uint ai = a.limbs[i];
-        uint bi = b.limbs[i];
+        ulong ai = (ulong)a.limbs[i];
+        ulong bi = (ulong)b.limbs[i];
+        ulong tmp = ai - bi - borrow;
 
-        // Compute raw subtraction with borrow
-        uint temp = bi + borrow;
-        uint new_borrow = (temp < bi) ? 1 : 0;     // overflow in temp = bi + borrow
-        uint diff = ai - temp;
-        if (ai < temp) new_borrow = 1;             // underflow in ai - temp
-
-        result.limbs[i] = diff;
-        borrow = new_borrow;
+        result.limbs[i] = (uint)tmp;
+        // If ai < bi + borrow, then tmp wrapped around and top bit set
+        borrow = (tmp >> 63) & 1ul; // borrow = 1 if underflow occurred
     }
 
-    // If borrow remains, we need to add back the modulus P
+    // If borrow == 1, we underflowed: add modulus back
     if (borrow) {
-        uint carry = 0;
+        ulong carry = 0;
         for (int i = 0; i < 8; i++) {
-            uint sum = result.limbs[i] + P[i] + carry;
-            carry = (sum < result.limbs[i]) ? 1 : 0;
-            result.limbs[i] = sum;
+            ulong sum = (ulong)result.limbs[i] + (ulong)P[i] + carry;
+            result.limbs[i] = (uint)sum;
+            carry = sum >> 32;
         }
     }
 
     return result;
 }
+
+
 
 
 
