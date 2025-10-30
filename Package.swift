@@ -25,12 +25,12 @@ let package = Package(
                 .product(name: "BigNumber", package: "Swift-BigInt")
             ],
             path: "Sources",
-            resources: [.process("CryptKeyFinder/SHA256/SHA256.metal")],
+            resources: [.process("SHA256/SHA256.metal")],
         ),
         .testTarget(
             name: "CryptKeyFinderTests",
             dependencies: ["CryptKeyFinder"],
             path: "Tests",
-            resources: [.process("../Sources/CryptKeyFinder/secp256k1/secp256k1.metal")],)
+            resources: [.process("../Sources/secp256k1/secp256k1.metal")],)
     ]
 )
