@@ -3,14 +3,11 @@ import BigNumber
 import Foundation
 
 
-class Secp256k1MetalTester {
-    private let device: MTLDevice
-    private let commandQueue: MTLCommandQueue
+class Secp256k1MetalTester: TestBase {
     
-    init() {
-        device = MTLCreateSystemDefaultDevice()!
-        commandQueue = device.makeCommandQueue()!
-        
+    
+    init?() {
+        super.init(kernelFunctionName: "tmp_test_fixes")
     }
     
     func random256(byteLength : Int)-> BInt {
@@ -105,22 +102,7 @@ class Secp256k1MetalTester {
 
         //testMod()
         
-        // Build compute pipeline state for kernel 'tmp_test_fixes'
-        let pipelineState: MTLComputePipelineState
-        do {
-            guard let library = try? device.makeDefaultLibrary(bundle: Bundle.module) else {
-                print("Failed to create default Metal library from module bundle")
-                return
-            }
-            guard let function = library.makeFunction(name: "tmp_test_fixes") else {
-                print("Failed to load function tmp_test_fixes from library")
-                return
-            }
-            pipelineState = try device.makeComputePipelineState(function: function)
-        } catch {
-            print("Failed to create pipeline state: \(error)")
-            return
-        }
+
         
         // Test data: private keys in LITTLE-ENDIAN format (limb[0] = LSW)
         let testPrivateKeys: [[UInt32]] = [
@@ -226,7 +208,7 @@ func runTests() {
     print("Testing Metal secp256k1 implementation...\n")
     
     let tester = Secp256k1MetalTester()
-    tester.runTestFixes()
+    tester!.runTestFixes()
 }
 
 // Helper to convert hex string to little-endian UInt32 array

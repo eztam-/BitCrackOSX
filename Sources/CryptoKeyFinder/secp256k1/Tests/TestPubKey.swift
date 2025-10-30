@@ -41,11 +41,11 @@ class TestPubKey {
         ]
     
 
-        var privKeys : [SECP256k1GPUds.PrivateKey] = []
+        var privKeys : [Secp256k1_GPU.PrivateKey] = []
         for t in testCases {
-            privKeys.append(SECP256k1GPUds.PrivateKey(hexString:t.0))
+            privKeys.append(Secp256k1_GPU.PrivateKey(hexString:t.0))
         }
-        let secp256k1obj = SECP256k1GPUds()
+        let secp256k1obj = Secp256k1_GPU()
         let res = secp256k1obj.generatePublicKeys(privateKeys: privKeys)
 
         

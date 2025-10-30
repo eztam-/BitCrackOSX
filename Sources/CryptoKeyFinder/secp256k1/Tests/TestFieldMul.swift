@@ -11,35 +11,11 @@ extension String {
     }
 }
 
-class FieldMulTester {
-    private let device: MTLDevice
-    private let commandQueue: MTLCommandQueue
-    private let pipelineState: MTLComputePipelineState
-    
-    
-    
+class TestFieldMul: TestBase {
+   
     
     init?() {
-        guard let device = MTLCreateSystemDefaultDevice(),
-              let commandQueue = device.makeCommandQueue() else {
-            print("❌ Failed to initialize Metal device")
-            return nil
-        }
-        
-        self.device = device
-        self.commandQueue = commandQueue
-        
-        let library: MTLLibrary! = try? device.makeDefaultLibrary(bundle: Bundle.module)
-        guard let function = library.makeFunction(name: "test_field_mul") else {
-            fatalError("Failed to load function private_to_public_keys from library")
-        }
-        do {
-            self.pipelineState = try device.makeComputePipelineState(function: function)
-        } catch {
-            fatalError("Failed to create pipeline state: \(error)")
-            ///
-            
-        }
+        super.init(kernelFunctionName: "test_field_mul")
     }
        public func runTests() {
             
@@ -72,7 +48,7 @@ class FieldMulTester {
                 (
                     "FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF",
                     "0000000000000000000000000000000000000000000000000000000000000002",
-                    "00000000000000000000000000000000000000000000000000000002000007A0"  // Computed via Python
+                    "00000000000000000000000000000000000000000000000000000002000007A0" 
                 ),
                 // Test 5: (P-1) * 2 should = P-2 (mod P)
                 (
@@ -85,6 +61,12 @@ class FieldMulTester {
                     "FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFEB1AED123AF48A03BBFD25E8CD0364140",
                     "FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFE1AAEDCE6AF48A03BBFD25E8CD0364040",
                     "79C9C34D615F7CBED1C176B50B68C7A02C8998767E8FE1A5BB5E3EA89F8921C3"
+                ),
+                // Two large numbers
+                (
+                    "79C9C34D615F7CBED1C176B50B68C7A02C8998767E8FE1A5BB5E3EA89F8921C3",
+                    "FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFE1AAEDCE6AF48A03BBFD25E8CD0364040",
+                    "71a53aefe4a52ec1b67035b21d9eccd9fbbfa2ed9671205282b0dfdb8138946f"
                 )
             ]
             
@@ -137,13 +119,13 @@ class FieldMulTester {
             }
             
             // Execute
-            guard let commandBuffer = commandQueue.makeCommandBuffer(),
+            guard let commandBuffer = super.commandQueue.makeCommandBuffer(),
                   let encoder = commandBuffer.makeComputeCommandEncoder() else {
                 print("❌ Failed to create command encoder")
                 return nil
             }
             
-            encoder.setComputePipelineState(pipelineState)
+            encoder.setComputePipelineState(super.pipelineState)
             encoder.setBuffer(bufferA, offset: 0, index: 0)
             encoder.setBuffer(bufferB, offset: 0, index: 1)
             encoder.setBuffer(bufferOut, offset: 0, index: 2)

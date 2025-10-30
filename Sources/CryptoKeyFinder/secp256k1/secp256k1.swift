@@ -1,7 +1,7 @@
 import Metal
 import Foundation
 
-public class SECP256k1GPUds {
+public class Secp256k1_GPU {
     private let device: MTLDevice
     private let commandQueue: MTLCommandQueue
     private let pipelineState: MTLComputePipelineState

@@ -21,11 +21,11 @@ struct KeyFinder {
     func run(){
         
         // ======== Run Tests ========
-        //FieldMulTester()!.runTests()
-        //FieldInvTester()!.runTests()
-        //TestPubKey().runTests()
-        //Secp256k1MetalTester().runTestFixes()
-        //exit(0)
+        //TestFieldMul()!.runTests()
+        //TestFieldInv()!.runTests()
+        TestPubKey().runTests()
+        //Secp256k1MetalTester()!.runTestFixes()
+        exit(0)
         
         let SHA256 = SHA256gpu(on: device)
         let RIPEMD160 = RIPEMD160(on: device)
@@ -54,7 +54,7 @@ struct KeyFinder {
             
             // We are running the secp256k1 calculations on the CPU which is very slow.
             // TODO: Do secp256k1 calculations on GPU
-            let privateKeyCompressed = try! P256K.Signing.PrivateKey(dataRepresentation: privateKey.data, format: .compressed)
+    	        let privateKeyCompressed = try! P256K.Signing.PrivateKey(dataRepresentation: privateKey.data, format: .compressed)
             let privateKey = try! P256K.Signing.PrivateKey(dataRepresentation: privateKey.data, format: .uncompressed)
             
             // Public key

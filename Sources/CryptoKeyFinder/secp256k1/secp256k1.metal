@@ -6,28 +6,33 @@ using namespace metal;
 // Secp256k1 prime modulus p = 2^256 - 2^32 - 977
 constant uint P[8] = {
     0xFFFFFC2F, 0xFFFFFFFE, 0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF  // little endian limbs ordered from LS to MS
-    //0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFE, 0xFFFFFC2F // reverse order
 };
 
 
-// Exponent p-2 for inversion: store as MSW-first for MSB->LSB scanning
-//constant uint P_MINUS_2_MSW_FIRST[8] = {
-//    0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFE, 0xFFFFFC2D
-//};
-
+// Exponent p-2 for inversion: stored as MSW-first for MSB->LSB scanning
+// P-2 in little-endian limb order (LSW first)
+constant uint P_MINUS_2[8] = {
+    0xFFFFFC2D,  // limb 0 (bits 0-31)
+    0xFFFFFFFE,  // limb 1 (bits 32-63)
+    0xFFFFFFFF,  // limb 2 (bits 64-95)
+    0xFFFFFFFF,  // limb 3 (bits 96-127)
+    0xFFFFFFFF,  // limb 4 (bits 128-159)
+    0xFFFFFFFF,  // limb 5 (bits 160-191)
+    0xFFFFFFFF,  // limb 6 (bits 192-223)
+    0xFFFFFFFF   // limb 7 (bits 224-255, MSW)
+};
 
 constant uint GX[8] = {
     0x16F81798, 0x59F2815B, 0x2DCE28D9, 0x029BFCDB, 0xCE870B07, 0x55A06295, 0xF9DCBBAC, 0x79BE667E  // little endian limbs ordered from LS to MS
-    //0x79BE667E, 0xF9DCBBAC, 0x55A06295, 0xCE870B07, 0x029BFCDB, 0x2DCE28D9, 0x59F2815B, 0x16F81798 // reverse order
 };
 
 constant uint GY[8] = {
     0xFB10D4B8, 0x9C47D08F, 0xA6855419, 0xFD17B448, 0x0E1108A8, 0x5DA4FBFC, 0x26A3C465, 0x483ADA77 // little endian limbs ordered from LS to MS
-    //0x483ADA77, 0x26A3C465, 0x5DA4FBFC, 0x0E1108A8, 0xFD17B448, 0xA6855419, 0x9C47D08F, 0xFB10D4B8 // reverse order
 };
 
 
 
+// ================ Type Definitions ================
 
 struct uint256 {
     uint limbs[8];
@@ -37,7 +42,6 @@ struct uint512 {
     uint limbs[16];
 };
 
-
 struct Point {
     uint256 x;
     uint256 y;
@@ -46,7 +50,8 @@ struct Point {
 
 
 
-// Utility functions
+// ================ Utility functions ================
+
 uint256 load_private_key(device const uint* private_keys, uint index) {
     uint256 result;
     for (int i = 0; i < 8; i++) {
@@ -76,8 +81,6 @@ bool is_equal(uint256 a, uint256 b) {
     return true;
 }
 
-
-
 int compare(uint256 a, uint256 b) {
     for (int i = 7; i >= 0; i--) {
         if (a.limbs[i] > b.limbs[i]) return 1;
@@ -88,9 +91,8 @@ int compare(uint256 a, uint256 b) {
 
 
 
+// ================ Field Arithmetic ================
 
-
-// WORKS confirmed by test
 uint256 field_sub(uint256 a, uint256 b) {
     uint256 result;
     uint borrow = 0;
@@ -156,6 +158,7 @@ void add_with_carry(uint a, uint b, uint carry_in, thread uint* result, thread u
     *carry_out = c1 + c2;
 }
 
+// TODO I assume we need to apply P-2 if negative? Same as for sub_uint256? but then it would be the same??
 uint256 sub_uint256(uint256 a, uint256 b) {
     uint256 result;
     uint borrow = 0;
@@ -327,15 +330,9 @@ uint256 field_add(uint256 a, uint256 b) {
 
 
 
-
-
-
-
 uint256 field_sqr(uint256 a) {
     return field_mul(a, a);
 }
-
-
 
 
 // Modular inverse using Fermat's Little Theorem: a^(p-2) mod p
@@ -345,17 +342,7 @@ uint256 field_inv(uint256 a) {
         return a;  // No inverse for zero
     }
     
-    // P-2 in little-endian limb order (LSW first)
-    const uint exp[8] = {
-        0xFFFFFC2D,  // limb 0 (bits 0-31)
-        0xFFFFFFFE,  // limb 1 (bits 32-63)
-        0xFFFFFFFF,  // limb 2 (bits 64-95)
-        0xFFFFFFFF,  // limb 3 (bits 96-127)
-        0xFFFFFFFF,  // limb 4 (bits 128-159)
-        0xFFFFFFFF,  // limb 5 (bits 160-191)
-        0xFFFFFFFF,  // limb 6 (bits 192-223)
-        0xFFFFFFFF   // limb 7 (bits 224-255, MSW)
-    };
+
     
     uint256 result;
     for (int i = 0; i < 8; i++) result.limbs[i] = 0;
@@ -365,7 +352,7 @@ uint256 field_inv(uint256 a) {
     
     // Binary exponentiation: LSB to MSB
     for (int limb = 0; limb < 8; limb++) {
-        uint exp_limb = exp[limb];
+        uint exp_limb = P_MINUS_2[limb];
         
         for (int bit = 0; bit < 32; bit++) {
             // If bit is set, multiply result by current base
@@ -384,7 +371,8 @@ uint256 field_inv(uint256 a) {
 }
 
 
-// Point operations
+// ================ Point operations ================
+
 Point point_double(Point p) {
   
     
@@ -470,7 +458,7 @@ Point point_mul(Point base, uint256 scalar) {
 
 
 
-
+// ================ Kernel ================
 
 
 // Main kernel - converts private keys to public keys
@@ -513,7 +501,7 @@ kernel void private_to_public_keys(
     }
 }
 
-// ============= Test Kernels ==============
+// ================ Test Kernels ================
 
 kernel void test_field_mul(
     device const uint* input_a [[buffer(0)]],

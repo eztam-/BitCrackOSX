@@ -6,35 +6,11 @@ import Foundation
 
 
 
-class FieldInvTester {
-    private let device: MTLDevice
-    private let commandQueue: MTLCommandQueue
-    private let pipelineState: MTLComputePipelineState
-    
-    
-    
+class TestFieldInv : TestBase {
+
     
     init?() {
-        guard let device = MTLCreateSystemDefaultDevice(),
-              let commandQueue = device.makeCommandQueue() else {
-            print("❌ Failed to initialize Metal device")
-            return nil
-        }
-        
-        self.device = device
-        self.commandQueue = commandQueue
-        
-        let library: MTLLibrary! = try? device.makeDefaultLibrary(bundle: Bundle.module)
-        guard let function = library.makeFunction(name: "test_field_inv") else {
-            fatalError("Failed to load function private_to_public_keys from library")
-        }
-        do {
-            self.pipelineState = try device.makeComputePipelineState(function: function)
-        } catch {
-            fatalError("Failed to create pipeline state: \(error)")
-            ///
-            
-        }
+        super.init(kernelFunctionName: "test_field_inv")
     }
        public func runTests() {
             
@@ -50,6 +26,11 @@ class FieldInvTester {
                     "0000000000000000000000000000000000000000000000000000000000000002",
                     "0000000000000000000000000000000000000000000000000000000000000000",// not needed for field inv
                     "7FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF7FFFFE18"
+                ),
+                (
+                    "00FFFFFFFFFFFFFFFFFFFFFFFFFFFFFE1AAEDCE6AF48A03BBFD25E8CD0364040",
+                    "0000000000000000000000000000000000000000000000000000000000000000",// not needed for field inv
+                    "af1e0c67b5033f9d518fece24289a9ced91c7f135af23706e5ac9a446b736737"
                 )
                 
             ]
