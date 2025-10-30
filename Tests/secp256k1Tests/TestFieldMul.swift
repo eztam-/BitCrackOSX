@@ -1,6 +1,8 @@
 import Metal
 import Foundation
 import Testing
+import Security
+import BigNumber
 
 // Helper for string repetition
 extension String {
@@ -16,11 +18,62 @@ class TestFieldMul: TestBase {
         super.init(kernelFunctionName: "test_field_mul")!
     }
     
+    @Test func testFieldMulRandomInput() {
+        
+        let numTests = 1000
+        print("Running \(numTests) random number tests. Only printing failed results.")
+        
+        var numFailedTests = 0
+        
+        for _ in 0..<numTests {
+            let aHex = super.generateRandom256BitHex();
+            let bHex = super.generateRandom256BitHex();
+            
+            let aLimbs = hexToLimbs(aHex)
+            let bLimbs = hexToLimbs(bHex)
+            
+            // Calculate expected result
+            let product = BInt(aHex, radix: 16)! * BInt(bHex, radix: 16)!
+            let p = BInt("FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFEFFFFFC2F", radix: 16)!
+            let expected = product % p
+            var expectedHex = expected.asString(radix: 16).uppercased()
+            
+            // Adding missing trailing zeros
+            for i in expectedHex.count..<64{
+                expectedHex = "\(0)\(expectedHex)"
+            }
+            
+            let expectedLimbs = hexToLimbs(expectedHex)
+            
+            
+            guard let result = multiply(aLimbs, bLimbs) else {
+                print("❌ Test failed - Metal execution error")
+                continue
+            }
+            
+            let passed = limbsToHex(result) == expectedHex
+            
+            // Only print failed results
+            if !passed {
+                numFailedTests+=1
+                print("  Input A:  \(aHex)")
+                print("  Input B:  \(bHex)")
+                print("  Expected: \(expectedHex)")
+                print("  Got:      \(limbsToHex(result))")
+                print("  Status:   \(passed ? "✅ PASS" : "❌ FAIL")")
+            
+               // print("  Debug - Expected limbs: \(expectedLimbs.map { String(format: "0x%08X", $0) })")
+               // print("  Debug - Got limbs:      \(result.map { String(format: "0x%08X", $0) })")
+            }
+        }
+        print("🧪 \(numFailedTests) of \(numTests) tests have failed")
+        assert(numFailedTests==0)
+        
+
+    }
     
     @Test func testFieldMul() {
-            
-            
-            
+                        
             print("🧪 Testing secp256k1 Field Multiplication")
             print("=" * 60)
             
@@ -180,6 +233,8 @@ class TestFieldMul: TestBase {
             }
             return result
         }
+    
+    
     }
 
     

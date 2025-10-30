@@ -34,5 +34,16 @@ class TestBase {
         }
         
     }
+    
+    // =============== Test Helper Methods ================ //
+    
+    func generateRandom256BitHex() -> String {
+        var bytes = [UInt8](repeating: 0, count: 32) // 32 bytes = 256 bits
+        let result = SecRandomCopyBytes(kSecRandomDefault, bytes.count, &bytes)
+        guard result == errSecSuccess else {
+            fatalError("Failed to generate secure random bytes")
+        }
+        return bytes.map { String(format: "%02x", $0) }.joined()
+    }
     	
 }

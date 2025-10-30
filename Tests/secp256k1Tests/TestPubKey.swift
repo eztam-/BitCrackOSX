@@ -34,7 +34,14 @@ class TestPubKey {
                 "000000000000000000000000000000000A100000000000000000000000000003",
                 "0279be667ef9dcbbac55a06295ce870b07029bfcdb2dce28d959f2815b16f81798",
                 true
+            ),
+            (
+                "c845836f99b08601f113bce036f9388f7b0f632de8140fe337e62a37f3566500",
+                "03f0cf7eb73ea035675bb7b91ce9b13af78bc7afe04e9be723983ed5a4ed150a9b",
+                true
             )
+            
+            
         ]
     
 

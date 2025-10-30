@@ -13,7 +13,8 @@ let package = Package(
                 url: "https://github.com/21-DOT-DEV/swift-secp256k1",
                 exact: "0.21.1"
             ),
-        .package(url: "https://github.com/mkrd/Swift-BigInt", exact: "2.3.0")
+        .package(url: "https://github.com/mkrd/Swift-BigInt", exact: "2.3.0"),
+        .package(url: "https://github.com/attaswift/BigInt.git", from: "5.7.0")
     ],
     targets: [
         // Targets are the basic building blocks of a package, defining a module or a test suite.
@@ -22,7 +23,8 @@ let package = Package(
             name: "CryptKeyFinder",
             dependencies: [
                 .product(name: "P256K", package: "swift-secp256k1"),
-                .product(name: "BigNumber", package: "Swift-BigInt")
+                .product(name: "BigNumber", package: "Swift-BigInt"),
+                .product(name: "BigInt", package: "BigInt")
             ],
             path: "Sources",
             resources: [.process("SHA256/SHA256.metal")],

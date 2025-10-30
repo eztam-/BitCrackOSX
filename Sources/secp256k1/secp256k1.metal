@@ -279,6 +279,7 @@ uint256 field_mul(uint256 a, uint256 b) {
 
 //---------------
 // Helper: Add two 32-bit numbers and return {low, high}
+/*
 struct add_result {
     uint low;
     uint high;
@@ -295,7 +296,7 @@ add_result add_with_carry(uint a, uint b, uint carry_in) {
     return res;
 }
 
-
+*/
 
 
 
