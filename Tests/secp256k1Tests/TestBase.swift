@@ -20,6 +20,9 @@ class TestBase {
     let commandQueue: MTLCommandQueue
     let pipelineState: MTLComputePipelineState
     
+    convenience init?() {
+        self.init(kernelFunctionName: "test_field_mul") // dummy
+    }
     
     init?(kernelFunctionName : String) {
         guard let device = MTLCreateSystemDefaultDevice(),

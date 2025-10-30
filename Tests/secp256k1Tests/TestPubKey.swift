@@ -2,9 +2,60 @@ import Metal
 import Foundation
 import CryptKeyFinder
 import Testing
+import P256K
 
-class TestPubKey {
+class TestPubKey: TestBase {
     
+    init() {
+        super.init(kernelFunctionName: "test_field_sub")! // dummy. actuylly not needed
+    }
+    
+    @Test func testRandomPubKey() {
+
+        let numTests = 1000
+        print("Running \(numTests) random number tests. Only printing failed results.")
+        
+        var numFailedTests = 0
+        
+        var privKeys : [Secp256k1_GPU.PrivateKey] = []
+        
+        for _ in 0..<numTests {
+           
+            let privKeyRaw = UInt256(hexString: super.generateRandom256BitHex())
+            
+            privKeys.append(Secp256k1_GPU.PrivateKey(hexString:privKeyRaw.data.hexString))
+            // TODO: it i very important to add a test for uncompressed keys as well, since there could be calc errors i the Y coordinate which isnt visible in compressed keys
+        }
+        
+        let secp256k1obj = Secp256k1_GPU()
+        let res = secp256k1obj.generatePublicKeys(privateKeys: privKeys)
+        
+        for i in 0..<res.count {
+            
+            // Calculate expected value from lib
+            let privateKeyCompressed = try! P256K.Signing.PrivateKey(dataRepresentation: privKeys[i].data, format: .compressed)
+            let privateKeyUncomp = try! P256K.Signing.PrivateKey(dataRepresentation: privKeys[i].data, format: .uncompressed)
+            let expPubKeyComp = privateKeyCompressed.publicKey.dataRepresentation.hexString
+            //let expPubKeyUncomp = privateKeyUncomp.publicKey.dataRepresentation.hexString
+            
+            
+            let pass = expPubKeyComp == res[i].toCompressed().hexString
+            let result = pass ?  "✅ PASS" : "❌ FAIL"
+            if !pass {
+                numFailedTests+=1
+                print("\(result)  Private Key: \(privKeys[i].data.hexString)")
+                print("         Actual:      \(res[i].toCompressed().hexString)")
+                print("         Expected:    \(expPubKeyComp)\n")
+            }
+           
+            
+        }
+        
+        print("🧪 \(numFailedTests) of \(numTests) tests have failed")
+        assert(numFailedTests==0)
+        
+        
+    }
     
     @Test func testPubKey(){
         
@@ -32,7 +83,7 @@ class TestPubKey {
             ),
             (
                 "000000000000000000000000000000000A100000000000000000000000000003",
-                "0279be667ef9dcbbac55a06295ce870b07029bfcdb2dce28d959f2815b16f81798",
+                "0206a7d89b595868e231e3474a37051185a8c4d344f02edd122258fb355cfd6000",
                 true
             ),
             (

@@ -2,24 +2,24 @@ import Foundation
 
 
 /// A 256-bit unsigned integer type with proper increment functionality
-struct UInt256: Equatable, Hashable, Comparable, CustomStringConvertible {
+public struct UInt256: Equatable, Hashable, Comparable, CustomStringConvertible {
     // Store as 8 x 32-bit words (little-endian: words[0] is least significant)
     private var words: [UInt32]
     
     // MARK: - Initializers
     
-    init() {
+    public init() {
         self.words = [0, 0, 0, 0, 0, 0, 0, 0]
     }
     
     
-    init(_ value: UInt64) {
+    public init(_ value: UInt64) {
         let low = UInt32(value & 0xFFFFFFFF)
         let high = UInt32(value >> 32)
         self.words = [low, high, 0, 0, 0, 0, 0, 0]
     }
     
-    init(data: Data) {
+    public init(data: Data) {
         self.words = [0, 0, 0, 0, 0, 0, 0, 0]
         
         // Ensure we have exactly 32 bytes
@@ -40,13 +40,13 @@ struct UInt256: Equatable, Hashable, Comparable, CustomStringConvertible {
         }
     }
     
-    init(words: [UInt32]) {
+    public init(words: [UInt32]) {
         precondition(words.count == 8, "UInt256 requires exactly 8 words")
         self.words = words
     }
 
     
-    init(hexString: String) {
+    public init(hexString: String) {
         var hex = hexString
         if hex.hasPrefix("0x") {
             hex = String(hex.dropFirst(2))
@@ -72,7 +72,7 @@ struct UInt256: Equatable, Hashable, Comparable, CustomStringConvertible {
         return words.allSatisfy { $0 == 0 }
     }
     
-    var description: String {
+    public var description: String {
         return hexString
     }
     
@@ -80,7 +80,7 @@ struct UInt256: Equatable, Hashable, Comparable, CustomStringConvertible {
         return "0x" + data.map { String(format: "%02x", $0) }.joined()
     }
     
-    var data: Data {
+    public var data: Data {
         var result = Data()
         // Convert from little-endian to big-endian for external representation
         for i in (0..<8).reversed() {
@@ -95,7 +95,7 @@ struct UInt256: Equatable, Hashable, Comparable, CustomStringConvertible {
     
     /// Increment by 1, returning true if overflow occurred
     @discardableResult
-    mutating func increment() -> Bool {
+    public mutating func increment() -> Bool {
         var carry: UInt64 = 1 // Start with 1 to increment
         
         for i in 0..<8 {
@@ -114,7 +114,7 @@ struct UInt256: Equatable, Hashable, Comparable, CustomStringConvertible {
     
     /// Increment by a specific value
     @discardableResult
-    mutating func increment(by value: UInt256) -> Bool {
+    public mutating func increment(by value: UInt256) -> Bool {
         var carry: UInt64 = 0
         
         for i in 0..<8 {
@@ -156,11 +156,11 @@ struct UInt256: Equatable, Hashable, Comparable, CustomStringConvertible {
     
     // MARK: - Comparison
     
-    static func == (lhs: UInt256, rhs: UInt256) -> Bool {
+    public static func == (lhs: UInt256, rhs: UInt256) -> Bool {
         return lhs.words == rhs.words
     }
     
-    static func < (lhs: UInt256, rhs: UInt256) -> Bool {
+    public static func < (lhs: UInt256, rhs: UInt256) -> Bool {
         for i in (0..<8).reversed() {
             if lhs.words[i] < rhs.words[i] {
                 return true
@@ -171,15 +171,15 @@ struct UInt256: Equatable, Hashable, Comparable, CustomStringConvertible {
         return false // Equal
     }
     
-    static func <= (lhs: UInt256, rhs: UInt256) -> Bool {
+    public static func <= (lhs: UInt256, rhs: UInt256) -> Bool {
         return lhs < rhs || lhs == rhs
     }
     
-    static func > (lhs: UInt256, rhs: UInt256) -> Bool {
+    public static func > (lhs: UInt256, rhs: UInt256) -> Bool {
         return rhs < lhs
     }
     
-    static func >= (lhs: UInt256, rhs: UInt256) -> Bool {
+    public static func >= (lhs: UInt256, rhs: UInt256) -> Bool {
         return rhs <= lhs
     }
     
@@ -238,13 +238,13 @@ extension UInt256 {
 
 extension UInt256 {
     /// SECP256k1 curve order
-    static let curveOrder: UInt256 = {
+    nonisolated(unsafe) public static let curveOrder: UInt256 = {
         let hex = "FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFEBAAEDCE6AF48A03BBFD25E8CD0364141"
         return UInt256(hexString: hex)
     }()
     
     /// Maximum valid private key (curve order - 1)
-    static let maxPrivateKey: UInt256 = {
+    nonisolated(unsafe) public static let maxPrivateKey: UInt256 = {
         let hex = "FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFEBAAEDCE6AF48A03BBFD25E8CD0364140"
         return UInt256(hexString: hex)
     }()
