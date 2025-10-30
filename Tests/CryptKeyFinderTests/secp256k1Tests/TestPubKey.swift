@@ -1,15 +1,12 @@
-// ==================== SWIFT TEST CODE ====================
-// Save this as: TestFieldMul.swift
-
 import Metal
 import Foundation
-
-
+import CryptKeyFinder
+import Testing
 
 class TestPubKey {
     
     
-    func runTests(){
+    @Test func testPubKey(){
         
         
         let testCases: [(String, String, Bool)] = [ // Private Key, Expected Pub Key, Compressed

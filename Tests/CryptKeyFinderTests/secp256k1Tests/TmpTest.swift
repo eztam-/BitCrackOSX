@@ -1,13 +1,13 @@
 import Metal
 import BigNumber
 import Foundation
-
+import Testing
 
 class Secp256k1MetalTester: TestBase {
     
     
-    init?() {
-        super.init(kernelFunctionName: "tmp_test_fixes")
+    init() {
+        super.init(kernelFunctionName: "tmp_test_fixes")!
     }
     
     func random256(byteLength : Int)-> BInt {
@@ -20,7 +20,7 @@ class Secp256k1MetalTester: TestBase {
         return BInt(bytes: bytes)
     }
   
-    func testMod() {
+    func testTmp() {
         /*
         let P = BInt("FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFEFFFFFC2F", radix: 16)!
     
@@ -58,7 +58,7 @@ class Secp256k1MetalTester: TestBase {
     
     
     func runGpuTest(data :Data, gpuFunction: String, inBufferSize : Int, outBufferSize : Int){
-     
+     /*
         do {
             guard let library = try? device.makeDefaultLibrary(bundle: Bundle.module) else {
                 print("Failed to create default Metal library from module bundle")
@@ -75,7 +75,7 @@ class Secp256k1MetalTester: TestBase {
             return
         }
            
-  
+  */
       // Create buffers
        guard let privateKeysBuffer = device.makeBuffer(length: inBufferSize, options: .storageModeShared),
             let debugOutputBuffer = device.makeBuffer(length: outBufferSize, options: .storageModeShared) else {
@@ -97,7 +97,7 @@ class Secp256k1MetalTester: TestBase {
     
     
   
-    func runTestFixes() {
+    @Test func testTmpFixes() {
         
 
         //testMod()
@@ -203,13 +203,6 @@ class Secp256k1MetalTester: TestBase {
     }
 }
 
-// Usage
-func runTests() {
-    print("Testing Metal secp256k1 implementation...\n")
-    
-    let tester = Secp256k1MetalTester()
-    tester!.runTestFixes()
-}
 
 // Helper to convert hex string to little-endian UInt32 array
 func hexStringToPrivateKey(_ hexString: String) -> [UInt32] {

@@ -20,12 +20,6 @@ struct KeyFinder {
    
     func run(){
         
-        // ======== Run Tests ========
-        //TestFieldMul()!.runTests()
-        //TestFieldInv()!.runTests()
-        TestPubKey().runTests()
-        //Secp256k1MetalTester()!.runTestFixes()
-        exit(0)
         
         let SHA256 = SHA256gpu(on: device)
         let RIPEMD160 = RIPEMD160(on: device)

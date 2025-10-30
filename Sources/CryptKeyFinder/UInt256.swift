@@ -380,7 +380,7 @@ class UInt256Tests {
 }
 
 // Data extension for hex representation
-extension Data {
+public extension Data {
     var hex: String {
         return map { String(format: "%02x", $0) }.joined()
     }

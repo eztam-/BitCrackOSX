@@ -1,18 +1,23 @@
-// ==================== SWIFT TEST CODE ====================
-// Save this as: TestFieldMul.swift
-
 import Metal
 import Foundation
+import Testing
 
-
-
-class TestFieldInv : TestBase {
-
-    
-    init?() {
-        super.init(kernelFunctionName: "test_field_inv")
+// Helper for string repetition
+extension String {
+    static func * (left: String, right: Int) -> String {
+        return String(repeating: left, count: right)
     }
-       public func runTests() {
+}
+
+class TestFieldMul: TestBase {
+   
+    
+    init() {
+        super.init(kernelFunctionName: "test_field_mul")!
+    }
+    
+    
+    @Test func testFieldMul() {
             
             
             
@@ -23,16 +28,46 @@ class TestFieldInv : TestBase {
             let testCases: [(String, String, String)] = [
                 // Test 1: 1 * 1 = 1
                 (
-                    "0000000000000000000000000000000000000000000000000000000000000002",
-                    "0000000000000000000000000000000000000000000000000000000000000000",// not needed for field inv
-                    "7FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF7FFFFE18"
+                    "0000000000000000000000000000000000000000000000000000000000000001",
+                    "0000000000000000000000000000000000000000000000000000000000000001",
+                    "0000000000000000000000000000000000000000000000000000000000000001"
                 ),
+                // Test 2: 2 * 3 = 6
                 (
-                    "00FFFFFFFFFFFFFFFFFFFFFFFFFFFFFE1AAEDCE6AF48A03BBFD25E8CD0364040",
-                    "0000000000000000000000000000000000000000000000000000000000000000",// not needed for field inv
-                    "af1e0c67b5033f9d518fece24289a9ced91c7f135af23706e5ac9a446b736737"
+                    "0000000000000000000000000000000000000000000000000000000000000002",
+                    "0000000000000000000000000000000000000000000000000000000000000003",
+                    "0000000000000000000000000000000000000000000000000000000000000006"
+                ),
+                // Test 3: 2^32 * 2 = 2^33
+                (
+                    "0000000000000000000000000000000000000000000000000000000100000000",
+                    "0000000000000000000000000000000000000000000000000000000000000002",
+                    "0000000000000000000000000000000000000000000000000000000200000000"
+                ),
+                // Test 4: Large number * 2
+                (
+                    "FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF",
+                    "0000000000000000000000000000000000000000000000000000000000000002",
+                    "00000000000000000000000000000000000000000000000000000002000007A0" 
+                ),
+                // Test 5: (P-1) * 2 should = P-2 (mod P)
+                (
+                    "FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFEFFFFFC2E",
+                    "0000000000000000000000000000000000000000000000000000000000000002",
+                    "FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFEFFFFFC2D"
+                ),
+                // Two large numbers
+                (
+                    "FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFEB1AED123AF48A03BBFD25E8CD0364140",
+                    "FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFE1AAEDCE6AF48A03BBFD25E8CD0364040",
+                    "79C9C34D615F7CBED1C176B50B68C7A02C8998767E8FE1A5BB5E3EA89F8921C3"
+                ),
+                // Two large numbers
+                (
+                    "79C9C34D615F7CBED1C176B50B68C7A02C8998767E8FE1A5BB5E3EA89F8921C3",
+                    "FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFE1AAEDCE6AF48A03BBFD25E8CD0364040",
+                    "71a53aefe4a52ec1b67035b21d9eccd9fbbfa2ed9671205282b0dfdb8138946f"
                 )
-                
             ]
             
             for (index, testCase) in testCases.enumerated() {
@@ -84,13 +119,13 @@ class TestFieldInv : TestBase {
             }
             
             // Execute
-            guard let commandBuffer = commandQueue.makeCommandBuffer(),
+            guard let commandBuffer = super.commandQueue.makeCommandBuffer(),
                   let encoder = commandBuffer.makeComputeCommandEncoder() else {
                 print("❌ Failed to create command encoder")
                 return nil
             }
             
-            encoder.setComputePipelineState(pipelineState)
+            encoder.setComputePipelineState(super.pipelineState)
             encoder.setBuffer(bufferA, offset: 0, index: 0)
             encoder.setBuffer(bufferB, offset: 0, index: 1)
             encoder.setBuffer(bufferOut, offset: 0, index: 2)

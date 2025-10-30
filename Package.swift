@@ -4,7 +4,7 @@
 import PackageDescription
 
 let package = Package(
-    name: "CryptoKeyFinder",
+    name: "CryptKeyFinder",
     platforms: [
         .macOS(.v26), // platform version
     ],
@@ -19,13 +19,18 @@ let package = Package(
         // Targets are the basic building blocks of a package, defining a module or a test suite.
         // Targets can depend on other targets in this package and products from dependencies.
         .executableTarget(
-            name: "CryptoKeyFinder",
+            name: "CryptKeyFinder",
             dependencies: [
                 .product(name: "P256K", package: "swift-secp256k1"),
                 .product(name: "BigNumber", package: "Swift-BigInt")
             ],
             path: "Sources",
-            resources: [.process("CryptoKeyFinder/SHA256/SHA256.metal")],
+            resources: [.process("CryptKeyFinder/SHA256/SHA256.metal")],
         ),
+        .testTarget(
+            name: "CryptKeyFinderTests",
+            dependencies: ["CryptKeyFinder"],
+            path: "Tests",
+            resources: [.process("../Sources/CryptKeyFinder/secp256k1/secp256k1.metal")],)
     ]
 )

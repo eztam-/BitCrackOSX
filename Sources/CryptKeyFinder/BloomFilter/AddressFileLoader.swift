@@ -3,7 +3,9 @@ import Foundation
 struct AddressFileLoader {
     
     
-    
+    // TODO: store all valid addresses in a embedded DB like H2 equivalent.
+    //  - Then provide an option to use this file after a restart, without re-indexing
+    //  - This db can also be used to check fastly the addresses that were in the bloom filter
     
     static func countValidAddressesInFile(path: String) -> Int {
         print("Counting supported addresses in file \(path)")
