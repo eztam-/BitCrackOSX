@@ -543,32 +543,21 @@ kernel void test_field_inv(
 }
 
 
-kernel void tmp_test_fixes(
-    device const uint* private_keys [[buffer(0)]],
-    device uint* debug_output [[buffer(1)]],
+kernel void test_field_sub(
+    device const uint* input_a [[buffer(0)]],
+    device const uint* input_b [[buffer(1)]],
+    device uint* output [[buffer(2)]],
     uint id [[thread_position_in_grid]]
 ) {
-    
-
-    
-    uint256 priv_key = load_private_key(private_keys, id);
-    
-    // Test 1: Multiply private key by 1 (should return private key)
-    uint256 one = {2, 0, 0, 0, 0, 0, 0, 0};
-    //uint256 result = field_mul(priv_key, one);
-    
-    uint512 t1 = {2, 0, 0, 0, 0, 0, 0, 0, 2, 0, 0, 0, 0, 0, 0, 1};
-    
-    //uint256 result = mod_p_reduce(t1);
-    uint256 result = field_inv(priv_key);
-    
-    //uint256 inv = field_inv(one);
-    //uint256 result = field_mul(one, inv);
-    
-    
-    // Store  results for comparison
+    uint256 a, b;
     for (int i = 0; i < 8; i++) {
-        debug_output[id * 8 + i] = result.limbs[i];
-       
+        a.limbs[i] = input_a[id * 8 + i];
+        b.limbs[i] = input_b[id * 8 + i];
+    }
+    
+    uint256 result = field_sub(a, b);
+    
+    for (int i = 0; i < 8; i++) {
+        output[id * 8 + i] = result.limbs[i];
     }
 }

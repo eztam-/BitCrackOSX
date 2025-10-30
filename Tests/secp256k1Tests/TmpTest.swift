@@ -7,7 +7,8 @@ class Secp256k1MetalTester: TestBase {
     
     
     init() {
-        super.init(kernelFunctionName: "tmp_test_fixes")!
+       // super.init(kernelFunctionName: "tmp_test_fixes")!
+        super.init(kernelFunctionName: "debug_point_double")!
     }
     
     func random256(byteLength : Int)-> BInt {
@@ -20,82 +21,7 @@ class Secp256k1MetalTester: TestBase {
         return BInt(bytes: bytes)
     }
   
-    func testTmp() {
-        /*
-        let P = BInt("FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFEFFFFFC2F", radix: 16)!
-    
-        var dataForGPU = Data () // 512 bit blocks
-        
-        var hostResults: [BInt] = []
-        var input: [UInt32] = [0,0,0,0,0,0,0,0,  0,0,0,0,0,0,0,0]
-        
-        let numTests = 10;
-        for i in 1..<numTests {
-            let l = Int.random(in: 32..<64) // mod will only kick in when >256 therefore lets create test numbers between 256 and 512 bits
-            let a = random256(byteLength:l)
-            //print(a)
-            //print(a%P)
-            //print("--")
-            for by in 0..<64{
-                //print("\(by) \(a.getBytes()[by])")
-                //input[by]=a.getBytes()[by]
-                dataForGPU.append(a.getBytes()[by])
-            }
-        }
-        runGpuTest(
-            data: dataForGPU,
-            gpuFunction: "tmp_test_fixes",
-            inBufferSize: numTests*64*MemoryLayout<UInt8>.size,
-            outBufferSize: numTests*32*MemoryLayout<UInt8>.size)
-        
-        */
-        //
-        
-      
-    }
-    
-    
-    
-    
-    func runGpuTest(data :Data, gpuFunction: String, inBufferSize : Int, outBufferSize : Int){
-     /*
-        do {
-            guard let library = try? device.makeDefaultLibrary(bundle: Bundle.module) else {
-                print("Failed to create default Metal library from module bundle")
-                return
-            }
-            guard let funct: MTLFunction = library.makeFunction(name: gpuFunction) else {
-                print("Failed to make function named \(gpuFunction) from Metal library")
-                return
-            }
-            let pipelineState = try device.makeComputePipelineState(function: funct)
-            _ = pipelineState // keep local to silence unused warning for now
-        } catch {
-            print("Failed to create compute pipeline state: \(error)")
-            return
-        }
-           
-  */
-      // Create buffers
-       guard let privateKeysBuffer = device.makeBuffer(length: inBufferSize, options: .storageModeShared),
-            let debugOutputBuffer = device.makeBuffer(length: outBufferSize, options: .storageModeShared) else {
-          print("Failed to create Metal buffers")
-          return
-      }
-      /*
-      // Copy test data to input buffer
-      let privateKeysPointer = privateKeysBuffer.contents().bindMemory(to: UInt32.self, capacity: keyCount * 8)
-      for (keyIndex, privateKey) in testPrivateKeys.enumerated() {
-          for (limbIndex, limb) in privateKey.enumerated() {
-              privateKeysPointer[keyIndex * 8 + limbIndex] = limb
-          }
-      }
-               */
-    
-                                                  
-    }
-    
-    
+
   
     @Test func testTmpFixes() {
         

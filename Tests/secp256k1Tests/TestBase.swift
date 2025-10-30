@@ -2,6 +2,15 @@ import Metal
 import Foundation
 import Testing
 
+
+// Helper for string repetition
+extension String {
+    static func * (left: String, right: Int) -> String {
+        return String(repeating: left, count: right)
+    }
+}
+
+
 /**
  Base super class for tests
  */
@@ -36,6 +45,8 @@ class TestBase {
     }
     
     // =============== Test Helper Methods ================ //
+    
+    
     
     func generateRandom256BitHex() -> String {
         var bytes = [UInt8](repeating: 0, count: 32) // 32 bytes = 256 bits

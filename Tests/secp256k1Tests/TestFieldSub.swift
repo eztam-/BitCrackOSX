@@ -5,16 +5,16 @@ import Security
 import BigNumber
 
 
-class TestFieldMul: TestBase {
+class TestFieldSub: TestBase {
    
     
     init() {
-        super.init(kernelFunctionName: "test_field_mul")!
+        super.init(kernelFunctionName: "test_field_sub")!
     }
     
-    @Test func testFieldMulRandomInput() {
+    @Test func testFieldSubRandomInput() {
         
-        let numTests = 1000
+        let numTests = 10
         print("Running \(numTests) random number tests. Only printing failed results.")
         
         var numFailedTests = 0
@@ -27,10 +27,14 @@ class TestFieldMul: TestBase {
             let bLimbs = hexToLimbs(bHex)
             
             // Calculate expected result
-            let product = BInt(aHex, radix: 16)! * BInt(bHex, radix: 16)!
+            let res = BInt(aHex, radix: 16)! - BInt(bHex, radix: 16)!
             let p = BInt("FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFEFFFFFC2F", radix: 16)!
-            let expected = product % p
+            var expected = res % p
+            if expected.signum() < 0 {
+                expected = expected + p
+            }
             var expectedHex = expected.asString(radix: 16).uppercased()
+            
             
             // Adding missing trailing zeros
             for i in expectedHex.count..<64{
@@ -48,7 +52,7 @@ class TestFieldMul: TestBase {
             let passed = limbsToHex(result) == expectedHex
             
             // Only print failed results
-            if !passed {
+            //if !passed {
                 numFailedTests+=1
                 print("  Input A:  \(aHex)")
                 print("  Input B:  \(bHex)")
@@ -58,7 +62,7 @@ class TestFieldMul: TestBase {
             
                // print("  Debug - Expected limbs: \(expectedLimbs.map { String(format: "0x%08X", $0) })")
                // print("  Debug - Got limbs:      \(result.map { String(format: "0x%08X", $0) })")
-            }
+           // }
         }
         print("🧪 \(numFailedTests) of \(numTests) tests have failed")
         assert(numFailedTests==0)
@@ -66,54 +70,22 @@ class TestFieldMul: TestBase {
 
     }
     
-    @Test func testFieldMul() {
+    @Test func testFieldSub() {
                         
-            print("🧪 Testing secp256k1 Field Multiplication")
+            print("🧪 Testing secp256k1 Field Subtraction")
             print("=" * 60)
             
             // Test cases: (a, b, expected_result)
             let testCases: [(String, String, String)] = [
-                // Test 1: 1 * 1 = 1
                 (
-                    "0000000000000000000000000000000000000000000000000000000000000001",
-                    "0000000000000000000000000000000000000000000000000000000000000001",
-                    "0000000000000000000000000000000000000000000000000000000000000001"
+                    "51aad8b5bdd7a269a553623f93d2c8a709875ed2bad972ca785a9def04a8d01e",
+                    "2b330d78bc34a265592692ce84ae67fd0cbe50f6a3a524a59f10a625660c5119",
+                    "2677CB3D01A300044C2CCF710F2460A9FCC90DDC17344E24D949F7C99E9C7F05"
                 ),
-                // Test 2: 2 * 3 = 6
                 (
-                    "0000000000000000000000000000000000000000000000000000000000000002",
-                    "0000000000000000000000000000000000000000000000000000000000000003",
-                    "0000000000000000000000000000000000000000000000000000000000000006"
-                ),
-                // Test 3: 2^32 * 2 = 2^33
-                (
-                    "0000000000000000000000000000000000000000000000000000000100000000",
-                    "0000000000000000000000000000000000000000000000000000000000000002",
-                    "0000000000000000000000000000000000000000000000000000000200000000"
-                ),
-                // Test 4: Large number * 2
-                (
-                    "FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF",
-                    "0000000000000000000000000000000000000000000000000000000000000002",
-                    "00000000000000000000000000000000000000000000000000000002000007A0" 
-                ),
-                // Test 5: (P-1) * 2 should = P-2 (mod P)
-                (
-                    "FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFEFFFFFC2E",
-                    "0000000000000000000000000000000000000000000000000000000000000002",
-                    "FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFEFFFFFC2D"
-                ),
-                // Two large numbers
-                (
-                    "FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFEB1AED123AF48A03BBFD25E8CD0364140",
-                    "FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFE1AAEDCE6AF48A03BBFD25E8CD0364040",
-                    "79C9C34D615F7CBED1C176B50B68C7A02C8998767E8FE1A5BB5E3EA89F8921C3"
-                ),
-                // Two large numbers
-                (
-                    "79C9C34D615F7CBED1C176B50B68C7A02C8998767E8FE1A5BB5E3EA89F8921C3",
-                    "FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFE1AAEDCE6AF48A03BBFD25E8CD0364040",
-                    "71a53aefe4a52ec1b67035b21d9eccd9fbbfa2ed9671205282b0dfdb8138946f"
+                    "195f2c6c3fd379800ca137162d882ebeef5dc86a33fb3690b332922f56d028b4",
+                    "1bbcdac52e0f0f4bf22ccb1c5e3fce110a994549148246144cde6587db0704cb",
+                    "FDA251A711C46A341A746BF9CF4860ADE4C483211F78F07C66542CA67BC92018"
                 )
             ]
             
