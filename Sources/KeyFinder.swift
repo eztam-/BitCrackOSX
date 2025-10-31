@@ -11,114 +11,145 @@ let ITERATIONS = 10000
 
 @main
 struct KeyFinder {
-   
+    
     
     static func main() {
         KeyFinder().run()
     }
     
-   
+    
     func run(){
         
-        
+        let clock = ContinuousClock()
         let SHA256 = SHA256gpu(on: device)
         let RIPEMD160 = RIPEMD160(on: device)
+        let secp256k1obj = Secp256k1_GPU(on:  device)
         
         print("Starting on GPU: \(device.name)\n")
-
-        let bloomFilter = AddressFileLoader.load(path: "/Users/x/Downloads/bitcoin.tsv")
+        
+        let bloomFilter = AddressFileLoader.load(path: "/Users/x/Downloads/bitcoin_very_short.tsv")
         
         
-  
-        // TODO: check for maximum range wich is: 0xFFFF FFFF FFFF FFFF FFFF FFFF FFFF FFFE BAAE DCE6 AF48 A03B BFD2 5E8C D036 4140 
+        
+        // TODO: check for maximum range wich is: 0xFFFF FFFF FFFF FFFF FFFF FFFF FFFF FFFE BAAE DCE6 AF48 A03B BFD2 5E8C D036 4140
         // Iterate through a range of private keys
         let start = UInt256(hexString: "0000000000000000000000000000000000000000000000000001000000000000")
         let end = UInt256(hexString: "00000000000000000000000000000000000000000000000000010000A0000005")
-      
-
+        
+        
         // Generate keys in batches
         print("\n=== Batch Generation ===")
         var pubKeyBatch: [Data] = []
-        var privKeyBatch: [UInt256] = []
+        //var privKeyBatch: [UInt256] = []
+        var privKeysBatch2 : [Secp256k1_GPU.PrivateKey] = [] // TODO consolidatio into one
         let batchIterator = BitcoinPrivateKeyIterator(start: start, end: end)
-
+        
         // TODO: FIXME: If the key range is smaller than the batch size it doesnt work
         for privateKey: UInt256 in batchIterator {
-            privKeyBatch.append(privateKey)
+            //privKeyBatch.append(privateKey)
+            privKeysBatch2.append(Secp256k1_GPU.PrivateKey(hexString:privateKey.hexString))
+            // TODO add trailling zeros?
             
-            // We are running the secp256k1 calculations on the CPU which is very slow.
-            // TODO: Do secp256k1 calculations on GPU
-    	        let privateKeyCompressed = try! P256K.Signing.PrivateKey(dataRepresentation: privateKey.data, format: .compressed)
-            let privateKey = try! P256K.Signing.PrivateKey(dataRepresentation: privateKey.data, format: .uncompressed)
             
-            // Public key
-            // TODO: add option to add uncompressed keys
-            let pubKey = privateKeyCompressed.publicKey.dataRepresentation
-            //print("Private Key Compressed: = \(privateKeyCompressed.dataRepresentation.hex) Pub Key:  \(pubKey.hex)")
-            pubKeyBatch.append(pubKey)
-            //print("  Public Key:  \(String(bytes: privateKey.publicKey.dataRepresentation))")
-            //print("  Public Key Compressed:  \(String(bytes: privateKeyCompressed.publicKey.dataRepresentation))")
-           
+            
+            
+            
+            /*
+             
+             // We are running the secp256k1 calculations on the CPU which is very slow.
+             // TODO: Do secp256k1 calculations on GPU
+             let privateKeyCompressed = try! P256K.Signing.PrivateKey(dataRepresentation: privateKey.data, format: .compressed)
+             let privateKey = try! P256K.Signing.PrivateKey(dataRepresentation: privateKey.data, format: .uncompressed)
+             
+             // Public key
+             // TODO: add option to add uncompressed keys
+             let pubKey = privateKeyCompressed.publicKey.dataRepresentation
+             //print("Private Key Compressed: = \(privateKeyCompressed.dataRepresentation.hex) Pub Key:  \(pubKey.hex)")
+             pubKeyBatch.append(pubKey)
+             //print("  Public Key:  \(String(bytes: privateKey.publicKey.dataRepresentation))")
+             //print("  Public Key Compressed:  \(String(bytes: privateKeyCompressed.publicKey.dataRepresentation))")
+             */
             // Send data batch wise to the GPU for SHA256 hashing
-            let BATCH_SIZE = 10000
-            if pubKeyBatch.count == BATCH_SIZE {
+            let BATCH_SIZE = 1000
+            if privKeysBatch2.count == BATCH_SIZE {
                 let startTime = CFAbsoluteTimeGetCurrent()
-
+                
+                
+                
+                
+                var start = DispatchTime.now()
+                let pubKeys = secp256k1obj.generatePublicKeys(privateKeys: privKeysBatch2)
+                for pk in pubKeys {
+                    pubKeyBatch.append(pk.toCompressed())
+                }
+                var end = DispatchTime.now()
+                print("secp256k1 took  : \(end.uptimeNanoseconds - start.uptimeNanoseconds)ns")
+                
+                
                 
                 // Calculate SHA256 for the batch of public keys on the GPU
+                start = DispatchTime.now()
                 let outPtr = SHA256.run(batchOfData: pubKeyBatch)
                 //printSha256Output(BATCH_SIZE, outPtr)
-             
+                end = DispatchTime.now()
+                print("SHA256 took     : \(end.uptimeNanoseconds - start.uptimeNanoseconds)ns")
+                
+                
+                start = DispatchTime.now()
                 let ripemd160_input_data = Data(bytesNoCopy: outPtr, count: BATCH_SIZE*32, deallocator: .custom({ (ptr, size) in ptr.deallocate() }))
                 //let ripemd160_input_data = Data(bytes: outPtr, count: BATCH_SIZE*32) // Is an alternative, but copies the data and therefore is slower
-               
+                
                 let ripemd160_result = RIPEMD160.run(messagesData: ripemd160_input_data, messageCount: BATCH_SIZE)
                 //printRipemd160Output(BATCH_SIZE, ripemd160_result)
+                end = DispatchTime.now()
+                print("ripemd160 took  : \(end.uptimeNanoseconds - start.uptimeNanoseconds)ns")
                 
+                
+                start = DispatchTime.now()
                 for i in 0..<BATCH_SIZE {
                     let addrExists = bloomFilter.contains(pointer: ripemd160_result, length: 5, offset: i*5)
                     if addrExists {
                         print("#########################################################")
-                        print("Found matching address: \(createData(from: ripemd160_result, offset: i*5, length: 5).hex) for private key: \(privKeyBatch[i].hexString)")
+                        print("Found matching address: \(createData(from: ripemd160_result, offset: i*5, length: 5).hex) for private key: \(privKeysBatch2[i].data.hexString)")
                         print("!!! NOTE !!! At the moment this address is just the RIPEMD160 result, you need to add the address byte and do a base58 decode and a checksum validation to get the actual address.")
                         print("#########################################################")
                     }
                 }
-                
-                
+                end = DispatchTime.now()
+                print("bloomfilter took: \(end.uptimeNanoseconds - start.uptimeNanoseconds)ns")
                 // The following would do all the further steps to calculate the address but we don't need it, since the addresses in the bloomfilter
                 // are already BASE58 decoded and also the version byte and checksum were removed.
                 /*
-                // TODO: This is not very performant. Its better adding it in the metal file of ripemd160 at the end
-                var versionedRipemd160 = convertPointerToDataArray(ptr:ripemd160_result, count: 5*BATCH_SIZE, dataItemLength: 5)
-                for i in 0..<BATCH_SIZE{
-                    versionedRipemd160[i].insert( 0x00, at: 0) // 0x00 Mainnet
-                }
-                
-                
-                // Calculate SHA256 for the RIPEMD160 hashes + version byte
-                let sha256_out2 = SHA256.run(batchOfData: versionedRipemd160)
-                //printSha256Output(BATCH_SIZE, sha256_out2)
-                                
-                let sha256_out2_data = convertPointerToDataArray2(ptr:sha256_out2, count: 8*BATCH_SIZE, chunkSize: 8)
-                //print(sha256_out2_data[0].hex)
-                // Calculate a sechond SHA256 on the previous SHA256 hash
-                let sha256_out3 = SHA256.run(batchOfData: sha256_out2_data)
-                //printSha256Output(BATCH_SIZE, sha256_out3)
-               
-            
-                //for i in stride(from: 0, to: BATCH_SIZE*8, by: 8) {
-                for i in 0..<BATCH_SIZE {
-                    let checksum = sha256_out3[i*8]
-                    //print(String(format: "Checksum: %08X", checksum.bigEndian))
-                    
-                    var bitcoinAddress = Data(versionedRipemd160[i])
-              
-                    bitcoinAddress.append(withUnsafeBytes(of: checksum) { Data($0) })
-                    let bitcoinAddressStr = Base58.encode(bitcoinAddress)
-                    //print("Bitcoin Address: \(bitcoinAddressStr)")
-                }
-                
+                 // TODO: This is not very performant. Its better adding it in the metal file of ripemd160 at the end
+                 var versionedRipemd160 = convertPointerToDataArray(ptr:ripemd160_result, count: 5*BATCH_SIZE, dataItemLength: 5)
+                 for i in 0..<BATCH_SIZE{
+                 versionedRipemd160[i].insert( 0x00, at: 0) // 0x00 Mainnet
+                 }
+                 
+                 
+                 // Calculate SHA256 for the RIPEMD160 hashes + version byte
+                 let sha256_out2 = SHA256.run(batchOfData: versionedRipemd160)
+                 //printSha256Output(BATCH_SIZE, sha256_out2)
+                 
+                 let sha256_out2_data = convertPointerToDataArray2(ptr:sha256_out2, count: 8*BATCH_SIZE, chunkSize: 8)
+                 //print(sha256_out2_data[0].hex)
+                 // Calculate a sechond SHA256 on the previous SHA256 hash
+                 let sha256_out3 = SHA256.run(batchOfData: sha256_out2_data)
+                 //printSha256Output(BATCH_SIZE, sha256_out3)
+                 
+                 
+                 //for i in stride(from: 0, to: BATCH_SIZE*8, by: 8) {
+                 for i in 0..<BATCH_SIZE {
+                 let checksum = sha256_out3[i*8]
+                 //print(String(format: "Checksum: %08X", checksum.bigEndian))
+                 
+                 var bitcoinAddress = Data(versionedRipemd160[i])
+                 
+                 bitcoinAddress.append(withUnsafeBytes(of: checksum) { Data($0) })
+                 let bitcoinAddressStr = Base58.encode(bitcoinAddress)
+                 //print("Bitcoin Address: \(bitcoinAddressStr)")
+                 }
+                 
                  */
                 let endTime = CFAbsoluteTimeGetCurrent()
                 let elapsed = endTime - startTime
@@ -126,30 +157,31 @@ struct KeyFinder {
                 let hashesPerSec = Double(BATCH_SIZE) / elapsed
                 print(String(format: "GPU elapsed: %.4f s — %.0f hashes/s", elapsed, hashesPerSec))
                 
-            
-           
-               
+                
+                
+                
                 
                 pubKeyBatch = []  //clearing batch
-                privKeyBatch = []  //clearing batch
+                // privKeyBatch = []  //clearing batch
+                privKeysBatch2 = []  //clearing batch
             }
             
- 
+            
         }
         
         //print("Generated \(batch.count) keys")
-
+        
     }
     
-    func createData(from pointer: UnsafePointer<UInt32>, offset: Int, length: Int) -> Data {        
+    func createData(from pointer: UnsafePointer<UInt32>, offset: Int, length: Int) -> Data {
         let startPointer = pointer.advanced(by: offset)
         let buffer = UnsafeBufferPointer(start: startPointer, count: length)
         
         return Data(buffer: buffer)
     }
     
-   
-  
+    
+    
     
     /// Converts a pointer to UInt32 values into an array of `Data` objects.
     /// Each `Data` chunk will contain `chunkSize` UInt32 values (default: 4).
@@ -193,7 +225,7 @@ struct KeyFinder {
     }
     
     
-
+    
     
     // Convert 5 UInt32 words (as written by kernel) into canonical 20-byte hex string.
     // The kernel produces words in host-endian uints (native endianness). RIPEMD-160 digest bytes are defined
@@ -242,7 +274,7 @@ struct KeyFinder {
                 UInt8(be & 0xff)
             ]
         }
-         return Data(beBytes)
+        return Data(beBytes)
         //return beBytes.map { String(format: "%02x", $0) }.joined()
     }
     
@@ -275,6 +307,7 @@ struct KeyFinder {
         }
     }
 }
+
 
 
 

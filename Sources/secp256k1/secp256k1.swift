@@ -6,9 +6,8 @@ public class Secp256k1_GPU {
     private let commandQueue: MTLCommandQueue
     private let pipelineState: MTLComputePipelineState
     
-    public init() {
-        guard let device = MTLCreateSystemDefaultDevice(),
-              let commandQueue = device.makeCommandQueue() else {
+    public init(on device: MTLDevice) {
+        guard let commandQueue = device.makeCommandQueue() else {
             print("Failed to initialize Metal device")
             //return nil
             
@@ -187,11 +186,12 @@ public class Secp256k1_GPU {
         // Dispatch compute threads
         commandEncoder.dispatchThreadgroups(threadgroupsPerGrid, threadsPerThreadgroup: threadsPerThreadgroup)
         commandEncoder.endEncoding()
-        
+
         // Execute and wait for completion
         commandBuffer.commit()
         commandBuffer.waitUntilCompleted()
         
+
         // Check for errors
         if let error = commandBuffer.error {
             print("Metal execution error: \(error)")
