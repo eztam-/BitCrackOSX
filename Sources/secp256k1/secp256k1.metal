@@ -178,6 +178,38 @@ uint256 sub_uint256(uint256 a, uint256 b) {
     return result;
 }
 
+
+// Field addition with modular reduction
+uint256 field_add(uint256 a, uint256 b) {
+    uint256 result;
+    uint carry = 0;
+    
+    // Add a + b with carry propagation
+    for (int i = 0; i < 8; i++) {
+        uint sum, carry_out;
+        add_with_carry(a.limbs[i], b.limbs[i], carry, &sum, &carry_out);
+        result.limbs[i] = sum;
+        carry = carry_out;
+    }
+    
+    // If there's a carry out, result >= 2^256
+    // We need to reduce: result = (a + b) - P if (a + b) >= P
+    
+    uint256 p;
+    for (int i = 0; i < 8; i++) {
+        p.limbs[i] = P[i];
+    }
+    
+    // If carry OR result >= P, subtract P
+    if (carry || compare(result, p) >= 0) {
+        result = sub_uint256(result, p);
+    }
+    
+    return result;
+}
+
+
+
 // ===== Main Multiplication Function =====
 
 uint256 field_mul(uint256 a, uint256 b) {
@@ -298,34 +330,6 @@ add_result add_with_carry(uint a, uint b, uint carry_in) {
 
 
 
-// Field addition with modular reduction
-uint256 field_add(uint256 a, uint256 b) {
-    uint256 result;
-    uint carry = 0;
-    
-    // Add a + b with carry propagation
-    for (int i = 0; i < 8; i++) {
-        uint sum, carry_out;
-        add_with_carry(a.limbs[i], b.limbs[i], carry, &sum, &carry_out);
-        result.limbs[i] = sum;
-        carry = carry_out;
-    }
-    
-    // If there's a carry out, result >= 2^256
-    // We need to reduce: result = (a + b) - P if (a + b) >= P
-    
-    uint256 p;
-    for (int i = 0; i < 8; i++) {
-        p.limbs[i] = P[i];
-    }
-    
-    // If carry OR result >= P, subtract P
-    if (carry || compare(result, p) >= 0) {
-        result = sub_uint256(result, p);
-    }
-    
-    return result;
-}
 
 
 
@@ -427,25 +431,7 @@ Point point_add(Point p, Point q) {
     return result;
 }
 
-// Corrected point multiplication (double-and-add, MSB to LSB)
-/*
-Point point_mul(Point base, uint256 scalar) {
-    Point result;
-    result.infinity = true;
 
-    for (int limb = 7; limb >= 0; limb--) {           // MSB first
-        uint word = scalar.limbs[limb];
-        for (int bit = 31; bit >= 0; bit--) {         // MSB first
-            if (!result.infinity) result = point_double(result);
-            if ((word >> bit) & 1u) {
-                if (result.infinity) result = base;
-                else result = point_add(result, base);
-            }
-        }
-    }
-    return result;
-}
-*/
 
 // Add Jacobian point structure
 struct PointJacobian {
@@ -595,7 +581,7 @@ PointJacobian point_add_mixed_jacobian(PointJacobian p, Point q) {
     return result;
 }
 
-// FAST point multiplication using Jacobian coordinates
+// Point multiplication using Jacobian coordinates
 Point point_mul(Point base, uint256 scalar) {
     // Convert base to Jacobian
     PointJacobian base_jac = affine_to_jacobian(base);

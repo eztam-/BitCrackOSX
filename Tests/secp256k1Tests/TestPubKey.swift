@@ -51,7 +51,8 @@ class TestPubKey: TestBase {
             
         }
         
-        print("🧪 \(numFailedTests) of \(numTests) tests have failed")
+        let result = numFailedTests == 0 ?  "✅ PASS" : "❌ FAIL"
+        print("\(result) \(numFailedTests) of \(numTests) tests have failed")
         assert(numFailedTests==0)
         
         
