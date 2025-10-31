@@ -27,7 +27,7 @@ class TestPubKey: TestBase {
             // TODO: it i very important to add a test for uncompressed keys as well, since there could be calc errors i the Y coordinate which isnt visible in compressed keys
         }
         
-        let secp256k1obj = Secp256k1_GPU(on: super.device)
+        let secp256k1obj = Secp256k1_GPU(on: super.device, bufferSize: numTests)
         let res = secp256k1obj.generatePublicKeys(privateKeys: privKeys)
         
         for i in 0..<res.count {
@@ -101,7 +101,7 @@ class TestPubKey: TestBase {
         for t in testCases {
             privKeys.append(Secp256k1_GPU.PrivateKey(hexString:t.0))
         }
-        let secp256k1obj = Secp256k1_GPU(on:super.device)
+        let secp256k1obj = Secp256k1_GPU(on:super.device, bufferSize: testCases.count)
         let res = secp256k1obj.generatePublicKeys(privateKeys: privKeys)
 
         

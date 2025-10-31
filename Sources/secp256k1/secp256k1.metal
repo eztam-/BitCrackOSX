@@ -67,21 +67,21 @@ void store_public_key(device uint* output, uint index, uint256 x, uint256 y) {
     }
 }
 
-bool is_zero(uint256 a) {
+inline constexpr bool is_zero(uint256 a) {
     for (int i = 0; i < 8; i++) {
         if (a.limbs[i] != 0) return false;
     }
     return true;
 }
 
-bool is_equal(uint256 a, uint256 b) {
+inline constexpr bool is_equal(uint256 a, uint256 b) {
     for (int i = 0; i < 8; i++) {
         if (a.limbs[i] != b.limbs[i]) return false;
     }
     return true;
 }
 
-int compare(uint256 a, uint256 b) {
+inline constexpr 	int compare(uint256 a, uint256 b) {
     for (int i = 7; i >= 0; i--) {
         if (a.limbs[i] > b.limbs[i]) return 1;
         if (a.limbs[i] < b.limbs[i]) return -1;
@@ -125,7 +125,7 @@ uint256 field_sub(uint256 a, uint256 b) {
 
 
 
-void mul_32x32(uint a, uint b, thread uint* low, thread uint* high) {
+inline constexpr void mul_32x32(uint a, uint b, thread uint* low, thread uint* high) {
     uint a_lo = a & 0xFFFFu;
     uint a_hi = a >> 16;
     uint b_lo = b & 0xFFFFu;
@@ -145,7 +145,7 @@ void mul_32x32(uint a, uint b, thread uint* low, thread uint* high) {
     *high = p3 + (middle >> 16) + (middle_carry << 16) + carry;
 }
 
-void add_with_carry(uint a, uint b, uint carry_in, thread uint* result, thread uint* carry_out) {
+inline constexpr void add_with_carry(uint a, uint b, uint carry_in, thread uint* result, thread uint* carry_out) {
     uint sum1 = a + b;
     uint c1 = (sum1 < a) ? 1u : 0u;
     

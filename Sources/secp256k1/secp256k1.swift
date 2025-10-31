@@ -5,8 +5,13 @@ public class Secp256k1_GPU {
     private let device: MTLDevice
     private let commandQueue: MTLCommandQueue
     private let pipelineState: MTLComputePipelineState
+    private let bufferSize: Int // Number of private keys per batch
     
-    public init(on device: MTLDevice) {
+    private let privateKeyBuffer: MTLBuffer
+    private let publicKeyBuffer: MTLBuffer
+    
+    public init(on device: MTLDevice, bufferSize : Int) {
+        self.bufferSize = bufferSize
         guard let commandQueue = device.makeCommandQueue() else {
             print("Failed to initialize Metal device")
             //return nil
@@ -28,11 +33,26 @@ public class Secp256k1_GPU {
             self.pipelineState = try device.makeComputePipelineState(function: function)
         } catch {
             fatalError("Failed to create pipeline state: \(error)")
-            ///
-            
-            
         }
-    
+        
+        
+        
+        // Create Metal buffers
+        guard let privateKeyBuffer = device.makeBuffer(
+            length: MemoryLayout<UInt32>.stride * bufferSize * 8,
+            options: .storageModeShared
+        ),
+        let publicKeyBuffer = device.makeBuffer(
+            length: MemoryLayout<UInt32>.stride * bufferSize * 16, // 16 UInt32s per public key
+            options: .storageModeShared
+        ) else {
+            print("Failed to create Metal buffers")
+            //return nil
+            exit(0)
+            //TODO
+        }
+        self.privateKeyBuffer = privateKeyBuffer
+        self.publicKeyBuffer = publicKeyBuffer
 
     }
     
@@ -138,21 +158,7 @@ public class Secp256k1_GPU {
         for privateKey in privateKeys {
             privateKeyData.append(contentsOf: privateKey.toUInt32Array())
         }
-        
-        // Create Metal buffers
-        guard let privateKeyBuffer = device.makeBuffer(
-            length: MemoryLayout<UInt32>.stride * privateKeyData.count,
-            options: .storageModeShared
-        ),
-        let publicKeyBuffer = device.makeBuffer(
-            length: MemoryLayout<UInt32>.stride * count * 16, // 16 UInt32s per public key
-            options: .storageModeShared
-        ) else {
-            print("Failed to create Metal buffers")
-            //return nil
-            exit(0)
-            //TODO
-        }
+       
         
         // Copy private key data to buffer
         privateKeyBuffer.contents().copyMemory(from: privateKeyData, byteCount: privateKeyBuffer.length)
@@ -170,6 +176,10 @@ public class Secp256k1_GPU {
         commandEncoder.setComputePipelineState(pipelineState)
         commandEncoder.setBuffer(privateKeyBuffer, offset: 0, index: 0)
         commandEncoder.setBuffer(publicKeyBuffer, offset: 0, index: 1)
+       
+        
+        
+        
         
         // Calculate thread execution width
         let threadsPerThreadgroup = MTLSize(
@@ -187,6 +197,7 @@ public class Secp256k1_GPU {
         commandEncoder.dispatchThreadgroups(threadgroupsPerGrid, threadsPerThreadgroup: threadsPerThreadgroup)
         commandEncoder.endEncoding()
 
+        
         // Execute and wait for completion
         commandBuffer.commit()
         commandBuffer.waitUntilCompleted()
