@@ -15,57 +15,127 @@ struct KeyFinder {
         KeyFinder().run()
     }
     
+
+    /// An efficient iterator over a 256-bit integer range represented as 32-byte Data.
+    /// Designed for cryptographic key enumeration or GPU batching.
+    public struct KeyRange256: Sequence, IteratorProtocol {
+        private var current: [UInt8]
+        private let end: [UInt8]
+        private var finished = false
+
+        /// Initialize with start and end values in hexadecimal form (with or without 0x prefix).
+        public init?(startHex: String, endHex: String) {
+            guard let startBytes = Self.hexToBytes(startHex),
+                  let endBytes   = Self.hexToBytes(endHex),
+                  startBytes.count == 32, endBytes.count == 32 else {
+                return nil
+            }
+            self.current = startBytes
+            self.end = endBytes
+            if Self.isGreater(startBytes, than: endBytes) {
+                finished = true
+            }
+        }
+
+        /// Return the next 32-byte Data value in the range.
+        public mutating func next() -> Data? {
+            guard !finished else { return nil }
+
+            let result = Data(current) // Wraps without copying unless mutated later
+
+            if !increment256(&current) || Self.isGreater(current, than: end) {
+                finished = true
+            }
+            return result
+        }
+
+        // MARK: - Private helpers
+
+        /// Increment the 256-bit number in place. Returns false if overflow occurred.
+        @inline(__always)
+        private func increment256(_ bytes: inout [UInt8]) -> Bool {
+            for i in (0..<32).reversed() {
+                let (sum, overflow) = bytes[i].addingReportingOverflow(1)
+                bytes[i] = sum
+                if !overflow { return true }
+            }
+            return false // overflow beyond 256 bits
+        }
+
+        /// Lexicographic comparison (big-endian).
+        @inline(__always)
+        private static func isGreater(_ lhs: [UInt8], than rhs: [UInt8]) -> Bool {
+            for i in 0..<lhs.count {
+                if lhs[i] != rhs[i] {
+                    return lhs[i] > rhs[i]
+                }
+            }
+            return false
+        }
+
+        /// Convert a hex string to a fixed 32-byte big-endian array.
+        private static func hexToBytes(_ hex: String) -> [UInt8]? {
+            var s = hex
+            if s.hasPrefix("0x") { s.removeFirst(2) }
+            guard s.count <= 64 else { return nil }
+            s = String(repeating: "0", count: 64 - s.count) + s
+
+            var result = [UInt8]()
+            result.reserveCapacity(32)
+            var index = s.startIndex
+            while index < s.endIndex {
+                let next = s.index(index, offsetBy: 2)
+                guard let byte = UInt8(s[index..<next], radix: 16) else { return nil }
+                result.append(byte)
+                index = next
+            }
+            return result
+        }
+    }
+
     
     func run(){
         
-        let clock = ContinuousClock()
         let SHA256 = SHA256gpu(on: device)
         let RIPEMD160 = RIPEMD160(on: device)
         let secp256k1obj = Secp256k1_GPU(on:  device, bufferSize: BATCH_SIZE)
+        
+        
+        
         
         print("Starting on GPU: \(device.name)\n")
         
         let bloomFilter = AddressFileLoader.load(path: "/Users/x/Downloads/bitcoin_very_short.tsv")
         
         
-        
         // TODO: check for maximum range wich is: 0xFFFF FFFF FFFF FFFF FFFF FFFF FFFF FFFE BAAE DCE6 AF48 A03B BFD2 5E8C D036 4140
-        // Iterate through a range of private keys
-        let start = UInt256(hexString: "0000000000000000000000000000000000000000000000000001000000000000")
-        let end = UInt256(hexString: "000000000000000000000000000000000000000000000000000100000A000005")
-        
+        var keys = KeyRange256(
+            startHex: "0000000000000000000000000000000000000000000000000001000000000000",
+            endHex:   "000000000000000000000000000000000000000000000000000100000A000004"
+        )
         
         // Generate keys in batches
         print("\n=== Batch Generation ===")
         var pubKeyBatch: [Data] = []
-        //var privKeyBatch: [UInt256] = []
-        var privKeysBatch2 : [Secp256k1_GPU.PrivateKey] = [] // TODO consolidatio into one
-        var batchIterator = BitcoinPrivateKeyIterator(start: start, end: end)
+        var privKeysBatch2 : [Data] = []
         
         // TODO: FIXME: If the key range is smaller than the batch size it doesnt work
         
-        // TODO: use this ascnc periodic timer to print the progress and stats
-        /*
-        let timer = DispatchSource.makeTimerSource()
-        timer.schedule(deadline: .now(), repeating: 1.0)
-        timer.setEventHandler {
-            print("------------------------------------------Timer fired!")
-        }
-        timer.resume()
-         */
+        let t = TimeMeasurement()
+
         
-        while true {  // how to exit  if finished  TODO
+        while true {  // how to exit if finished?  TODO
             
             let startTime = CFAbsoluteTimeGetCurrent()
             
             
             // Generate batch of private keys
-            while let privateKey = batchIterator.next() {
-                privKeysBatch2.append(Secp256k1_GPU.PrivateKey(hexString:privateKey.hexString))
+            var start = DispatchTime.now()
+            while let privateKey = keys!.next() {
+                privKeysBatch2.append(privateKey)
                 if privKeysBatch2.count == BATCH_SIZE {
                     break
                 }
-                
                 
                 /*
                  // We are running the secp256k1 calculations on the CPU which is very slow.
@@ -82,27 +152,20 @@ struct KeyFinder {
                  //print("  Public Key Compressed:  \(String(bytes: privateKeyCompressed.publicKey.dataRepresentation))")
                  */
             }
-            
+            t.keyGen = DispatchTime.now().uptimeNanoseconds - start.uptimeNanoseconds
+
             
             
             
           
             
-            // Send data batch wise to the GPU for SHA256 hashing
-            
-            
-           
-            
-            
-            
-            
-            var start = DispatchTime.now()
+            // SHA256 hashing
+            start = DispatchTime.now()
             let pubKeys = secp256k1obj.generatePublicKeys(privateKeys: privKeysBatch2)
             for pk in pubKeys {
                 pubKeyBatch.append(pk.toCompressed())
             }
-            var end = DispatchTime.now()
-            print("secp256k1 took  : \(end.uptimeNanoseconds - start.uptimeNanoseconds)ns")
+            t.secp256k1 = DispatchTime.now().uptimeNanoseconds - start.uptimeNanoseconds
             
             
             
@@ -110,18 +173,15 @@ struct KeyFinder {
             start = DispatchTime.now()
             let outPtr = SHA256.run(batchOfData: pubKeyBatch)
             //printSha256Output(BATCH_SIZE, outPtr)
-            end = DispatchTime.now()
-            print("SHA256 took     : \(end.uptimeNanoseconds - start.uptimeNanoseconds)ns")
+            t.sha256 = DispatchTime.now().uptimeNanoseconds - start.uptimeNanoseconds
             
             
             start = DispatchTime.now()
             let ripemd160_input_data = Data(bytesNoCopy: outPtr, count: BATCH_SIZE*32, deallocator: .custom({ (ptr, size) in ptr.deallocate() }))
-            //let ripemd160_input_data = Data(bytes: outPtr, count: BATCH_SIZE*32) // Is an alternative, but copies the data and therefore is slower
             
             let ripemd160_result = RIPEMD160.run(messagesData: ripemd160_input_data, messageCount: BATCH_SIZE)
             //printRipemd160Output(BATCH_SIZE, ripemd160_result)
-            end = DispatchTime.now()
-            print("ripemd160 took  : \(end.uptimeNanoseconds - start.uptimeNanoseconds)ns")
+            t.ripemd160 = DispatchTime.now().uptimeNanoseconds - start.uptimeNanoseconds
             
             
             start = DispatchTime.now()
@@ -129,13 +189,13 @@ struct KeyFinder {
                 let addrExists = bloomFilter.contains(pointer: ripemd160_result, length: 5, offset: i*5)
                 if addrExists {
                     print("#########################################################")
-                    print("Found matching address: \(createData(from: ripemd160_result, offset: i*5, length: 5).hex) for private key: \(privKeysBatch2[i].data.hexString)")
+                    print("Found matching address: \(createData(from: ripemd160_result, offset: i*5, length: 5).hex) for private key: \(privKeysBatch2[i].hexString)")
                     print("!!! NOTE !!! At the moment this address is just the RIPEMD160 result, you need to add the address byte and do a base58 decode and a checksum validation to get the actual address.")
                     print("#########################################################")
                 }
             }
-            end = DispatchTime.now()
-            print("bloomfilter took: \(end.uptimeNanoseconds - start.uptimeNanoseconds)ns")
+            t.bloomFilter = DispatchTime.now().uptimeNanoseconds - start.uptimeNanoseconds
+            //print("bloomfilter took: \(end.uptimeNanoseconds - start.uptimeNanoseconds)ns")
             // The following would do all the further steps to calculate the address but we don't need it, since the addresses in the bloomfilter
             // are already BASE58 decoded and also the version byte and checksum were removed.
             /*
@@ -172,16 +232,13 @@ struct KeyFinder {
              */
             let endTime = CFAbsoluteTimeGetCurrent()
             let elapsed = endTime - startTime
-            //let mbProcessed = Double(BATCH_SIZE * 32) / (1024.0*1024.0)
             let hashesPerSec = Double(BATCH_SIZE) / elapsed
-            print(String(format: "GPU elapsed: %.4f s — %.0f hashes/s", elapsed, hashesPerSec))
-            
+            t.keysPerSec = String(format: "GPU elapsed: %.4f s — %.0f hashes/s", elapsed, hashesPerSec)
             
             
             
             
             pubKeyBatch = []  //clearing batch
-            // privKeyBatch = []  //clearing batch
             privKeysBatch2 = []  //clearing batch
         }
         

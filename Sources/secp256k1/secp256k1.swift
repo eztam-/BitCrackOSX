@@ -149,14 +149,14 @@ public class Secp256k1_GPU {
         }
     }
     
-    public func generatePublicKeys(privateKeys: [PrivateKey]) -> [PublicKey] {
+    public func generatePublicKeys(privateKeys: [Data]) -> [PublicKey] {
         let count = privateKeys.count
         guard count > 0 else { return [] }
         
         // Convert private keys to UInt32 arrays for Metal
-        var privateKeyData = [UInt32]()
+        var privateKeyData = [Data]()
         for privateKey in privateKeys {
-            privateKeyData.append(contentsOf: privateKey.toUInt32Array())
+            privateKeyData.append(privateKey)
         }
        
         
