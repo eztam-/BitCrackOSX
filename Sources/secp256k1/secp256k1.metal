@@ -428,6 +428,7 @@ Point point_add(Point p, Point q) {
 }
 
 // Corrected point multiplication (double-and-add, MSB to LSB)
+/*
 Point point_mul(Point base, uint256 scalar) {
     Point result;
     result.infinity = true;
@@ -444,7 +445,185 @@ Point point_mul(Point base, uint256 scalar) {
     }
     return result;
 }
+*/
 
+// Add Jacobian point structure
+struct PointJacobian {
+    uint256 X;
+    uint256 Y;
+    uint256 Z;
+    bool infinity;
+};
+
+// Convert affine to Jacobian
+PointJacobian affine_to_jacobian(Point p) {
+    PointJacobian result;
+    if (p.infinity) {
+        result.infinity = true;
+        return result;
+    }
+    
+    result.X = p.x;
+    result.Y = p.y;
+    // Z = 1
+    for (int i = 0; i < 8; i++) result.Z.limbs[i] = 0;
+    result.Z.limbs[0] = 1;
+    result.infinity = false;
+    
+    return result;
+}
+
+// Convert Jacobian to affine (requires ONE inversion)
+Point jacobian_to_affine(PointJacobian p) {
+    Point result;
+    if (p.infinity) {
+        result.infinity = true;
+        return result;
+    }
+    
+    // Compute Z^-1, Z^-2, Z^-3
+    uint256 z_inv = field_inv(p.Z);           // 1 inversion (expensive)
+    uint256 z_inv_sq = field_sqr(z_inv);      // Z^-2
+    uint256 z_inv_cube = field_mul(z_inv_sq, z_inv);  // Z^-3
+    
+    // x = X/Z^2 = X * Z^-2
+    result.x = field_mul(p.X, z_inv_sq);
+    
+    // y = Y/Z^3 = Y * Z^-3
+    result.y = field_mul(p.Y, z_inv_cube);
+    
+    result.infinity = false;
+    return result;
+}
+
+// Point doubling in Jacobian coordinates (NO INVERSION!)
+// Formula from: http://hyperelliptic.org/EFD/g1p/auto-shortw-jacobian.html
+PointJacobian point_double_jacobian(PointJacobian p) {
+    if (p.infinity) return p;
+    
+    // For curve y² = x³ + 7 (secp256k1)
+    // S = 4*X*Y²
+    // M = 3*X² (since a=0)
+    // X' = M² - 2*S
+    // Y' = M*(S - X') - 8*Y⁴
+    // Z' = 2*Y*Z
+    
+    uint256 Y_sq = field_sqr(p.Y);                    // Y²
+    uint256 S = field_mul(p.X, Y_sq);                 // X*Y²
+    S = field_add(S, S);                              // 2*X*Y²
+    S = field_add(S, S);                              // 4*X*Y² = S
+    
+    uint256 X_sq = field_sqr(p.X);                    // X²
+    uint256 M = field_add(X_sq, X_sq);                // 2*X²
+    M = field_add(M, X_sq);                           // 3*X² = M
+    
+    uint256 M_sq = field_sqr(M);                      // M²
+    uint256 two_S = field_add(S, S);                  // 2*S
+    
+    PointJacobian result;
+    result.X = field_sub(M_sq, two_S);                // X' = M² - 2*S
+    
+    uint256 Y_sq_sq = field_sqr(Y_sq);                // Y⁴
+    uint256 eight_Y4 = field_add(Y_sq_sq, Y_sq_sq);   // 2*Y⁴
+    eight_Y4 = field_add(eight_Y4, eight_Y4);         // 4*Y⁴
+    eight_Y4 = field_add(eight_Y4, eight_Y4);         // 8*Y⁴
+    
+    uint256 S_minus_X = field_sub(S, result.X);       // S - X'
+    uint256 M_times = field_mul(M, S_minus_X);        // M*(S - X')
+    result.Y = field_sub(M_times, eight_Y4);          // Y' = M*(S - X') - 8*Y⁴
+    
+    uint256 two_Y = field_add(p.Y, p.Y);              // 2*Y
+    result.Z = field_mul(two_Y, p.Z);                 // Z' = 2*Y*Z
+    
+    result.infinity = false;
+    return result;
+}
+
+// Point addition in Jacobian coordinates (NO INVERSION!)
+// Mixed addition: p in Jacobian, q in affine (Z2=1)
+PointJacobian point_add_mixed_jacobian(PointJacobian p, Point q) {
+    if (p.infinity) return affine_to_jacobian(q);
+    if (q.infinity) return p;
+    
+    // U1 = X1, U2 = X2*Z1²
+    // S1 = Y1, S2 = Y2*Z1³
+    // H = U2 - U1
+    // r = S2 - S1
+    
+    uint256 Z1_sq = field_sqr(p.Z);                   // Z1²
+    uint256 Z1_cube = field_mul(Z1_sq, p.Z);          // Z1³
+    
+    uint256 U2 = field_mul(q.x, Z1_sq);               // U2 = X2*Z1²
+    uint256 S2 = field_mul(q.y, Z1_cube);             // S2 = Y2*Z1³
+    
+    uint256 H = field_sub(U2, p.X);                   // H = U2 - U1
+    uint256 r = field_sub(S2, p.Y);                   // r = S2 - S1
+    
+    // Check if points are equal (H=0 and r=0 means double)
+    if (is_zero(H)) {
+        if (is_zero(r)) {
+            return point_double_jacobian(p);
+        } else {
+            PointJacobian result;
+            result.infinity = true;
+            return result;
+        }
+    }
+    
+    // X3 = r² - H³ - 2*U1*H²
+    // Y3 = r*(U1*H² - X3) - S1*H³
+    // Z3 = H*Z1
+    
+    uint256 H_sq = field_sqr(H);                      // H²
+    uint256 H_cube = field_mul(H_sq, H);              // H³
+    uint256 U1_H_sq = field_mul(p.X, H_sq);           // U1*H²
+    uint256 two_U1_H_sq = field_add(U1_H_sq, U1_H_sq); // 2*U1*H²
+    
+    uint256 r_sq = field_sqr(r);                      // r²
+    PointJacobian result;
+    result.X = field_sub(r_sq, H_cube);               // r² - H³
+    result.X = field_sub(result.X, two_U1_H_sq);     // X3 = r² - H³ - 2*U1*H²
+    
+    uint256 diff = field_sub(U1_H_sq, result.X);     // U1*H² - X3
+    uint256 r_times_diff = field_mul(r, diff);        // r*(U1*H² - X3)
+    uint256 S1_H_cube = field_mul(p.Y, H_cube);       // S1*H³
+    result.Y = field_sub(r_times_diff, S1_H_cube);    // Y3
+    
+    result.Z = field_mul(H, p.Z);                     // Z3 = H*Z1
+    result.infinity = false;
+    
+    return result;
+}
+
+// FAST point multiplication using Jacobian coordinates
+Point point_mul(Point base, uint256 scalar) {
+    // Convert base to Jacobian
+    PointJacobian base_jac = affine_to_jacobian(base);
+    PointJacobian result;
+    result.infinity = true;
+    
+    // Double-and-add in Jacobian space (no inversions during loop!)
+    for (int limb = 7; limb >= 0; limb--) {
+        uint word = scalar.limbs[limb];
+        for (int bit = 31; bit >= 0; bit--) {
+            if (!result.infinity) {
+                result = point_double_jacobian(result);
+            }
+            
+            if ((word >> bit) & 1u) {
+                if (result.infinity) {
+                    result = base_jac;
+                } else {
+                    // Use mixed addition (result in Jacobian, base in affine)
+                    result = point_add_mixed_jacobian(result, base);
+                }
+            }
+        }
+    }
+    
+    // Convert back to affine (only ONE inversion for the entire multiplication!)
+    return jacobian_to_affine(result);
+}
 
 
 
