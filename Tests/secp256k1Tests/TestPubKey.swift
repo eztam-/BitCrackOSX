@@ -23,7 +23,7 @@ class TestPubKey: TestBase {
            
             let privKeyRaw = UInt256(hexString: super.generateRandom256BitHex())
             
-            privKeys.append(Secp256k1_GPU.PrivateKey(hexString:privKeyRaw.data.hexString))
+            privKeys.append(Secp256k1_GPU.PrivateKey(privKeyRaw.data))
             // TODO: it i very important to add a test for uncompressed keys as well, since there could be calc errors i the Y coordinate which isnt visible in compressed keys
         }
         
@@ -99,7 +99,7 @@ class TestPubKey: TestBase {
 
         var privKeys : [Secp256k1_GPU.PrivateKey] = []
         for t in testCases {
-            privKeys.append(Secp256k1_GPU.PrivateKey(hexString:t.0))
+            privKeys.append(Secp256k1_GPU.PrivateKey(hexStringToData(hexString: t.0)))
         }
         let secp256k1obj = Secp256k1_GPU(on:super.device, bufferSize: testCases.count)
         let res = secp256k1obj.generatePublicKeys(privateKeys: privKeys)
@@ -116,6 +116,27 @@ class TestPubKey: TestBase {
             
         }
         
+    }
+    
+    func hexStringToData(hexString: String) -> Data{
+        var data = Data()
+        var hexString = hexString
+        if hexString.hasPrefix("0x") {
+            hexString = String(hexString.dropFirst(2))
+        }
+        
+        var index = hexString.startIndex
+        while index < hexString.endIndex {
+            let nextIndex = hexString.index(index, offsetBy: 2)
+            if nextIndex <= hexString.endIndex {
+                let byteString = hexString[index..<nextIndex]
+                if let byte = UInt8(byteString, radix: 16) {
+                    data.append(byte)
+                }
+            }
+            index = nextIndex
+        }
+        return data
     }
     
 }

@@ -145,8 +145,10 @@ struct KeyFinder {
             // Generate batch of private keys
             var start = DispatchTime.now()
             while let privateKey = keys!.next() {
+                
+               
                 //privKeysBatch2.append(privateKey)
-                privKeysBatch2.append(Secp256k1_GPU.PrivateKey(hexString:privateKey.hexString))
+                privKeysBatch2.append(Secp256k1_GPU.PrivateKey(privateKey))
 
 
                 if privKeysBatch2.count == BATCH_SIZE {

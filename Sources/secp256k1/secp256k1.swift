@@ -63,26 +63,6 @@ public class Secp256k1_GPU {
             self.data = data
         }
         
-        public init(hexString: String) {
-            var data = Data()
-            var hexString = hexString
-            if hexString.hasPrefix("0x") {
-                hexString = String(hexString.dropFirst(2))
-            }
-            
-            var index = hexString.startIndex
-            while index < hexString.endIndex {
-                let nextIndex = hexString.index(index, offsetBy: 2)
-                if nextIndex <= hexString.endIndex {
-                    let byteString = hexString[index..<nextIndex]
-                    if let byte = UInt8(byteString, radix: 16) {
-                        data.append(byte)
-                    }
-                }
-                index = nextIndex
-            }
-            self.data = data
-        }
         
         func toUInt32Array() -> [UInt32] {
             var result = [UInt32](repeating: 0, count: 8)
@@ -149,6 +129,7 @@ public class Secp256k1_GPU {
         }
     }
     
+    // TODO: Use Data directlyinstead of PriVate key. This is extremely slow
     public func generatePublicKeys(privateKeys: [PrivateKey]) -> [PublicKey] {
             let count = privateKeys.count
             guard count > 0 else { return [] }
