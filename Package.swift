@@ -33,6 +33,9 @@ let package = Package(
             name: "CryptKeyFinderTests",
             dependencies: ["CryptKeyFinder"],
             path: "Tests",
-            resources: [.process("../Sources/secp256k1/secp256k1.metal")],)
+            resources: [
+                .process("../Sources/secp256k1/secp256k1.metal"),
+                .process("../Sources/KeyGen/KeyGen.metal")
+            ],)
     ]
 )
