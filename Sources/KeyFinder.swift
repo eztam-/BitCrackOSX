@@ -95,7 +95,20 @@ struct KeyFinder {
 
     
     func run(){
+        /*
+        let library: MTLLibrary! = try? device.makeDefaultLibrary(bundle: Bundle.module)
+        let queue  = (device.makeCommandQueue())!
+    
+
+        let keyGen = KeyGen(library: library, device: device)
+        let outPtr = keyGen.run(
+            startKeyHex: "0000000000000000000000000000000000000000000000000001000000000000")
+        privKeysToHex(BATCH_SIZE, outPtr)
+
         
+        exit(0)
+         
+         */
         let SHA256 = SHA256gpu(on: device)
         let RIPEMD160 = RIPEMD160(on: device)
         let secp256k1obj = Secp256k1_GPU(on:  device, bufferSize: BATCH_SIZE)
@@ -117,7 +130,7 @@ struct KeyFinder {
         // Generate keys in batches
         print("\n=== Batch Generation ===")
         var pubKeyBatch: [Data] = []
-        var privKeysBatch2 : [Data] = []
+        var privKeysBatch2 : [Secp256k1_GPU.PrivateKey] = []
         
         // TODO: FIXME: If the key range is smaller than the batch size it doesnt work
         
@@ -132,7 +145,10 @@ struct KeyFinder {
             // Generate batch of private keys
             var start = DispatchTime.now()
             while let privateKey = keys!.next() {
-                privKeysBatch2.append(privateKey)
+                //privKeysBatch2.append(privateKey)
+                privKeysBatch2.append(Secp256k1_GPU.PrivateKey(hexString:privateKey.hexString))
+
+
                 if privKeysBatch2.count == BATCH_SIZE {
                     break
                 }
@@ -189,7 +205,7 @@ struct KeyFinder {
                 let addrExists = bloomFilter.contains(pointer: ripemd160_result, length: 5, offset: i*5)
                 if addrExists {
                     print("#########################################################")
-                    print("Found matching address: \(createData(from: ripemd160_result, offset: i*5, length: 5).hex) for private key: \(privKeysBatch2[i].hexString)")
+                    print("Found matching address: \(createData(from: ripemd160_result, offset: i*5, length: 5).hex) for private key: \(privKeysBatch2[i].data.hexString)")
                     print("!!! NOTE !!! At the moment this address is just the RIPEMD160 result, you need to add the address byte and do a base58 decode and a checksum validation to get the actual address.")
                     print("#########################################################")
                 }
@@ -233,7 +249,7 @@ struct KeyFinder {
             let endTime = CFAbsoluteTimeGetCurrent()
             let elapsed = endTime - startTime
             let hashesPerSec = Double(BATCH_SIZE) / elapsed
-            t.keysPerSec = String(format: "GPU elapsed: %.4f s — %.0f hashes/s", elapsed, hashesPerSec)
+            t.keysPerSec = String(format: "--------[ %.0f keys/s ]--------", hashesPerSec)
             
             
             
@@ -380,6 +396,19 @@ struct KeyFinder {
             }
             let hex = ripemdWordsToHex(words)
             print("Sample[\(i)] -> RIPEMD: \(hex)")
+        }
+    }
+    
+    
+    func privKeysToHex(_ BATCH_SIZE: Int, _ result: UnsafeMutablePointer<UInt32>) {
+        for i in 0..<BATCH_SIZE {
+            let base = i * 8
+            var words: [UInt32] = []
+            for j in 0..<8 {
+                words.append(result[base + j])
+            }
+            let hex = ripemdWordsToHex(words)
+            print("Sample[\(i)] -> KEY: \(hex)")
         }
     }
 }

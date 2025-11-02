@@ -15,7 +15,7 @@ class TimeMeasurement {
         
         timer.schedule(deadline: .now()+DispatchTimeInterval.seconds(3), repeating: 1.0)
         timer.setEventHandler {
-            print("------------------------------------")
+            //print("------------------------------------")
             print("Key gen took     : \(self.keyGen)ns")
             print("secp256k1 took   : \(self.secp256k1)ns")
             print("SHA256 took      : \(self.sha256)ns")
