@@ -9,36 +9,51 @@ class TestKeyGen: TestBase {
     
     
     init() {
-        super.init(kernelFunctionName: "generate_keys_256_offset")!
+        super.init(kernelFunctionName: "generate_keys")!
     }
     
     @Test func testKeyGen() {
+        var numFailedTests = 0
+        let startKey = "11111111111111111111111111111111111111111111111111111111FFFFFFAA";
+        var reference = BInt(startKey, radix: 16)
         
-        let library: MTLLibrary! = try? device.makeDefaultLibrary(bundle: Bundle.module)
-
-        let keyGen = KeyGen(library: library, device: device)
+        let keyGen = KeyGen(device: device, startKeyHex: startKey)
        
-        
+        // Calculate a first batch of keys
         var outPtr = keyGen.run(
-            startKeyHex: "1111111111111111111111111111111111111111111111111111111111111111",
-            batchSize: 5)
+            batchSize: 5000,
+            firstBatch: true)
+
+        for hexStr in privKeysToHexStr(5000, outPtr){
+            let expected = reference!.asString(radix: 16).uppercased()
+            if hexStr.uppercased() != expected {
+                print("❌ FAILED - actual: \(hexStr) does not match expected: hex")
+                print("          expected: \(expected)")
+                numFailedTests += 1
+            }
+            reference = reference! + 1
+        }
         
-        privKeysToHex(5, outPtr)
+        //privKeysToHex(5, outPtr)
        
-        
-        
-        let start = DispatchTime.now()
+        // Second batch
         outPtr = keyGen.run(
-            startKeyHex: "1111111111111111111111111111111111111111111111111111111111111111",
-            batchSize: 100_000_000)
-        let took = DispatchTime.now().uptimeNanoseconds - start.uptimeNanoseconds
-        print("Took: \(took)")
-        // Took: 882051916ns
+            batchSize: 1000,
+            firstBatch: false)
+
+        for hexStr in privKeysToHexStr(1000, outPtr){
+            let expected = reference!.asString(radix: 16).uppercased()
+            if hexStr.uppercased() != expected {
+                print("❌ FAILED - actual: \(hexStr) does not match expected: hex")
+                print("          expected: \(expected)")
+                numFailedTests += 1
+            }
+            reference = reference! + 1
+        }
+                 
         
         
-        privKeysToHex(5, outPtr)
-        
-        
+        assert(numFailedTests==0)
         
 
     }
@@ -87,6 +102,24 @@ class TestKeyGen: TestBase {
             //print("Sample[\(i)] -> KEY: \(hex)")
             Helpers.printLimbs(limbs: words)
         }
+    }
+    
+    
+    
+    func privKeysToHexStr(_ BATCH_SIZE: Int, _ result: UnsafeMutablePointer<UInt32>) -> [String]{
+        var hexKeys = [String]()
+        for i in 0..<BATCH_SIZE {
+            let base = i * 8
+            var words: [UInt32] = []
+            for j in 0..<8 {
+                words.append(result[base + j])
+            }
+            let hex = limbsToHex(words)
+            hexKeys.append(hex)
+            //print("Sample[\(i)] -> KEY: \(hex)")
+            //Helpers.printLimbs(limbs: words)
+        }
+        return hexKeys
     }
     
     

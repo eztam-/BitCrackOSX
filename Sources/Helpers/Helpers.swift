@@ -31,5 +31,17 @@ public class Helpers{
     }
 
     
+    // Convert UnsafeMutablePointer<UInt32> to 8 UInt32 limbs
+    public static func pointerToLimbs(_ pointer: UnsafeMutablePointer<UInt32>, limbCount: Int = 8) -> [UInt32] {
+        var limbs = [UInt32](repeating: 0, count: limbCount)
+        
+        for i in 0..<limbCount {
+            limbs[i] = pointer[i]
+        }
+        
+        return limbs
+    }
+    
+    
 }
 
