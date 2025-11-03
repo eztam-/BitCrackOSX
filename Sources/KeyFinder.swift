@@ -4,7 +4,7 @@ import Metal
 
 
 let device = MTLCreateSystemDefaultDevice()!
-let BATCH_SIZE = 5000 // TODO: FIXME: If the key range is smaller than the batch size it doesnt work
+let BATCH_SIZE = 4096 // TODO: FIXME: If the key range is smaller than the batch size it doesnt work
 
 
 @main
@@ -221,7 +221,7 @@ struct KeyFinder {
             let endTime = CFAbsoluteTimeGetCurrent()
             let elapsed = endTime - startTime
             let hashesPerSec = Double(BATCH_SIZE) / elapsed
-            t.keysPerSec = String(format: "--------[ %.0f keys/s ]--------", hashesPerSec)
+            t.keysPerSec = String(format: "----[ %.0f keys/s ]----", hashesPerSec)
             
             
             pubKeyBatch = []  //clearing batch

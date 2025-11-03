@@ -9,54 +9,52 @@ class TestPubKey: TestBase {
     init() {
         super.init(kernelFunctionName: "test_field_sub")! // dummy. actuylly not needed
     }
-    
-    @Test func testRandomPubKey() {
-
+   
+    @Test func testRandomPubKeys(){
         let numTests = 1000
         print("Running \(numTests) random number tests. Only printing failed results.")
         
         var numFailedTests = 0
-        
-        var privKeys : [Secp256k1_GPU.PrivateKey] = []
-        
+       
+        var privKeysArr : [String] = []
+        var privKeys : Data = Data()
         for _ in 0..<numTests {
-           
-            let privKeyRaw = UInt256(hexString: super.generateRandom256BitHex())
             
-            privKeys.append(Secp256k1_GPU.PrivateKey(privKeyRaw.data))
-            // TODO: it i very important to add a test for uncompressed keys as well, since there could be calc errors i the Y coordinate which isnt visible in compressed keys
+            let randomStr = super.generateRandom256BitHex()
+            let  limbs = Helpers.hex256ToUInt32Limbs(randomStr)
+            privKeys.append(dataFromUInt32Limbs(limbs))
+            privKeysArr.append(randomStr)
         }
-        
-        let secp256k1obj = Secp256k1_GPU(on: super.device, bufferSize: numTests)
+        let secp256k1obj = Secp256k1_GPU(on:super.device, bufferSize: numTests)
         let res = secp256k1obj.generatePublicKeys(privateKeys: privKeys)
+        
+        
         
         for i in 0..<res.count {
             
             // Calculate expected value from lib
-            let privateKeyCompressed = try! P256K.Signing.PrivateKey(dataRepresentation: privKeys[i].data, format: .compressed)
-            let privateKeyUncomp = try! P256K.Signing.PrivateKey(dataRepresentation: privKeys[i].data, format: .uncompressed)
+            let privateKeyCompressed = try! P256K.Signing.PrivateKey(dataRepresentation: hexStringToData(hexString: privKeysArr[i]), format: .compressed)
+            let privateKeyUncomp = try! P256K.Signing.PrivateKey(dataRepresentation: hexStringToData(hexString: privKeysArr[i]), format: .uncompressed)
             let expPubKeyComp = privateKeyCompressed.publicKey.dataRepresentation.hexString
             //let expPubKeyUncomp = privateKeyUncomp.publicKey.dataRepresentation.hexString
             
             
-            let pass = expPubKeyComp == res[i].toCompressed().hexString
-            let result = pass ?  "✅ PASS" : "❌ FAIL"
-            if !pass {
-                numFailedTests+=1
-                print("\(result)  Private Key: \(privKeys[i].data.hexString)")
-                print("         Actual:      \(res[i].toCompressed().hexString)")
+            var pubKey =  res[i].toCompressed().hex
+            let pass = pubKey == expPubKeyComp ?  "✅ PASS" : "❌ FAIL"
+            if pubKey != expPubKeyComp {
+                print("\(pass)  Private Key: \(privKeysArr[i])")
+                print("         Actual:      \(pubKey)")
                 print("         Expected:    \(expPubKeyComp)\n")
+                numFailedTests += 1
             }
-           
             
         }
         
         let result = numFailedTests == 0 ?  "✅ PASS" : "❌ FAIL"
         print("\(result) \(numFailedTests) of \(numTests) tests have failed")
         assert(numFailedTests==0)
-        
-        
     }
+ 
     
     @Test func testPubKey(){
         
@@ -95,15 +93,22 @@ class TestPubKey: TestBase {
             
             
         ]
-    
-
-        var privKeys : [Secp256k1_GPU.PrivateKey] = []
+        
+        
+        var privKeysArr : [Data] = []
+        var privKeys : Data = Data()
         for t in testCases {
-            privKeys.append(Secp256k1_GPU.PrivateKey(hexStringToData(hexString: t.0)))
+            
+            //Helpers.printLimbs(limbs: Helpers.hex256ToUInt32Limbs(t.0))
+            
+            let  limbs = Helpers.hex256ToUInt32Limbs(t.0)
+            
+            privKeys.append(dataFromUInt32Limbs(limbs))
+            privKeysArr.append(dataFromUInt32Limbs(limbs))
         }
         let secp256k1obj = Secp256k1_GPU(on:super.device, bufferSize: testCases.count)
         let res = secp256k1obj.generatePublicKeys(privateKeys: privKeys)
-
+        
         
         
         for i in 0..<res.count {
@@ -139,8 +144,23 @@ class TestPubKey: TestBase {
         return data
     }
     
+    
+    /// Converts 8 UInt32 limbs into a Data object (little-endian).
+    func dataFromUInt32Limbs(_ limbs: [UInt32]) -> Data {
+        precondition(limbs.count == 8, "Expected exactly 8 limbs (UInt32).")
+        
+        var data = Data(capacity: 8 * MemoryLayout<UInt32>.size)
+        for limb in limbs {
+            var littleEndian = limb.littleEndian
+            withUnsafeBytes(of: &littleEndian) { bytes in
+                data.append(contentsOf: bytes)
+            }
+        }
+        return data
+    }
+    
 }
 
-    
-    
+
+
 
