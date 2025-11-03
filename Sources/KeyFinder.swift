@@ -15,100 +15,8 @@ struct KeyFinder {
         KeyFinder().run()
     }
     
-
-    /// An efficient iterator over a 256-bit integer range represented as 32-byte Data.
-    /// Designed for cryptographic key enumeration or GPU batching.
-    public struct KeyRange256: Sequence, IteratorProtocol {
-        private var current: [UInt8]
-        private let end: [UInt8]
-        private var finished = false
-
-        /// Initialize with start and end values in hexadecimal form (with or without 0x prefix).
-        public init?(startHex: String, endHex: String) {
-            guard let startBytes = Self.hexToBytes(startHex),
-                  let endBytes   = Self.hexToBytes(endHex),
-                  startBytes.count == 32, endBytes.count == 32 else {
-                return nil
-            }
-            self.current = startBytes
-            self.end = endBytes
-            if Self.isGreater(startBytes, than: endBytes) {
-                finished = true
-            }
-        }
-
-        /// Return the next 32-byte Data value in the range.
-        public mutating func next() -> Data? {
-            guard !finished else { return nil }
-
-            let result = Data(current) // Wraps without copying unless mutated later
-
-            if !increment256(&current) || Self.isGreater(current, than: end) {
-                finished = true
-            }
-            return result
-        }
-
-        // MARK: - Private helpers
-
-        /// Increment the 256-bit number in place. Returns false if overflow occurred.
-        @inline(__always)
-        private func increment256(_ bytes: inout [UInt8]) -> Bool {
-            for i in (0..<32).reversed() {
-                let (sum, overflow) = bytes[i].addingReportingOverflow(1)
-                bytes[i] = sum
-                if !overflow { return true }
-            }
-            return false // overflow beyond 256 bits
-        }
-
-        /// Lexicographic comparison (big-endian).
-        @inline(__always)
-        private static func isGreater(_ lhs: [UInt8], than rhs: [UInt8]) -> Bool {
-            for i in 0..<lhs.count {
-                if lhs[i] != rhs[i] {
-                    return lhs[i] > rhs[i]
-                }
-            }
-            return false
-        }
-
-        /// Convert a hex string to a fixed 32-byte big-endian array.
-        private static func hexToBytes(_ hex: String) -> [UInt8]? {
-            var s = hex
-            if s.hasPrefix("0x") { s.removeFirst(2) }
-            guard s.count <= 64 else { return nil }
-            s = String(repeating: "0", count: 64 - s.count) + s
-
-            var result = [UInt8]()
-            result.reserveCapacity(32)
-            var index = s.startIndex
-            while index < s.endIndex {
-                let next = s.index(index, offsetBy: 2)
-                guard let byte = UInt8(s[index..<next], radix: 16) else { return nil }
-                result.append(byte)
-                index = next
-            }
-            return result
-        }
-    }
-
     
     func run(){
-        /*
-        let library: MTLLibrary! = try? device.makeDefaultLibrary(bundle: Bundle.module)
-        let queue  = (device.makeCommandQueue())!
-    
-
-        let keyGen = KeyGen(library: library, device: device)
-        let outPtr = keyGen.run(
-            startKeyHex: "0000000000000000000000000000000000000000000000000001000000000000")
-        privKeysToHex(BATCH_SIZE, outPtr)
-
-        
-        exit(0)
-         
-         */
         
         
         // TODO: check for maximum range wich is: 0xFFFF FFFF FFFF FFFF FFFF FFFF FFFF FFFE BAAE DCE6 AF48 A03B BFD2 5E8C D036 4140
@@ -133,7 +41,7 @@ struct KeyFinder {
             
             // Generate batch of private keys
             var start = DispatchTime.now()
-            var outPtrKeyGen = keyGen.run(batchSize: BATCH_SIZE)
+            let outPtrKeyGen = keyGen.run(batchSize: BATCH_SIZE)
             let secp256k1_input_data = Data(bytesNoCopy: outPtrKeyGen, count: BATCH_SIZE*32, deallocator: .custom({ (ptr, size) in ptr.deallocate() }))
             t.keyGen = Double(DispatchTime.now().uptimeNanoseconds - start.uptimeNanoseconds) / 1_000_000.0
 
