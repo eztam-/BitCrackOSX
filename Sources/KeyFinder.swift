@@ -135,7 +135,7 @@ struct KeyFinder {
             var start = DispatchTime.now()
             var outPtrKeyGen = keyGen.run(batchSize: BATCH_SIZE)
             let secp256k1_input_data = Data(bytesNoCopy: outPtrKeyGen, count: BATCH_SIZE*32, deallocator: .custom({ (ptr, size) in ptr.deallocate() }))
-            t.keyGen = DispatchTime.now().uptimeNanoseconds - start.uptimeNanoseconds
+            t.keyGen = Double(DispatchTime.now().uptimeNanoseconds - start.uptimeNanoseconds) / 1_000_000.0
 
             
             
@@ -145,7 +145,7 @@ struct KeyFinder {
             for pk in pubKeys {
                 pubKeyBatch.append(pk.toCompressed())
             }
-            t.secp256k1 = DispatchTime.now().uptimeNanoseconds - start.uptimeNanoseconds
+            t.secp256k1 = Double(DispatchTime.now().uptimeNanoseconds - start.uptimeNanoseconds) / 1_000_000.0
             
             
             
@@ -153,7 +153,7 @@ struct KeyFinder {
             start = DispatchTime.now()
             let outPtr = SHA256.run(batchOfData: pubKeyBatch)
             //printSha256Output(BATCH_SIZE, outPtr)
-            t.sha256 = DispatchTime.now().uptimeNanoseconds - start.uptimeNanoseconds
+            t.sha256 = Double(DispatchTime.now().uptimeNanoseconds - start.uptimeNanoseconds) / 1_000_000.0
             
             
             
@@ -162,7 +162,7 @@ struct KeyFinder {
             let ripemd160_input_data = Data(bytesNoCopy: outPtr, count: BATCH_SIZE*32, deallocator: .custom({ (ptr, size) in ptr.deallocate() }))
             let ripemd160_result = RIPEMD160.run(messagesData: ripemd160_input_data, messageCount: BATCH_SIZE)
             //printRipemd160Output(BATCH_SIZE, ripemd160_result)
-            t.ripemd160 = DispatchTime.now().uptimeNanoseconds - start.uptimeNanoseconds
+            t.ripemd160 = Double(DispatchTime.now().uptimeNanoseconds - start.uptimeNanoseconds) / 1_000_000.0
             
             
             
@@ -182,7 +182,7 @@ struct KeyFinder {
                     print("#########################################################")
                 }
             }
-            t.bloomFilter = DispatchTime.now().uptimeNanoseconds - start.uptimeNanoseconds
+            t.bloomFilter = Double(DispatchTime.now().uptimeNanoseconds - start.uptimeNanoseconds) / 1_000_000.0
             //print("bloomfilter took: \(end.uptimeNanoseconds - start.uptimeNanoseconds)ns")
             // The following would do all the further steps to calculate the address but we don't need it, since the addresses in the bloomfilter
             // are already BASE58 decoded and also the version byte and checksum were removed.
