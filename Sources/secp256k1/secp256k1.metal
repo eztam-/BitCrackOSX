@@ -122,9 +122,6 @@ uint256 field_sub(uint256 a, uint256 b) {
 
 
 
-
-
-
 inline constexpr void mul_32x32(uint a, uint b, thread uint* low, thread uint* high) {
     uint a_lo = a & 0xFFFFu;
     uint a_hi = a >> 16;
@@ -304,32 +301,6 @@ uint256 field_mul(uint256 a, uint256 b) {
     
     return result;
 }
-
-
-
-//---------------
-// Helper: Add two 32-bit numbers and return {low, high}
-/*
-struct add_result {
-    uint low;
-    uint high;
-};
-
-add_result add_with_carry(uint a, uint b, uint carry_in) {
-    add_result res;
-    uint sum = a + b;
-    uint c1 = (sum < a) ? 1u : 0u;
-    sum += carry_in;
-    uint c2 = (sum < carry_in) ? 1u : 0u;
-    res.low = sum;
-    res.high = c1 + c2;
-    return res;
-}
-
-*/
-
-
-
 
 
 
@@ -615,13 +586,6 @@ Point point_mul(Point base, uint256 scalar) {
 
 
 
-
-
-
-
-
-
-
 // ================ Kernel ================
 
 
@@ -646,9 +610,6 @@ kernel void private_to_public_keys(
     Point generator;
     generator.x = { GX[0], GX[1], GX[2], GX[3], GX[4], GX[5], GX[6], GX[7] };
     generator.y = { GY[0], GY[1], GY[2], GY[3], GY[4], GY[5], GY[6], GY[7] };
-    
-    //generator.x = { GX[7], GX[6], GX[5], GX[4], GX[3], GX[2], GX[1], GX[0] };
-    //generator.y = { GY[7], GY[6], GY[5], GY[4], GY[3], GY[2], GY[1], GY[0] };
     
     generator.infinity = false;
     
