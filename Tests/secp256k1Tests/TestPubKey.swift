@@ -39,7 +39,7 @@ class TestPubKey: TestBase {
             //let expPubKeyUncomp = privateKeyUncomp.publicKey.dataRepresentation.hexString
             
             
-            var pubKey =  res[i].toCompressed().hex
+            var pubKey =  res[i].toCompressed().hexString
             let pass = pubKey == expPubKeyComp ?  "✅ PASS" : "❌ FAIL"
             if pubKey != expPubKeyComp {
                 print("\(pass)  Private Key: \(privKeysArr[i])")
@@ -112,7 +112,7 @@ class TestPubKey: TestBase {
         
         
         for i in 0..<res.count {
-            var pubKey = testCases[i].2 ? res[i].toCompressed().hex : res[i].toUncompressed().hex
+            var pubKey = testCases[i].2 ? res[i].toCompressed().hexString : res[i].toUncompressed().hexString
             let pass = pubKey == testCases[i].1 ?  "✅ PASS" : "❌ FAIL"
             
             print("\(pass)  Private Key: \(testCases[i].0)")
