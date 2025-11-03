@@ -21,17 +21,17 @@ let package = Package(
         // Targets can depend on other targets in this package and products from dependencies.
         .executableTarget(
             name: "CryptKeyFinder",
-            dependencies: [
-                .product(name: "P256K", package: "swift-secp256k1"),
-                .product(name: "BigNumber", package: "Swift-BigInt"),
-                .product(name: "BigInt", package: "BigInt")
-            ],
+            dependencies: [],
             path: "Sources",
             resources: [.process("SHA256/SHA256.metal")],
         ),
         .testTarget(
             name: "CryptKeyFinderTests",
-            dependencies: ["CryptKeyFinder"],
+            dependencies: [
+                .product(name: "CryptKeyFinder", package: "CryptKeyFinder"),
+                .product(name: "P256K", package: "swift-secp256k1"),
+                .product(name: "BigNumber", package: "Swift-BigInt")
+            ],
             path: "Tests",
             resources: [
                 .process("../Sources/secp256k1/secp256k1.metal"),
