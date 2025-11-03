@@ -1,5 +1,14 @@
 import Foundation
 
+
+// Extension for hex string conversion
+extension Data {
+    public var hexString: String {
+        return map { String(format: "%02x", $0) }.joined()
+    }
+}
+
+
 public class Helpers{
    
     public static func printLimbs(limbs: [UInt32]){
@@ -42,6 +51,25 @@ public class Helpers{
         return limbs
     }
     
+    // Pointer to data
+    func createData(from pointer: UnsafePointer<UInt32>, offset: Int, length: Int) -> Data {
+        let startPointer = pointer.advanced(by: offset)
+        let buffer = UnsafeBufferPointer(start: startPointer, count: length)
+        
+        return Data(buffer: buffer)
+    }
+    
+    
+    // Utility: build 8-limb little-endian UInt32 array from 32 bytes
+    func uint32LimbsFromBytes(_ b: [UInt8]) -> [UInt32] {
+        precondition(b.count == 32)
+        var arr = [UInt32](repeating: 0, count: 8)
+        for i in 0..<8 {
+            let base = i * 4
+            arr[i] = UInt32(b[base]) | (UInt32(b[base+1]) << 8) | (UInt32(b[base+2]) << 16) | (UInt32(b[base+3]) << 24)
+        }
+        return arr
+    }
     
 }
 

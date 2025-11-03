@@ -248,13 +248,7 @@ struct KeyFinder {
         
     }
     
-    func createData(from pointer: UnsafePointer<UInt32>, offset: Int, length: Int) -> Data {
-        let startPointer = pointer.advanced(by: offset)
-        let buffer = UnsafeBufferPointer(start: startPointer, count: length)
-        
-        return Data(buffer: buffer)
-    }
-    
+
     
     
     

@@ -175,9 +175,4 @@ public class Secp256k1_GPU {
     }
 }
 
-// Extension for hex string conversion
-extension Data {
-    public var hexString: String {
-        return map { String(format: "%02x", $0) }.joined()
-    }
-}
+
