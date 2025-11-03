@@ -4,7 +4,7 @@ import Metal
 
 
 let device = MTLCreateSystemDefaultDevice()!
-let BATCH_SIZE = 5000
+let BATCH_SIZE = 5000 // TODO: FIXME: If the key range is smaller than the batch size it doesnt work
 
 
 @main
@@ -109,52 +109,37 @@ struct KeyFinder {
         exit(0)
          
          */
+        
+        
+        // TODO: check for maximum range wich is: 0xFFFF FFFF FFFF FFFF FFFF FFFF FFFF FFFE BAAE DCE6 AF48 A03B BFD2 5E8C D036 4140
+        let keyGen = KeyGen(device: device, startKeyHex: "0000000000000000000000000000000000000000000000000001000000000000")
+        let secp256k1obj = Secp256k1_GPU(on:  device, bufferSize: BATCH_SIZE)
         let SHA256 = SHA256gpu(on: device)
         let RIPEMD160 = RIPEMD160(on: device)
-        let secp256k1obj = Secp256k1_GPU(on:  device, bufferSize: BATCH_SIZE)
-        
+        let bloomFilter = AddressFileLoader.load(path: "/Users/x/Downloads/bitcoin_very_short.tsv")
+        let t = TimeMeasurement()
         
         
         
         print("Starting on GPU: \(device.name)\n")
-        
-        let bloomFilter = AddressFileLoader.load(path: "/Users/x/Downloads/bitcoin_very_short.tsv")
-        
-        
-        // TODO: check for maximum range wich is: 0xFFFF FFFF FFFF FFFF FFFF FFFF FFFF FFFE BAAE DCE6 AF48 A03B BFD2 5E8C D036 4140
-
-        
-        let keyGen = KeyGen(device: device, startKeyHex: "0000000000000000000000000000000000000000000000000001000000000000")
-        
-        // Generate keys in batches
-        print("\n=== Batch Generation ===")
         var pubKeyBatch: [Data] = []
-        //var privKeysBatch2 : [Secp256k1_GPU.PrivateKey] = []
         
-        // TODO: FIXME: If the key range is smaller than the batch size it doesnt work
-        
-        let t = TimeMeasurement()
 
         
-        while true {  // how to exit if finished?  TODO
+        while true {  // TODO: Shall we introduce an end key, if reached then the application stops?
             
             let startTime = CFAbsoluteTimeGetCurrent()
             
             
             // Generate batch of private keys
             var start = DispatchTime.now()
-           
-           
-            // Calculate a first batch of keys
             var outPtrKeyGen = keyGen.run(batchSize: BATCH_SIZE)
             let secp256k1_input_data = Data(bytesNoCopy: outPtrKeyGen, count: BATCH_SIZE*32, deallocator: .custom({ (ptr, size) in ptr.deallocate() }))
-
             t.keyGen = DispatchTime.now().uptimeNanoseconds - start.uptimeNanoseconds
 
             
-
             
-            // SHA256 hashing
+            // Using secp256k1 EC to calculate public keys for the given private keys
             start = DispatchTime.now()
             let pubKeys = secp256k1obj.generatePublicKeys(privateKeys: secp256k1_input_data)
             for pk in pubKeys {
@@ -164,21 +149,25 @@ struct KeyFinder {
             
             
             
-            // Calculate SHA256 for the batch of public keys on the GPU
+            // Calculate SHA256 for the batch of public keys
             start = DispatchTime.now()
             let outPtr = SHA256.run(batchOfData: pubKeyBatch)
             //printSha256Output(BATCH_SIZE, outPtr)
             t.sha256 = DispatchTime.now().uptimeNanoseconds - start.uptimeNanoseconds
             
             
+            
+            // Calculate RIPEDM160
             start = DispatchTime.now()
             let ripemd160_input_data = Data(bytesNoCopy: outPtr, count: BATCH_SIZE*32, deallocator: .custom({ (ptr, size) in ptr.deallocate() }))
-            
             let ripemd160_result = RIPEMD160.run(messagesData: ripemd160_input_data, messageCount: BATCH_SIZE)
             //printRipemd160Output(BATCH_SIZE, ripemd160_result)
             t.ripemd160 = DispatchTime.now().uptimeNanoseconds - start.uptimeNanoseconds
             
             
+            
+            // Check RIPEMD160 hashes against the bloom filter
+            // Note, we have reverse-calculated BASE58 before inserting addresses into the bloom filter, so we can check directly the RIPEMD160 hashes which is faster.
             start = DispatchTime.now()
             for i in 0..<BATCH_SIZE {
                 let addrExists = bloomFilter.contains(pointer: ripemd160_result, length: 5, offset: i*5)
@@ -235,16 +224,8 @@ struct KeyFinder {
             t.keysPerSec = String(format: "--------[ %.0f keys/s ]--------", hashesPerSec)
             
             
-            
-            
             pubKeyBatch = []  //clearing batch
-            //privKeysBatch2 = []  //clearing batch
         }
-        
-        
-        
-        
-        //print("Generated \(batch.count) keys")
         
     }
     
