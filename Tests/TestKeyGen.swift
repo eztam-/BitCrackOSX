@@ -20,9 +20,7 @@ class TestKeyGen: TestBase {
         let keyGen = KeyGen(device: device, startKeyHex: startKey)
        
         // Calculate a first batch of keys
-        var outPtr = keyGen.run(
-            batchSize: 5000,
-            firstBatch: true)
+        var outPtr = keyGen.run(batchSize: 5000)
 
         for hexStr in privKeysToHexStr(5000, outPtr){
             let expected = reference!.asString(radix: 16).uppercased()
@@ -37,9 +35,7 @@ class TestKeyGen: TestBase {
         //privKeysToHex(5, outPtr)
        
         // Second batch
-        outPtr = keyGen.run(
-            batchSize: 1000,
-            firstBatch: false)
+        outPtr = keyGen.run(batchSize: 1000)
 
         for hexStr in privKeysToHexStr(1000, outPtr){
             let expected = reference!.asString(radix: 16).uppercased()

@@ -44,7 +44,7 @@ public class KeyGen {
         return arr
     }
     
-    public func run(batchSize: Int, firstBatch: Bool) -> UnsafeMutablePointer<UInt32>{
+    public func run(batchSize: Int) -> UnsafeMutablePointer<UInt32>{
         
        
         
