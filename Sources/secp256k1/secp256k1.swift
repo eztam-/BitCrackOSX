@@ -56,38 +56,7 @@ public class Secp256k1_GPU {
 
     }
     
-    public struct PrivateKey {
-        public let data: Data
-        
-        public init(_ data: Data) {
-            self.data = data
-        }
-        
-        
-        func toUInt32Array() -> [UInt32] {
-            var result = [UInt32](repeating: 0, count: 8)
-            var paddedData = data
-            
-            // Ensure we have exactly 32 bytes
-            if paddedData.count < 32 {
-                paddedData = Data(count: 32 - paddedData.count) + paddedData
-            } else if paddedData.count > 32 {
-                paddedData = paddedData.prefix(32)
-            }
-            
-            paddedData.withUnsafeBytes { bytes in
-                for i in 0..<8 {
-                    let byteOffset = (7 - i) * 4
-                    if byteOffset + 4 <= bytes.count {
-                        let value = bytes.load(fromByteOffset: byteOffset, as: UInt32.self)
-                        result[i] = value.bigEndian
-                    }
-                }
-            }
-            
-            return result
-        }
-    }
+
     
     public struct PublicKey {
         public let x: Data
@@ -129,20 +98,15 @@ public class Secp256k1_GPU {
         }
     }
     
-    // TODO: Use Data directlyinstead of PriVate key. This is extremely slow
-    public func generatePublicKeys(privateKeys: [PrivateKey]) -> [PublicKey] {
-            let count = privateKeys.count
-            guard count > 0 else { return [] }
 
-            // Convert private keys to UInt32 arrays for Metal
-            var privateKeyData = [UInt32]()
-            for privateKey in privateKeys {
-                privateKeyData.append(contentsOf: privateKey.toUInt32Array())
-            }
+    public func generatePublicKeys(privateKeys: Data) -> [PublicKey] {
+            let keyCount = privateKeys.count / 32
+            guard keyCount > 0 else { return [] }
        
         
         // Copy private key data to buffer
-        privateKeyBuffer.contents().copyMemory(from: privateKeyData, byteCount: privateKeyBuffer.length)
+        //privateKeyBuffer.contents().copyMemory(from: privateKeys, byteCount: privateKeyBuffer.length)
+        let privateKeyBuffer = device.makeBuffer(bytes: (privateKeys as NSData).bytes, length: privateKeys.count, options: [])!
         
         // Create command buffer and encoder
         guard let commandBuffer = commandQueue.makeCommandBuffer(),
@@ -164,12 +128,12 @@ public class Secp256k1_GPU {
         
         // Calculate thread execution width
         let threadsPerThreadgroup = MTLSize(
-            width: min(pipelineState.threadExecutionWidth, count),
+            width: min(pipelineState.threadExecutionWidth, keyCount),
             height: 1,
             depth: 1
         )
         let threadgroupsPerGrid = MTLSize(
-            width: (count + threadsPerThreadgroup.width - 1) / threadsPerThreadgroup.width,
+            width: (keyCount + threadsPerThreadgroup.width - 1) / threadsPerThreadgroup.width,
             height: 1,
             depth: 1
         )
@@ -195,13 +159,13 @@ public class Secp256k1_GPU {
         // Convert results back to PublicKey objects
         let publicKeyArray = publicKeyBuffer.contents().bindMemory(
             to: UInt32.self,
-            capacity: count * 16
+            capacity: keyCount * 16
         )
         
         var results = [PublicKey]()
-        for i in 0..<count {
+        for i in 0..<keyCount {
             let publicKey = PublicKey.fromUInt32Array(
-                Array(UnsafeBufferPointer(start: publicKeyArray, count: count * 16)),
+                Array(UnsafeBufferPointer(start: publicKeyArray, count: keyCount * 16)),
                 index: i
             )
             results.append(publicKey)
