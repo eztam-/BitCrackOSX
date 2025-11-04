@@ -52,6 +52,8 @@ class RIPEMD160 {
         let threadsPerGrid = MTLSize(width: messageCount, height: 1, depth: 1)
         let threadsPerThreadgroup = MTLSize(width: preferredTgSize, height: 1, depth: 1)
         
+        
+        //print("ripe \(threadsPerGrid) \(threadsPerThreadgroup)")
         // Build and dispatch
         guard let cmdBuf = queue.makeCommandBuffer(),
               let encoder = cmdBuf.makeComputeCommandEncoder() else {

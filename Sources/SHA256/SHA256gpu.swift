@@ -35,6 +35,7 @@ class SHA256gpu {
     
     func run(batchOfData: [Data]) -> UnsafeMutablePointer<UInt32> {
 
+
         
         let (messageBytes, metas) = packMessages(batchOfData)
         
@@ -70,6 +71,9 @@ class SHA256gpu {
                                    height: 1,
                                    depth: 1)
         let threadsPerGrid = MTLSize(width: metas.count, height: 1, depth: 1)
+        
+        //print("sha \(threadsPerGrid) \(threadsPerThreadgroup)")
+        
         encoder.dispatchThreads(threadsPerGrid, threadsPerThreadgroup: threadsPerThreadgroup)
         encoder.endEncoding()
         

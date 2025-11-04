@@ -74,7 +74,7 @@ public class KeyGen {
         encoder.dispatchThreads(threadsPerGrid, threadsPerThreadgroup: threadsPerThreadgroup)
         encoder.endEncoding()
 
-        
+        //print("keyg \(threadsPerGrid) \(threadsPerThreadgroup)")
         
         cmdBuf.commit()
         cmdBuf.waitUntilCompleted()

@@ -10,6 +10,11 @@ public class Secp256k1_GPU {
     private let privateKeyBuffer: MTLBuffer
     private let publicKeyBuffer: MTLBuffer
     
+    let threadsPerThreadgroup : MTLSize
+    let threadgroupsPerGrid : MTLSize
+    
+
+    
     public init(on device: MTLDevice, bufferSize : Int) {
         self.bufferSize = bufferSize
         guard let commandQueue = device.makeCommandQueue() else {
@@ -42,10 +47,10 @@ public class Secp256k1_GPU {
             length: MemoryLayout<UInt32>.stride * bufferSize * 8,
             options: .storageModeShared
         ),
-        let publicKeyBuffer = device.makeBuffer(
-            length: MemoryLayout<UInt32>.stride * bufferSize * 16, // 16 UInt32s per public key
-            options: .storageModeShared
-        ) else {
+              let publicKeyBuffer = device.makeBuffer(
+                length: MemoryLayout<UInt32>.stride * bufferSize * 16, // 16 UInt32s per public key
+                options: .storageModeShared
+              ) else {
             print("Failed to create Metal buffers")
             //return nil
             exit(0)
@@ -53,10 +58,25 @@ public class Secp256k1_GPU {
         }
         self.privateKeyBuffer = privateKeyBuffer
         self.publicKeyBuffer = publicKeyBuffer
-
+        
+    
+        
+        // Calculate thread execution width
+        self.threadsPerThreadgroup = MTLSize(
+            width: min(pipelineState.threadExecutionWidth, bufferSize),
+            height: 1,
+            depth: 1
+        )
+        self.threadgroupsPerGrid = MTLSize(
+            width: (bufferSize + threadsPerThreadgroup.width - 1) / threadsPerThreadgroup.width,
+            height: 1,
+            depth: 1
+        )
+     
+        
     }
     
-
+    
     
     public struct PublicKey {
         public let x: Data
@@ -98,62 +118,40 @@ public class Secp256k1_GPU {
         }
     }
     
-
+    
     public func generatePublicKeys(privateKeys: Data) -> [PublicKey] {
-            let keyCount = privateKeys.count / 32
-            guard keyCount > 0 else { return [] }
-       
+        let keyCount = privateKeys.count / 32
+        guard keyCount > 0 else { return [] }
         
+        //print("secp \(threadgroupsPerGrid) \(threadsPerThreadgroup)")
         // Copy private key data to buffer
         //privateKeyBuffer.contents().copyMemory(from: privateKeys, byteCount: privateKeyBuffer.length)
         let privateKeyBuffer = device.makeBuffer(bytes: (privateKeys as NSData).bytes, length: privateKeys.count, options: [])!
         
         // Create command buffer and encoder
-        guard let commandBuffer = commandQueue.makeCommandBuffer(),
-              let commandEncoder = commandBuffer.makeComputeCommandEncoder() else {
-            print("Failed to create command encoder")
-            //return nil
-            exit(0)
-            //TODO
-        }
+        let commandBuffer = commandQueue.makeCommandBuffer()!
+        let commandEncoder = commandBuffer.makeComputeCommandEncoder()!
         
         // Configure the compute pipeline
         commandEncoder.setComputePipelineState(pipelineState)
         commandEncoder.setBuffer(privateKeyBuffer, offset: 0, index: 0)
         commandEncoder.setBuffer(publicKeyBuffer, offset: 0, index: 1)
-       
         
-        
-        
-        
-        // Calculate thread execution width
-        let threadsPerThreadgroup = MTLSize(
-            width: min(pipelineState.threadExecutionWidth, keyCount),
-            height: 1,
-            depth: 1
-        )
-        let threadgroupsPerGrid = MTLSize(
-            width: (keyCount + threadsPerThreadgroup.width - 1) / threadsPerThreadgroup.width,
-            height: 1,
-            depth: 1
-        )
         
         // Dispatch compute threads
         commandEncoder.dispatchThreadgroups(threadgroupsPerGrid, threadsPerThreadgroup: threadsPerThreadgroup)
         commandEncoder.endEncoding()
-
+        
         
         // Execute and wait for completion
         commandBuffer.commit()
         commandBuffer.waitUntilCompleted()
         
-
+        
         // Check for errors
         if let error = commandBuffer.error {
             print("Metal execution error: \(error)")
-            //return nil
             exit(0)
-            //TODO
         }
         
         // Convert results back to PublicKey objects
