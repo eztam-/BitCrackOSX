@@ -29,7 +29,7 @@ struct KeyFinder {
         let RIPEMD160 = RIPEMD160(on: device)
         let bloomFilter = AddressFileLoader.load(path: "/Users/x/Downloads/bitcoin_very_short.tsv")
         //let bloomFilter = AddressFileLoader.load(path: "/Users/x/Downloads/bitcoin.tsv")
-        let t = TimeMeasurement()
+        let t = TimeMeasurement.instance
         
         
         

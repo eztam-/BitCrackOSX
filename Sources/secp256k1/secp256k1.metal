@@ -52,7 +52,7 @@ struct Point {
 
 // ================ Utility functions ================
 
-uint256 load_private_key(device const uint* private_keys, uint index) {
+inline uint256 load_private_key(device const uint* private_keys, uint index) {
     uint256 result;
     for (int i = 0; i < 8; i++) {
         result.limbs[i] = private_keys[index * 8 + i];
@@ -60,28 +60,28 @@ uint256 load_private_key(device const uint* private_keys, uint index) {
     return result;
 }
 
-void store_public_key(device uint* output, uint index, uint256 x, uint256 y) {
+inline void store_public_key(device uint* output, uint index, uint256 x, uint256 y) {
     for (int i = 0; i < 8; i++) {
         output[index * 16 + i] = x.limbs[i];      // x coordinate
         output[index * 16 + 8 + i] = y.limbs[i];  // y coordinate
     }
 }
 
-inline constexpr bool is_zero(uint256 a) {
+inline bool is_zero(uint256 a) {
     for (int i = 0; i < 8; i++) {
         if (a.limbs[i] != 0) return false;
     }
     return true;
 }
 
-inline constexpr bool is_equal(uint256 a, uint256 b) {
+inline bool is_equal(uint256 a, uint256 b) {
     for (int i = 0; i < 8; i++) {
         if (a.limbs[i] != b.limbs[i]) return false;
     }
     return true;
 }
 
-inline constexpr 	int compare(uint256 a, uint256 b) {
+inline int compare(uint256 a, uint256 b) {
     for (int i = 7; i >= 0; i--) {
         if (a.limbs[i] > b.limbs[i]) return 1;
         if (a.limbs[i] < b.limbs[i]) return -1;
@@ -121,8 +121,16 @@ uint256 field_sub(uint256 a, uint256 b) {
 }
 
 
+inline void mul_32x32(uint a, uint b, thread uint* low, thread uint* high) {
+    // use 64-bit product
+    ulong prod = (ulong)a * (ulong)b;
+    *low = (uint)prod;
+    *high = (uint)(prod >> 32);
+}
 
-inline constexpr void mul_32x32(uint a, uint b, thread uint* low, thread uint* high) {
+/*
+ TODO: compare with the other implementation for performance. This one is well tested and is correct!
+inline void mul_32x32(uint a, uint b, thread uint* low, thread uint* high) {
     uint a_lo = a & 0xFFFFu;
     uint a_hi = a >> 16;
     uint b_lo = b & 0xFFFFu;
@@ -141,8 +149,18 @@ inline constexpr void mul_32x32(uint a, uint b, thread uint* low, thread uint* h
     
     *high = p3 + (middle >> 16) + (middle_carry << 16) + carry;
 }
+*/
 
-inline constexpr void add_with_carry(uint a, uint b, uint carry_in, thread uint* result, thread uint* carry_out) {
+
+inline void add_with_carry(uint a, uint b, uint carry_in, thread uint* result, thread uint* carry_out) {
+    ulong sum = (ulong)a + (ulong)b + (ulong)carry_in;
+    *result = (uint)sum;
+    *carry_out = (uint)(sum >> 32);
+}
+
+/*
+TODO: compare with the other implementation for performance. This one is well tested and is correct!
+inline void add_with_carry(uint a, uint b, uint carry_in, thread uint* result, thread uint* carry_out) {
     uint sum1 = a + b;
     uint c1 = (sum1 < a) ? 1u : 0u;
     
@@ -152,6 +170,7 @@ inline constexpr void add_with_carry(uint a, uint b, uint carry_in, thread uint*
     *result = sum2;
     *carry_out = c1 + c2;
 }
+ */
 
 // TODO I assume we need to apply P-2 if negative? Same as for sub_uint256? but then it would be the same??
 uint256 sub_uint256(uint256 a, uint256 b) {
@@ -215,6 +234,7 @@ uint256 field_mul(uint256 a, uint256 b) {
     for (int i = 0; i < 16; i++) {
         product.limbs[i] = 0;
     }
+    
     
     for (int i = 0; i < 8; i++) {
         uint carry = 0;

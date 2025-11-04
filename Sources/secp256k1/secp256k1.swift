@@ -13,7 +13,7 @@ public class Secp256k1_GPU {
     let threadsPerThreadgroup : MTLSize
     let threadgroupsPerGrid : MTLSize
     
-
+    let t = TimeMeasurement.instance
     
     public init(on device: MTLDevice, bufferSize : Int) {
         self.bufferSize = bufferSize
@@ -142,11 +142,14 @@ public class Secp256k1_GPU {
         commandEncoder.dispatchThreadgroups(threadgroupsPerGrid, threadsPerThreadgroup: threadsPerThreadgroup)
         commandEncoder.endEncoding()
         
-        
+        var start = DispatchTime.now()
+
         // Execute and wait for completion
         commandBuffer.commit()
         commandBuffer.waitUntilCompleted()
         
+        t.secp256k1_2 = Double(DispatchTime.now().uptimeNanoseconds - start.uptimeNanoseconds) / 1_000_000.0
+
         
         // Check for errors
         if let error = commandBuffer.error {
