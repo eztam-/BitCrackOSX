@@ -22,13 +22,7 @@ constant uint P_MINUS_2[8] = {
     0xFFFFFFFF   // limb 7 (bits 224-255, MSW)
 };
 
-constant uint GX[8] = {
-    0x16F81798, 0x59F2815B, 0x2DCE28D9, 0x029BFCDB, 0xCE870B07, 0x55A06295, 0xF9DCBBAC, 0x79BE667E  // little endian limbs ordered from LS to MS
-};
 
-constant uint GY[8] = {
-    0xFB10D4B8, 0x9C47D08F, 0xA6855419, 0xFD17B448, 0x0E1108A8, 0x5DA4FBFC, 0x26A3C465, 0x483ADA77 // little endian limbs ordered from LS to MS
-};
 
 
 
@@ -46,6 +40,62 @@ struct Point {
     uint256 x;
     uint256 y;
     bool infinity;
+};
+
+// G
+constant Point generator = {
+    {   // x limbs - // little endian limbs ordered from LS to MS
+        { 0x16F81798, 0x59F2815B, 0x2DCE28D9, 0x029BFCDB, 0xCE870B07, 0x55A06295, 0xF9DCBBAC, 0x79BE667E }
+    },
+    {   // y limbs // little endian limbs ordered from LS to MS
+        { 0xFB10D4B8, 0x9C47D08F, 0xA6855419, 0xFD17B448, 0x0E1108A8, 0x5DA4FBFC, 0x26A3C465, 0x483ADA77 }
+    },
+    false
+};
+
+
+
+
+
+// constant Point generator{
+ //    { { 0x16F81798, 0x59F2815B, 0x2DCE28D9, 0x029BFCDB, 0xCE870B07, 0x55A06295, 0xF9DCBBAC, 0x79BE667E } },
+ //    { { 0xFB10D4B8, 0x9C47D08F, 0xA6855419, 0xFD17B448, 0x0E1108A8, 0x5DA4FBFC, 0x26A3C465, 0x483ADA77 } },
+ //    false
+// }
+
+// ---- Precomputed 4-bit window table for secp256k1 base point ----
+// G_TABLE[n] = (n+1) * G for n = 0..14, plus G_TABLE[15] = 16*G
+
+constant Point G_TABLE[16] = {
+    // Each entry is { {x limbs[8]}, {y limbs[8]}, false }
+    // You must fill these with real secp256k1 multiples of G.
+    // Below are only G (1·G) as an example — fill others offline.
+   // {
+    //    { { 0x16F81798, 0x59F2815B, 0x2DCE28D9, 0x029BFCDB, 0xCE870B07, 0x55A06295, 0xF9DCBBAC, 0x79BE667E } },
+    //    { { 0xFB10D4B8, 0x9C47D08F, 0xA6855419, 0xFD17B448, 0x0E1108A8, 0x5DA4FBFC, 0x26A3C465, 0x483ADA77 } },
+    //    false
+   // },
+    // { 2·G }, { 3·G }, ... { 16·G }
+    
+    
+    { { 0x16f81798, 0x59f2815b, 0x2dce28d9, 0x029bfcdb, 0xce870b07, 0x55a06295, 0xf9dcbbac, 0x79be667e }, { 0xfb10d4b8, 0x9c47d08f, 0xa6855419, 0xfd17b448, 0x0e1108a8, 0x5da4fbfc, 0x26a3c465, 0x483ada77 }, false },
+    { { 0x5c709ee5, 0xabac09b9, 0x8cef3ca7, 0x5c778e4b, 0x95c07cd8, 0x3045406e, 0x41ed7d6d, 0xc6047f94 }, { 0x50cfe52a, 0x236431a9, 0x3266d0e1, 0xf7f63265, 0x466ceaee, 0xa3c58419, 0xa63dc339, 0x1ae168fe }, false },
+    { { 0xbce036f9, 0x8601f113, 0x836f99b0, 0xb531c845, 0xf89d5229, 0x49344f85, 0x9258c310, 0xf9308a01 }, { 0x84b8e672, 0x6cb9fd75, 0x34c2231b, 0x6500a999, 0x2a37f356, 0x0fe337e6, 0x632de814, 0x388f7b0f }, false },
+    { { 0xe8c4cd13, 0x74fa94ab, 0x0ee07584, 0xcc6c1390, 0x930b1404, 0x581e4904, 0xc10d80f3, 0xe493dbf1 }, { 0x47739922, 0xcfe97bdc, 0xbfbdfe40, 0xd967ae33, 0x8ea51448, 0x5642e209, 0xa0d455b7, 0x51ed993e }, false },
+    { { 0xb240efe4, 0xcba8d569, 0xdc619ab7, 0xe88b84bd, 0x0a5c5128, 0x55b4a725, 0x1a072093, 0x2f8bde4d }, { 0xa6ac62d6, 0xdca87d3a, 0xab0d6840, 0xf788271b, 0xa6c9c426, 0xd4dba9dd, 0x36e5e3d6, 0xd8ac2226 }, false },
+    { { 0x60297556, 0x2f057a14, 0x8568a18b, 0x82f6472f, 0x355235d3, 0x20453a14, 0x755eeea4, 0xfff97bd5 }, { 0xb075f297, 0x3c870c36, 0x518fe4a0, 0xde80f0f6, 0x7f45c560, 0xf3be9601, 0xacfbb620, 0xae12777a }, false },
+    { { 0xcac4f9bc, 0xe92bdded, 0x0330e39c, 0x3d419b7e, 0xf2ea7a0e, 0xa398f365, 0x6e5db4ea, 0x5cbdf064 }, { 0x087264da, 0xa5082628, 0x13fde7b5, 0xa813d0b8, 0x861a54db, 0xa3178d6d, 0xba255960, 0x6aebca40 }, false },
+    { { 0xe10a2a01, 0x67784ef3, 0xe5af888a, 0x0a1bdd05, 0xb70f3c2f, 0xaff3843f, 0x5cca351d, 0x2f01e5e1 }, { 0x6cbde904, 0xb5da2cb7, 0xba5b7617, 0xc2e213d6, 0x132d13b4, 0x293d082a, 0x41539949, 0x5c4da8a7 }, false },
+    { { 0xfc27ccbe, 0xc35f110d, 0x4c57e714, 0xe0979697, 0x9f559abd, 0x09ad178a, 0xf0c7f653, 0xacd484e2 }, { 0xc64f9c37, 0x05cc262a, 0x375f8e0f, 0xadd888a4, 0x763b61e9, 0x64380971, 0xb0a7d9fd, 0xcc338921 }, false },
+    { { 0x47e247c7, 0x52a68e2a, 0x1943c2b7, 0x3442d49b, 0x1ae6ae5d, 0x35477c7b, 0x47f3c862, 0xa0434d9e }, { 0x037368d7, 0x3cbee53b, 0xd877a159, 0x6f794c2e, 0x93a24c69, 0xa3b6c7e6, 0x5419bc27, 0x893aba42 }, false },
+    { { 0x5da008cb, 0xbbec1789, 0xe5c17891, 0x5649980b, 0x70c65aac, 0x5ef4246b, 0x58a9411e, 0x774ae7f8 }, { 0xc953c61b, 0x301d74c9, 0xdff9d6a8, 0x372db1e2, 0xd7b7b365, 0x0243dd56, 0xeb6b5e19, 0xd984a032 }, false },
+    { { 0x70afe85a, 0xc5b0f470, 0x9620095b, 0x687cf441, 0x4d734633, 0x15c38f00, 0x48e7561b, 0xd01115d5 }, { 0xf4062327, 0x6b051b13, 0xd9a86d52, 0x79238c5d, 0xe17bd815, 0xa8b64537, 0xc815e0d7, 0xa9f34ffd }, false },
+    { { 0x19405aa8, 0xdeeddf8f, 0x610e58cd, 0xb075fbc6, 0xc3748651, 0xc7d1d205, 0xd975288b, 0xf28773c2 }, { 0xdb03ed81, 0x29b5cb52, 0x521fa91f, 0x3a1a06da, 0x65cdaf47, 0x758212eb, 0x8d880a89, 0x0ab0902e }, false },
+    { { 0x60e823e4, 0xe49b241a, 0x678949e6, 0x26aa7b63, 0x07d38e32, 0xfd64e67f, 0x895e719c, 0x499fdf9e }, { 0x03a13f5b, 0xc65f40d4, 0x7a3f95bc, 0x464279c2, 0xa7b3d464, 0x90f044e4, 0xb54e8551, 0xcac2f6c4 }, false },
+    { { 0xe27e080e, 0x44adbcf8, 0x3c85f79e, 0x31e5946f, 0x095ff411, 0x5a465ae3, 0x7d43ea96, 0xd7924d4f }, { 0xf6a26b58, 0xc504dc9f, 0xd896d3a5, 0xea40af2b, 0x28cc6def, 0x83842ec2, 0xa86c72a6, 0x581e2872 }, false },
+    { { 0x2a6dec0a, 0xc44ee89e, 0xb87a5ae9, 0xb2a31369, 0x21c23e97, 0x3011aabc, 0xb59e9ec5, 0xe60fce93 }, { 0x69616821, 0xe1f32cce, 0x44d23f0b, 0x1296891e, 0xf5793710, 0x9db99f34, 0x99e59592, 0xf7e35073 }, false }
+    
+    
 };
 
 
@@ -328,7 +378,9 @@ uint256 field_sqr(uint256 a) {
     return field_mul(a, a);
 }
 
-
+/*
+TODO: verify this once more against the other implementaations
+// This is another version fully correct, but slower
 // Modular inverse using Fermat's Little Theorem: a^(p-2) mod p
 // For secp256k1: P-2 = 0xFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFEFFFFFC2D
 uint256 field_inv(uint256 a) {
@@ -363,6 +415,150 @@ uint256 field_inv(uint256 a) {
     
     return result;
 }
+*/
+
+
+
+// Build a uint256 from the global modulus P[8]
+inline uint256 mod_p_u256() {
+    uint256 m;
+    for (int i = 0; i < 8; i++) m.limbs[i] = P[i];
+    return m;
+}
+
+// Right shift by 1 over 8×32-bit limbs; msb_in becomes the new top bit (bit 255)
+inline uint256 rshift1_with_msb(uint256 a, uint msb_in) {
+    uint256 r;
+    uint carry = msb_in & 1u; // becomes top bit after shifting
+    // walk from MS limb to LS limb
+    for (int i = 7; i >= 0; i--) {
+        uint new_carry = a.limbs[i] & 1u;              // LSB that falls to next limb
+        r.limbs[i] = (a.limbs[i] >> 1) | (carry << 31);
+        carry = new_carry;
+    }
+    return r;
+}
+
+// Plain 256-bit add: r = a + b (no modular reduction). Returns final carry (0/1).
+inline uint add_uint256_raw(thread uint256 &r, uint256 a, uint256 b) {
+    uint carry = 0;
+    for (int i = 0; i < 8; i++) {
+        uint sum, c1;
+        add_with_carry(a.limbs[i], b.limbs[i], carry, &sum, &c1);
+        r.limbs[i] = sum;
+        carry = c1;
+    }
+    return carry; // 0 or 1
+}
+
+
+// Modular inverse using a binary extended GCD variant (fast, branchy, GPU-friendly)
+// Returns a^{-1} mod p. If a == 0, returns 0.
+uint256 field_inv(uint256 a) {
+    if (is_zero(a)) return a;
+
+    const uint256 p = mod_p_u256();
+
+    // t0 = a, t1 = p, t2 = 1, t3 = 0
+    uint256 t0 = a;
+    uint256 t1 = p;
+
+    uint256 t2; // accumulator for a^{-1} mod p
+    for (int i = 0; i < 8; i++) t2.limbs[i] = 0;
+    t2.limbs[0] = 1;
+
+    uint256 t3; // auxiliary (for p - a^{-1})
+    for (int i = 0; i < 8; i++) t3.limbs[i] = 0;
+
+    // while (t0 != t1)
+    while (!is_equal(t0, t1)) {
+        if ((t0.limbs[0] & 1u) == 0u) {
+            // t0 even: t0 >>= 1
+            t0 = rshift1_with_msb(t0, 0u);
+
+            // If t2 is odd, add p before halving to keep it integral mod p
+            uint msb_in = 0u;
+            if (t2.limbs[0] & 1u) {
+                uint256 tmp;
+                msb_in = add_uint256_raw(tmp, t2, p); // carry becomes top bit
+                t2 = tmp;
+            }
+            t2 = rshift1_with_msb(t2, msb_in);
+        }
+        else if ((t1.limbs[0] & 1u) == 0u) {
+            // t1 even
+            t1 = rshift1_with_msb(t1, 0u);
+
+            uint msb_in = 0u;
+            if (t3.limbs[0] & 1u) {
+                uint256 tmp;
+                msb_in = add_uint256_raw(tmp, t3, p);
+                t3 = tmp;
+            }
+            t3 = rshift1_with_msb(t3, msb_in);
+        }
+        else {
+            // both odd: subtract the larger by the smaller
+            if (compare(t0, t1) > 0) {
+                // t0 = (t0 - t1) >> 1
+                t0 = sub_uint256(t0, t1);
+
+                // t2 = (t2 - t3) >> 1   (mod p), do borrow fix by +p if needed
+                // If t2 < t3, add p before subtracting to avoid underflow.
+                if (compare(t2, t3) < 0) {
+                    uint256 tmp;
+                    (void)add_uint256_raw(tmp, t2, p);
+                    t2 = tmp;
+                }
+                t2 = sub_uint256(t2, t3);
+
+                uint msb_in = 0u;
+                if (t2.limbs[0] & 1u) {
+                    uint256 tmp;
+                    msb_in = add_uint256_raw(tmp, t2, p);
+                    t2 = tmp;
+                }
+                t2 = rshift1_with_msb(t2, msb_in);
+
+                t0 = rshift1_with_msb(t0, 0u);
+            } else {
+                // t1 = (t1 - t0) >> 1
+                t1 = sub_uint256(t1, t0);
+
+                // t3 = (t3 - t2) >> 1   (mod p)
+                if (compare(t3, t2) < 0) {
+                    uint256 tmp;
+                    (void)add_uint256_raw(tmp, t3, p);
+                    t3 = tmp;
+                }
+                t3 = sub_uint256(t3, t2);
+
+                uint msb_in = 0u;
+                if (t3.limbs[0] & 1u) {
+                    uint256 tmp;
+                    msb_in = add_uint256_raw(tmp, t3, p);
+                    t3 = tmp;
+                }
+                t3 = rshift1_with_msb(t3, msb_in);
+
+                t1 = rshift1_with_msb(t1, 0u);
+            }
+        }
+    }
+
+    // Result is t2
+    return t2;
+}
+
+
+
+
+// Plain comparison helper (already present, but keeping here for clarity):
+// int compare(uint256 a, uint256 b) // returns -1,0,1
+// bool is_equal(uint256 a, uint256 b)
+// uint256 sub_uint256(uint256 a, uint256 b) // non-mod, may underflow (we guard by adding p first)
+
+
 
 
 // ================ Point operations ================
@@ -572,6 +768,7 @@ PointJacobian point_add_mixed_jacobian(PointJacobian p, Point q) {
     return result;
 }
 
+/* TODO: compare against the other, implementation which uses pre-calculated values. To do so, you need to add the generator point again in the main kernel
 // Point multiplication using Jacobian coordinates
 Point point_mul(Point base, uint256 scalar) {
     // Convert base to Jacobian
@@ -602,6 +799,44 @@ Point point_mul(Point base, uint256 scalar) {
     return jacobian_to_affine(result);
 }
 
+*/
+
+
+Point point_mul(uint256 scalar, threadgroup const Point* G_table_tg) {
+    PointJacobian result;
+    result.infinity = true;
+
+    // Process scalar from most significant nibble (4 bits) to least
+    for (int limb = 7; limb >= 0; limb--) {
+        uint word = scalar.limbs[limb];
+
+        #pragma unroll
+        for (int nib = 7; nib >= 0; nib--) {
+            // Each nibble = 4 bits
+            uint nibble = (word >> (nib * 4)) & 0xFu;
+
+            
+            // Always perform 4 doublings (to shift left by 4 bits)
+            if (!result.infinity) {
+                for (int i = 0; i < 4; i++) {
+                    result = point_double_jacobian(result);
+                }
+            }
+
+            if (nibble != 0u) {
+                Point addend = G_table_tg[nibble - 1];
+                if (result.infinity) {
+                    result = affine_to_jacobian(addend);
+                } else {
+                    result = point_add_mixed_jacobian(result, addend);
+                }
+            }
+        }
+    }
+
+    // Convert back to affine (1 inversion total)
+    return jacobian_to_affine(result);
+}
 
 
 
@@ -613,7 +848,9 @@ Point point_mul(Point base, uint256 scalar) {
 kernel void private_to_public_keys(
     device const uint* private_keys [[buffer(0)]],
     device uint* public_keys [[buffer(1)]],
-    uint id [[thread_position_in_grid]]
+    uint id [[thread_position_in_grid]],
+    uint lid [[thread_position_in_threadgroup]]
+                                   
 ) {
     // Load private key for this thread
     uint256 private_key = load_private_key(private_keys, id);
@@ -626,15 +863,24 @@ kernel void private_to_public_keys(
         return;
     }
     
-    // Create generator point
-    Point generator;
-    generator.x = { GX[0], GX[1], GX[2], GX[3], GX[4], GX[5], GX[6], GX[7] };
-    generator.y = { GY[0], GY[1], GY[2], GY[3], GY[4], GY[5], GY[6], GY[7] };
     
-    generator.infinity = false;
+    // START point_mul (traditional)
+    //Point public_key_point = point_mul(generator, private_key);
+    // END
     
+    // START point_mul windowed with pre-calculated G table
+    // We create copies of the G-Table in each thread group, for faster access
+    threadgroup Point G_table_tg[16];
+    if (lid == 0) {
+        for (int i = 0; i < 16; i++) G_table_tg[i] = G_TABLE[i];
+    }
+    threadgroup_barrier(mem_flags::mem_threadgroup);
+    //END
+
     // Multiply generator by private key to get public key
-    Point public_key_point = point_mul(generator, private_key);
+    Point public_key_point = point_mul(private_key, G_table_tg); // Pre-calculated G values
+    
+
     
     // Store result
     if (public_key_point.infinity) {
