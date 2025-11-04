@@ -10,8 +10,6 @@ class TestFieldInv : TestBase {
         super.init(kernelFunctionName: "test_field_inv")!
     }
     
-    
-    // TODO: add asserts everywhere in all tests so that we can run them quickly after some change to see if anything broke
     @Test func testFieldInv() {
             
             
@@ -58,9 +56,9 @@ class TestFieldInv : TestBase {
                 if !passed {
                     print("  Debug - Expected limbs: \(expectedLimbs.map { String(format: "0x%08X", $0) })")
                     print("  Debug - Got limbs:      \(result.map { String(format: "0x%08X", $0) })")
+                    assertionFailure()
                 }
             }
-            
             print("\n" + "=" * 60)
         }
         

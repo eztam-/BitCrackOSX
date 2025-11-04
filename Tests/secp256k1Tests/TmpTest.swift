@@ -23,7 +23,8 @@ class Secp256k1MetalTester: TestBase {
   
 
   
-    @Test func testTmpFixes() {
+    //@Test
+    func testTmpFixes() {
         
 
         //testMod()

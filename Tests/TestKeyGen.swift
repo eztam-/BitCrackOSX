@@ -49,10 +49,7 @@ class TestKeyGen: TestBase {
         }
                  
         
-        
         assert(numFailedTests==0)
-        
-
     }
     
     

@@ -1,5 +1,4 @@
 import Foundation
-import P256K
 import Metal
 
 
@@ -20,16 +19,22 @@ struct KeyFinder {
         
         
         // TODO: check for maximum range wich is: 0xFFFF FFFF FFFF FFFF FFFF FFFF FFFF FFFE BAAE DCE6 AF48 A03B BFD2 5E8C D036 4140
-        let keyGen = KeyGen(device: device, startKeyHex: "0000000000000000000000000000000000000000000000000001000000000000")
+        
+            let startKey = "0000000000000000000000000000000000000000000000000001000000000000"
+        //let startKey = Helpers.generateRandom256BitHex()
+        
+        let keyGen = KeyGen(device: device, startKeyHex: startKey)
         let secp256k1obj = Secp256k1_GPU(on:  device, bufferSize: BATCH_SIZE)
         let SHA256 = SHA256gpu(on: device)
         let RIPEMD160 = RIPEMD160(on: device)
         let bloomFilter = AddressFileLoader.load(path: "/Users/x/Downloads/bitcoin_very_short.tsv")
+        //let bloomFilter = AddressFileLoader.load(path: "/Users/x/Downloads/bitcoin.tsv")
         let t = TimeMeasurement()
         
         
         
         print("Starting on GPU: \(device.name)\n")
+        print("Start key is: \(startKey)\n")
         var pubKeyBatch: [Data] = []
         
 
@@ -88,6 +93,7 @@ struct KeyFinder {
                     print("Use any tool like btc_address_dump to get the address for the private key")
                     //print("!!! NOTE !!! At the moment this address is just the RIPEMD160 result, you need to add the address byte and do a base58 decode and a checksum validation to get the actual address.")
                     print("#########################################################")
+                   // exit(0) // TODO: do we really want to exit? Make this configurable
                 }
             }
             t.bloomFilter = Double(DispatchTime.now().uptimeNanoseconds - start.uptimeNanoseconds) / 1_000_000.0

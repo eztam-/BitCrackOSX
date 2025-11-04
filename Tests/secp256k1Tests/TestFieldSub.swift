@@ -3,7 +3,7 @@ import Foundation
 import Testing
 import Security
 import BigNumber
-
+import CryptKeyFinder
 
 class TestFieldSub: TestBase {
    
@@ -20,8 +20,8 @@ class TestFieldSub: TestBase {
         var numFailedTests = 0
         
         for _ in 0..<numTests {
-            let aHex = super.generateRandom256BitHex();
-            let bHex = super.generateRandom256BitHex();
+            let aHex = Helpers.generateRandom256BitHex();
+            let bHex = Helpers.generateRandom256BitHex();
             
             let aLimbs = hexToLimbs(aHex)
             let bLimbs = hexToLimbs(bHex)
@@ -113,6 +113,7 @@ class TestFieldSub: TestBase {
                 if !passed {
                     print("  Debug - Expected limbs: \(expectedLimbs.map { String(format: "0x%08X", $0) })")
                     print("  Debug - Got limbs:      \(result.map { String(format: "0x%08X", $0) })")
+                    assertionFailure()
                 }
             }
             

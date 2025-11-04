@@ -52,7 +52,7 @@ public class Helpers{
     }
     
     // Pointer to data
-    func createData(from pointer: UnsafePointer<UInt32>, offset: Int, length: Int) -> Data {
+    public static func createData(from pointer: UnsafePointer<UInt32>, offset: Int, length: Int) -> Data {
         let startPointer = pointer.advanced(by: offset)
         let buffer = UnsafeBufferPointer(start: startPointer, count: length)
         
@@ -61,7 +61,7 @@ public class Helpers{
     
     
     // Utility: build 8-limb little-endian UInt32 array from 32 bytes
-    func uint32LimbsFromBytes(_ b: [UInt8]) -> [UInt32] {
+    public static func uint32LimbsFromBytes(_ b: [UInt8]) -> [UInt32] {
         precondition(b.count == 32)
         var arr = [UInt32](repeating: 0, count: 8)
         for i in 0..<8 {
@@ -69,6 +69,16 @@ public class Helpers{
             arr[i] = UInt32(b[base]) | (UInt32(b[base+1]) << 8) | (UInt32(b[base+2]) << 16) | (UInt32(b[base+3]) << 24)
         }
         return arr
+    }
+    
+    
+    public static func generateRandom256BitHex() -> String {
+        var bytes = [UInt8](repeating: 0, count: 32) // 32 bytes = 256 bits
+        let result = SecRandomCopyBytes(kSecRandomDefault, bytes.count, &bytes)
+        guard result == errSecSuccess else {
+            fatalError("Failed to generate secure random bytes")
+        }
+        return bytes.map { String(format: "%02x", $0) }.joined()
     }
     
 }

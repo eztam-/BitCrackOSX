@@ -28,9 +28,10 @@ let package = Package(
         .testTarget(
             name: "CryptKeyFinderTests",
             dependencies: [
-                .product(name: "CryptKeyFinder", package: "CryptKeyFinder"),
+                "CryptKeyFinder",
+                //.product(name: "CryptKeyFinder", package: "CryptKeyFinder"),
                 .product(name: "P256K", package: "swift-secp256k1"),
-                .product(name: "BigNumber", package: "Swift-BigInt")
+                .product(name: "BigNumber", package: "Swift-BigInt"),
             ],
             path: "Tests",
             resources: [

@@ -20,7 +20,7 @@ class TestPubKey: TestBase {
         var privKeys : Data = Data()
         for _ in 0..<numTests {
             
-            let randomStr = super.generateRandom256BitHex()
+            let randomStr = Helpers.generateRandom256BitHex()
             let  limbs = Helpers.hex256ToUInt32Limbs(randomStr)
             privKeys.append(dataFromUInt32Limbs(limbs))
             privKeysArr.append(randomStr)
@@ -114,11 +114,11 @@ class TestPubKey: TestBase {
         for i in 0..<res.count {
             var pubKey = testCases[i].2 ? res[i].toCompressed().hexString : res[i].toUncompressed().hexString
             let pass = pubKey == testCases[i].1 ?  "✅ PASS" : "❌ FAIL"
-            
             print("\(pass)  Private Key: \(testCases[i].0)")
             print("         Actual:      \(pubKey)")
             print("         Expected:    \(testCases[i].1)\n")
             
+            assert(pubKey == testCases[i].1)
         }
         
     }
