@@ -34,20 +34,9 @@ class RIPEMD160 {
         // - Packs N messages, each exactly 32 bytes (if you have shorter strings, left-pad or right-pad them on the host)
         // - Dispatches GPU kernel and reads back 5 uint words per message.
         // - Converts words to canonical RIPEMD-160 hex (little-endian word order).
-        // - Measures GPU execution time for benchmarking.
-        
-        //print("Running RIPEMD-160 using Metal device:", device.name)
-      
+
         let queue = device.makeCommandQueue()!
         
-        // test messages confirmed to work
-        //let messageCount = 2 // adjust as needed for your GPU memory and desired runtime
-        //var messagesData = UInt256(hexString: "22a3c85609d4d626bc01cd87df71d01f6bb9a62efce214d37b0d4faf4f3ebb74").data  // Str Hex values length 32 This is what I need but from bytes
-        //messagesData.append(Data("xyzaaaaaaaaaaaaaaaaaaaaaaaaaaaaa".utf8)) // other example with Direct String hashing (length 32)
-        ////let messagesData = prepareMessages(count: messageCount)
-
-        
-        // Create Metal buffers
         let messagesBuffer = device.makeBuffer(bytes: (messagesData as NSData).bytes, length: messagesData.count, options: [])!
         
         // output: 5 uints per message

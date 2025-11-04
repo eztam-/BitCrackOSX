@@ -23,7 +23,7 @@ struct KeyFinder {
             let startKey = "0000000000000000000000000000000000000000000000000001000000000000"
         //let startKey = Helpers.generateRandom256BitHex()
         
-        let keyGen = KeyGen(device: device, startKeyHex: startKey)
+        let keyGen = KeyGen(device: device, batchSize: BATCH_SIZE, startKeyHex: startKey)
         let secp256k1obj = Secp256k1_GPU(on:  device, bufferSize: BATCH_SIZE)
         let SHA256 = SHA256gpu(on: device)
         let RIPEMD160 = RIPEMD160(on: device)
@@ -46,7 +46,7 @@ struct KeyFinder {
             
             // Generate batch of private keys
             var start = DispatchTime.now()
-            let outPtrKeyGen = keyGen.run(batchSize: BATCH_SIZE)
+            let outPtrKeyGen = keyGen.run()
             let secp256k1_input_data = Data(bytesNoCopy: outPtrKeyGen, count: BATCH_SIZE*32, deallocator: .custom({ (ptr, size) in ptr.deallocate() }))
             t.keyGen = Double(DispatchTime.now().uptimeNanoseconds - start.uptimeNanoseconds) / 1_000_000.0
 

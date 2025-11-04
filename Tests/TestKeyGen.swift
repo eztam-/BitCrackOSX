@@ -18,10 +18,10 @@ class TestKeyGen: TestBase {
         let startKey = "11111111111111111111111111111111111111111111111111111111FFFFFFAA"; // High first limb to test carry
         var reference = BInt(startKey, radix: 16)
         
-        let keyGen = KeyGen(device: device, startKeyHex: startKey)
+        let keyGen = KeyGen(device: device, batchSize: 1000, startKeyHex: startKey)
        
         // Calculate a first batch of keys
-        var outPtr = keyGen.run(batchSize: 1000)
+        var outPtr = keyGen.run()
 
         for hexStr in privKeysToHexStr(1000, outPtr){
             let expected = reference!.asString(radix: 16).uppercased()
@@ -36,7 +36,7 @@ class TestKeyGen: TestBase {
         //privKeysToHex(5, outPtr)
        
         // Second batch
-        outPtr = keyGen.run(batchSize: 1000)
+        outPtr = keyGen.run()
 
         for hexStr in privKeysToHexStr(1000, outPtr){
             let expected = reference!.asString(radix: 16).uppercased()
