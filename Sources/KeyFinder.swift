@@ -26,7 +26,7 @@ struct KeyFinder {
         let keyGen = KeyGen(device: device, batchSize: BATCH_SIZE, startKeyHex: startKey)
         let secp256k1obj = Secp256k1_GPU(on:  device, bufferSize: BATCH_SIZE)
         let SHA256 = SHA256gpu(on: device)
-        let RIPEMD160 = RIPEMD160(on: device)
+        let RIPEMD160 = RIPEMD160(on: device, batchSize: BATCH_SIZE)
         let bloomFilter = AddressFileLoader.load(path: "/Users/x/Downloads/bitcoin_very_short.tsv")
         //let bloomFilter = AddressFileLoader.load(path: "/Users/x/Downloads/bitcoin.tsv")
         let t = TimeMeasurement.instance

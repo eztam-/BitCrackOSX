@@ -73,10 +73,6 @@ constant uint K_LEFT[5]  = { 0x00000000u, 0x5A827999u, 0x6ED9EBA1u, 0x8F1BBCDCu,
 // Right-side additive constants per round
 constant uint K_RIGHT[5] = { 0x50A28BE6u, 0x5C4DD124u, 0x6D703EF3u, 0x7A6D76E9u, 0x00000000u };
 
-// NumMessages wrapper buffer (host passes a single uint in a small buffer)
-struct NumMessages {
-    uint value;
-};
 
 // Kernel: one thread per fixed-32-byte message.
 // Input buffer layout: messages are contiguous blocks of exactly 32 bytes each in big-endian
@@ -84,13 +80,10 @@ struct NumMessages {
 kernel void ripemd160_fixed32_kernel(
     const device uchar *       messages        [[ buffer(0) ]],
     device uint *              outWords        [[ buffer(1) ]],
-    const device NumMessages * numMsgPtr       [[ buffer(2) ]],
     uint                       gid             [[ thread_position_in_grid ]],
     uint                       tid_in_tg       [[ thread_index_in_threadgroup ]],
     uint                       tg_size         [[ threads_per_threadgroup ]])
 {
-    const uint numMessages = numMsgPtr->value;
-    if (gid >= numMessages) return;
 
     // Copy constant arrays into threadgroup memory once per threadgroup
     threadgroup uint tgLeftRot[80];
