@@ -70,14 +70,7 @@ public class Secp256k1_GPU {
     
     
     public func generatePublicKeys(privateKeyBuffer: MTLBuffer) -> (MTLBuffer, MTLBuffer) {
-       // let keyCount = privateKeys.count / 32
-        //guard keyCount > 0 else { return [] }
-        
-        //print("secp \(threadgroupsPerGrid) \(threadsPerThreadgroup)")
-        // Copy private key data to buffer
-        //privateKeyBuffer.contents().copyMemory(from: privateKeys, byteCount: privateKeyBuffer.length)
-        //let privateKeyBuffer = device.makeBuffer(bytes: (privateKeys as NSData).bytes, length: privateKeys.count, options: [])!
-        
+
         // Create command buffer and encoder
         let commandBuffer = commandQueue.makeCommandBuffer()!
         let commandEncoder = commandBuffer.makeComputeCommandEncoder()!
@@ -93,44 +86,11 @@ public class Secp256k1_GPU {
         commandEncoder.dispatchThreadgroups(threadgroupsPerGrid, threadsPerThreadgroup: threadsPerThreadgroup)
         commandEncoder.endEncoding()
         
-        
 
         // Execute and wait for completion
         commandBuffer.commit()
         commandBuffer.waitUntilCompleted()
     
-
-        
-        // Check for errors
-        if let error = commandBuffer.error {
-            print("Metal execution error: \(error)")
-            exit(0)
-        }
-       
-        /*
-        // Convert results back to PublicKey objects
-        let publicKeyCompArray = publicKeyBufferComp.contents().bindMemory(
-            to: UInt8.self,
-            capacity: keyCount * 33
-        )
-        
-        // Convert results back to PublicKey objects
-        let publicKeyUncompArray = publicKeyBufferUncomp.contents().bindMemory(
-            to: UInt8.self,
-            capacity: keyCount * 65
-        )
-        */
-        
-        /*
-        var results = [PublicKey]()
-        for i in 0..<keyCount {
-            let publicKey = PublicKey.fromUInt32Array(
-                Array(UnsafeBufferPointer(start: publicKeyArray, count: keyCount * 16)),
-                index: i
-            )
-            results.append(publicKey)
-        }
-         */
         
         return (publicKeyBufferComp, publicKeyBufferUncomp)
     }

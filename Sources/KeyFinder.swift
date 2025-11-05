@@ -25,7 +25,7 @@ struct KeyFinder {
         
         let keyGen = KeyGen(device: device, batchSize: BATCH_SIZE, startKeyHex: startKey)
         let secp256k1obj = Secp256k1_GPU(on:  device, bufferSize: BATCH_SIZE)
-        let SHA256 = SHA256gpu(on: device)
+        let SHA256 = SHA256gpu(on: device, batchSize: BATCH_SIZE)
         let RIPEMD160 = RIPEMD160(on: device, batchSize: BATCH_SIZE)
         let bloomFilter = AddressFileLoader.load(path: "/Users/x/src/CryptKeyFinder/test_files/btc_very_short.tsv")
         let t = TimeMeasurement.instance
@@ -46,7 +46,6 @@ struct KeyFinder {
             // Generate batch of private keys
             var start = DispatchTime.now()
             let privateKeyBuffer = keyGen.run()
-            //let privateKeyBuffer = Data(bytesNoCopy: outPtrKeyGen, count: BATCH_SIZE*32, deallocator: .custom({ (ptr, size) in ptr.deallocate() }))
             t.keyGen = Double(DispatchTime.now().uptimeNanoseconds - start.uptimeNanoseconds) / 1_000_000.0
 
             
@@ -58,7 +57,6 @@ struct KeyFinder {
             
             
        
-       
             // Calculate SHA256 for the batch of public keys
             start = DispatchTime.now()
             let outPtr = SHA256.run(publicKeysBuffer: pubKeysCompBuff, batchSize: BATCH_SIZE)
@@ -66,8 +64,6 @@ struct KeyFinder {
             t.sha256 = Double(DispatchTime.now().uptimeNanoseconds - start.uptimeNanoseconds) / 1_000_000.0
             
             
-          
-        
             
             // Calculate RIPEDM160
             start = DispatchTime.now()

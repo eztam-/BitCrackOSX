@@ -43,11 +43,6 @@ public class KeyGen {
                                               options: .storageModeShared)!
         
         
-        
-        
-
-        
-        
         // Thread sizing - choose based on device
         self.threadsPerGrid = MTLSize(width: batchSize, height: 1, depth: 1)
         let w = pipeline.threadExecutionWidth
@@ -55,16 +50,12 @@ public class KeyGen {
         let tgWidth = min(w, batchSize)
         self.threadsPerThreadgroup = MTLSize(width: tgWidth, height: 1, depth: 1)
         
-        
-        
     }
     
     
     
     public func run() -> MTLBuffer{
         
-        
-        // Dispatch
         let cmdBuf = queue.makeCommandBuffer()!
         let encoder = cmdBuf.makeComputeCommandEncoder()!
         encoder.setComputePipelineState(pipeline)
@@ -78,9 +69,6 @@ public class KeyGen {
         
         cmdBuf.commit()
         cmdBuf.waitUntilCompleted()
-        
-        //let limbs = Helpers.pointerToLimbs(currentKeyBuf!.contents().assumingMemoryBound(to: UInt32.self))
-        //Helpers.printLimbs(limbs: limbs)
         
         return outBuf
     }

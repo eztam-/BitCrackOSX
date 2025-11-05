@@ -7,6 +7,11 @@ class SHA256gpu {
     let pipeline: MTLComputePipelineState
     let device: MTLDevice
     let commandQueue: MTLCommandQueue
+    let outBuffer: MTLBuffer
+    let numMessagesBuffer: MTLBuffer
+    let messageSizeBuffer: MTLBuffer
+    let threadsPerGrid: MTLSize
+    let threadsPerThreadgroup: MTLSize
     
     // Helper: pack several messages into a single byte buffer and meta array
     struct MsgMeta {
@@ -14,7 +19,7 @@ class SHA256gpu {
         var length: UInt32
     }
     
-    init(on device: MTLDevice){
+    init(on device: MTLDevice, batchSize: Int){
         self.device = device
         let library: MTLLibrary! = try? device.makeDefaultLibrary(bundle: Bundle.module)
         
@@ -31,43 +36,18 @@ class SHA256gpu {
         }
         commandQueue = device.makeCommandQueue()!
         
-    }
-    
-    func run(publicKeysBuffer: MTLBuffer, batchSize: Int) -> UnsafeMutablePointer<UInt32> {
-
-
-        
-       
-        
-        // Create buffers
-       // let messageBuffer = device.makeBuffer(bytes: (messageBytes as NSData).bytes, length: messageBytes.count, options: [])!
-        
-        //var metaCpy = metas // copy to mutable
-        //let metaBuffer = device.makeBuffer(bytes: &metaCpy, length: MemoryLayout<MsgMeta>.stride * metaCpy.count, options: [])!
-        
         // Output buffer: uint (32bit) * 8 words per message
         let outWordCount = batchSize * 8
-        let outBuffer = device.makeBuffer(length: outWordCount * MemoryLayout<UInt32>.stride, options: [])!
+        self.outBuffer = device.makeBuffer(length: outWordCount * MemoryLayout<UInt32>.stride, options: [])!
         
         // numMessages buffer (we pass it as a small uniform buffer)
         var numMessagesUInt32 = UInt32(batchSize)
-        let numMessagesBuffer = device.makeBuffer(bytes: &numMessagesUInt32, length: MemoryLayout<UInt32>.stride, options: [])!
+        self.numMessagesBuffer = device.makeBuffer(bytes: &numMessagesUInt32, length: MemoryLayout<UInt32>.stride, options: [])!
         
         // Message size in bytes (we pass it as a small uniform buffer)
         var messageSizeUInt32 = UInt32(33) // TODO: 33 = compressed 65 = uncompressed
-        let messageSizeBuffer = device.makeBuffer(bytes: &messageSizeUInt32, length: MemoryLayout<UInt32>.stride, options: [])!
+        self.messageSizeBuffer = device.makeBuffer(bytes: &messageSizeUInt32, length: MemoryLayout<UInt32>.stride, options: [])!
         
-        // encode command
-        guard let commandBuffer = commandQueue.makeCommandBuffer(),
-              let encoder = commandBuffer.makeComputeCommandEncoder() else {
-            fatalError("Failed to create command encoder")
-        }
-        
-        encoder.setComputePipelineState(pipeline)
-        encoder.setBuffer(publicKeysBuffer, offset: 0, index: 0)
-        encoder.setBuffer(messageSizeBuffer, offset: 0, index: 1)
-        encoder.setBuffer(outBuffer, offset: 0, index: 2)
-        encoder.setBuffer(numMessagesBuffer, offset: 0, index: 3)
         
         // dispatch: 1 thread per message
     
@@ -80,31 +60,31 @@ class SHA256gpu {
          let threadsPerGrid = MTLSize(width: metas.count, height: 1, depth: 1)
          */
         
-        let threadsPerGrid = MTLSize(width: batchSize, height: 1, depth: 1)
-        let threadsPerThreadgroup = MTLSize(width: pipeline.threadExecutionWidth, height: 1, depth: 1)
+        self.threadsPerGrid = MTLSize(width: batchSize, height: 1, depth: 1)
+        self.threadsPerThreadgroup = MTLSize(width: pipeline.threadExecutionWidth, height: 1, depth: 1)
 
         //print("sha \(threadsPerGrid) \(threadsPerThreadgroup)")
         
+    }
+    
+    func run(publicKeysBuffer: MTLBuffer, batchSize: Int) -> UnsafeMutablePointer<UInt32> {
+
+        let commandBuffer = commandQueue.makeCommandBuffer()!
+        let encoder = commandBuffer.makeComputeCommandEncoder()!
+        
+        encoder.setComputePipelineState(pipeline)
+        encoder.setBuffer(publicKeysBuffer, offset: 0, index: 0)
+        encoder.setBuffer(messageSizeBuffer, offset: 0, index: 1)
+        encoder.setBuffer(outBuffer, offset: 0, index: 2)
+        encoder.setBuffer(numMessagesBuffer, offset: 0, index: 3)
         encoder.dispatchThreads(threadsPerGrid, threadsPerThreadgroup: threadsPerThreadgroup)
         encoder.endEncoding()
         
         commandBuffer.commit()
         commandBuffer.waitUntilCompleted()
         
-        // Read results
         return outBuffer.contents().assumingMemoryBound(to: UInt32.self)
     }
     
-    // TODO: the Sha256.metal implementation has support for different input length per nmessage. We dont need taht. Instread we can define the input length once per batch which is more performant. By that we can also remove this MsgMeta completely.
-    // Length can certainly be removed but not sure about offest, because of the multi thread computation
-    private func packMessages(_ messages: [Data]) -> Data {
-        var raw = Data()
-        for msg in messages {
-            raw.append(msg)
-        }
-        return (raw)
-    }
-    
-
     
 }
