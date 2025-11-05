@@ -10,6 +10,20 @@ class TestPubKey: TestBase {
         super.init(kernelFunctionName: "test_field_sub")! // dummy. actuylly not needed
     }
    
+    func bytePtrToData(bytePtr : UnsafeRawPointer, keySizeBytes : Int, numKeys: Int) -> [Data]{
+        let pubKeyArray = bytePtr.bindMemory(to: UInt8.self,capacity: numKeys * keySizeBytes)
+        var pubKeysData : [Data] = []
+        for i in 0..<numKeys {
+            var d = Data()
+            for b in 0..<keySizeBytes {
+                let index = i * keySizeBytes + b
+                d.append(pubKeyArray[index])
+            }
+            pubKeysData.append(d)
+        }
+        return pubKeysData
+    }
+    
     @Test func testRandomPubKeys(){
         let numTests = 1000
         print("Running \(numTests) random number tests. Only printing failed results.")
@@ -26,25 +40,37 @@ class TestPubKey: TestBase {
             privKeysArr.append(randomStr)
         }
         let secp256k1obj = Secp256k1_GPU(on:super.device, bufferSize: numTests)
-        let res = secp256k1obj.generatePublicKeys(privateKeys: privKeys)
+        let (pubKeysComp, pubKeysUncomp) = secp256k1obj.generatePublicKeys(privateKeys: privKeys)
+        
+        let resultPubKeysComp = bytePtrToData(bytePtr: pubKeysComp, keySizeBytes: 33, numKeys: numTests)
+        let resultPubKeysUncomp = bytePtrToData(bytePtr: pubKeysUncomp, keySizeBytes: 65, numKeys: numTests)
         
         
         
-        for i in 0..<res.count {
+        for i in 0..<numTests{
             
             // Calculate expected value from lib
             let privateKeyCompressed = try! P256K.Signing.PrivateKey(dataRepresentation: hexStringToData(hexString: privKeysArr[i]), format: .compressed)
             let privateKeyUncomp = try! P256K.Signing.PrivateKey(dataRepresentation: hexStringToData(hexString: privKeysArr[i]), format: .uncompressed)
             let expPubKeyComp = privateKeyCompressed.publicKey.dataRepresentation.hexString
-            //let expPubKeyUncomp = privateKeyUncomp.publicKey.dataRepresentation.hexString
+            let expPubKeyUncomp = privateKeyUncomp.publicKey.dataRepresentation.hexString
             
             
-            var pubKey =  res[i].toCompressed().hexString
-            let pass = pubKey == expPubKeyComp ?  "✅ PASS" : "❌ FAIL"
-            if pubKey != expPubKeyComp {
-                print("\(pass)  Private Key: \(privKeysArr[i])")
-                print("         Actual:      \(pubKey)")
-                print("         Expected:    \(expPubKeyComp)\n")
+            // Testing compressed keys
+            var pubKeyComp =  resultPubKeysComp[i].hexString
+            if pubKeyComp != expPubKeyComp {
+                print("❌ FAIL Comp Private Key: \(privKeysArr[i])")
+                print("                  Actual: \(pubKeyComp)")
+                print("                Expected: \(expPubKeyComp)\n")
+                numFailedTests += 1
+            }
+            
+            // Testing uncompressed keys
+            var pubKeyUncomp =  resultPubKeysUncomp[i].hexString
+            if pubKeyUncomp != expPubKeyUncomp {
+                print("❌ FAIL Uncomp Private Key: \(privKeysArr[i])")
+                print("                    Actual: \(pubKeyUncomp)")
+                print("                  Expected: \(expPubKeyUncomp)\n")
                 numFailedTests += 1
             }
             
@@ -107,12 +133,14 @@ class TestPubKey: TestBase {
             privKeysArr.append(dataFromUInt32Limbs(limbs))
         }
         let secp256k1obj = Secp256k1_GPU(on:super.device, bufferSize: testCases.count)
-        let res = secp256k1obj.generatePublicKeys(privateKeys: privKeys)
+        let (pubKeysComp, pubKeysUncomp) = secp256k1obj.generatePublicKeys(privateKeys: privKeys)
+        
+        let resultPubKeysComp = bytePtrToData(bytePtr: pubKeysComp, keySizeBytes: 33, numKeys: testCases.count)
+        let resultPubKeysUncomp = bytePtrToData(bytePtr: pubKeysUncomp, keySizeBytes: 65, numKeys: testCases.count)
         
         
-        
-        for i in 0..<res.count {
-            var pubKey = testCases[i].2 ? res[i].toCompressed().hexString : res[i].toUncompressed().hexString
+        for i in 0..<testCases.count {
+            var pubKey = testCases[i].2 ? resultPubKeysComp[i].hexString : resultPubKeysUncomp[i].hexString
             let pass = pubKey == testCases[i].1 ?  "✅ PASS" : "❌ FAIL"
             print("\(pass)  Private Key: \(testCases[i].0)")
             print("         Actual:      \(pubKey)")

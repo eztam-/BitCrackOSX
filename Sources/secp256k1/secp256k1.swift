@@ -8,7 +8,8 @@ public class Secp256k1_GPU {
     private let bufferSize: Int // Number of private keys per batch
     
     private let privateKeyBuffer: MTLBuffer
-    private let publicKeyBuffer: MTLBuffer
+    private let publicKeyBufferComp: MTLBuffer
+    private let publicKeyBufferUncomp: MTLBuffer
     
     let threadsPerThreadgroup : MTLSize
     let threadgroupsPerGrid : MTLSize
@@ -17,19 +18,12 @@ public class Secp256k1_GPU {
     
     public init(on device: MTLDevice, bufferSize : Int) {
         self.bufferSize = bufferSize
-        guard let commandQueue = device.makeCommandQueue() else {
-            print("Failed to initialize Metal device")
-            //return nil
-            
-            exit(0)
-            // TODO
-        }
+        let commandQueue = device.makeCommandQueue()!
         
         self.device = device
         self.commandQueue = commandQueue
         
         
-        //
         let library: MTLLibrary! = try? device.makeDefaultLibrary(bundle: Bundle.module)
         guard let function = library.makeFunction(name: "private_to_public_keys") else {
             fatalError("Failed to load function private_to_public_keys from library")
@@ -41,23 +35,23 @@ public class Secp256k1_GPU {
         }
         
         
-        
         // Create Metal buffers
-        guard let privateKeyBuffer = device.makeBuffer(
+        let privateKeyBuffer = device.makeBuffer(
             length: MemoryLayout<UInt32>.stride * bufferSize * 8,
             options: .storageModeShared
-        ),
-              let publicKeyBuffer = device.makeBuffer(
-                length: MemoryLayout<UInt32>.stride * bufferSize * 16, // 16 UInt32s per public key
+        )!;
+        let publicKeyBufferComp = device.makeBuffer(
+                length: MemoryLayout<UInt8>.stride * bufferSize * 33, // Compressed public key is 256 bits + 8 bits = 33 bytes
                 options: .storageModeShared
-              ) else {
-            print("Failed to create Metal buffers")
-            //return nil
-            exit(0)
-            //TODO
-        }
+        )!;
+        let publicKeyBufferUncomp = device.makeBuffer(
+                length: MemoryLayout<UInt8>.stride * bufferSize * 65, // Uncompressed public key is 512 bits + 8 bits = 65 bytes
+                options: .storageModeShared
+        )!;
+        
         self.privateKeyBuffer = privateKeyBuffer
-        self.publicKeyBuffer = publicKeyBuffer
+        self.publicKeyBufferComp = publicKeyBufferComp
+        self.publicKeyBufferUncomp = publicKeyBufferUncomp
         
     
         
@@ -119,9 +113,9 @@ public class Secp256k1_GPU {
     }
     
     
-    public func generatePublicKeys(privateKeys: Data) -> [PublicKey] {
-        let keyCount = privateKeys.count / 32
-        guard keyCount > 0 else { return [] }
+    public func generatePublicKeys(privateKeys: Data) -> (UnsafeMutableRawPointer, UnsafeMutableRawPointer) {
+       // let keyCount = privateKeys.count / 32
+        //guard keyCount > 0 else { return [] }
         
         //print("secp \(threadgroupsPerGrid) \(threadsPerThreadgroup)")
         // Copy private key data to buffer
@@ -135,7 +129,8 @@ public class Secp256k1_GPU {
         // Configure the compute pipeline
         commandEncoder.setComputePipelineState(pipelineState)
         commandEncoder.setBuffer(privateKeyBuffer, offset: 0, index: 0)
-        commandEncoder.setBuffer(publicKeyBuffer, offset: 0, index: 1)
+        commandEncoder.setBuffer(publicKeyBufferComp, offset: 0, index: 1)
+        commandEncoder.setBuffer(publicKeyBufferUncomp, offset: 0, index: 2)
         
         
         // Dispatch compute threads
@@ -156,13 +151,22 @@ public class Secp256k1_GPU {
             print("Metal execution error: \(error)")
             exit(0)
         }
-        
+       
+        /*
         // Convert results back to PublicKey objects
-        let publicKeyArray = publicKeyBuffer.contents().bindMemory(
-            to: UInt32.self,
-            capacity: keyCount * 16
+        let publicKeyCompArray = publicKeyBufferComp.contents().bindMemory(
+            to: UInt8.self,
+            capacity: keyCount * 33
         )
         
+        // Convert results back to PublicKey objects
+        let publicKeyUncompArray = publicKeyBufferUncomp.contents().bindMemory(
+            to: UInt8.self,
+            capacity: keyCount * 65
+        )
+        */
+        
+        /*
         var results = [PublicKey]()
         for i in 0..<keyCount {
             let publicKey = PublicKey.fromUInt32Array(
@@ -171,8 +175,9 @@ public class Secp256k1_GPU {
             )
             results.append(publicKey)
         }
+         */
         
-        return results
+        return (publicKeyBufferComp.contents(), publicKeyBufferUncomp.contents())
     }
 }
 

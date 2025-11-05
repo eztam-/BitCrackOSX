@@ -110,12 +110,76 @@ inline uint256 load_private_key(device const uint* private_keys, uint index) {
     return result;
 }
 
+/*
 inline void store_public_key(device uint* output, uint index, uint256 x, uint256 y) {
     for (int i = 0; i < 8; i++) {
         output[index * 16 + i] = x.limbs[i];      // x coordinate
         output[index * 16 + 8 + i] = y.limbs[i];  // y coordinate
     }
 }
+*/
+
+/**
+ Creates a 65-byte uncompressed public key.
+ Adds the 0x04 prefix byte at the beginning (that’s the uncompressed SEC1 format marker).
+ Adjust the base offset so each key occupies 65 bytes instead of 64.
+ */
+inline void store_public_key_uncompressed(device uchar* output, uint index, uint256 x, uint256 y) {
+    // Each public key = 65 bytes: 0x04 + 32 bytes X + 32 bytes Y (big-endian)
+    int base = index * 65;
+
+    // Prefix 0x04
+    output[base + 0] = 0x04;
+
+    // Write X coordinate in big-endian order
+    int pos = base + 1;
+    for (int limb = 7; limb >= 0; limb--) {
+        uint vx = x.limbs[limb];
+        output[pos + 0] = (uchar)((vx >> 24) & 0xFF);
+        output[pos + 1] = (uchar)((vx >> 16) & 0xFF);
+        output[pos + 2] = (uchar)((vx >> 8)  & 0xFF);
+        output[pos + 3] = (uchar)(vx & 0xFF);
+        pos += 4;
+    }
+
+    // Write Y coordinate in big-endian order
+    for (int limb = 7; limb >= 0; limb--) {
+        uint vy = y.limbs[limb];
+        output[pos + 0] = (uchar)((vy >> 24) & 0xFF);
+        output[pos + 1] = (uchar)((vy >> 16) & 0xFF);
+        output[pos + 2] = (uchar)((vy >> 8)  & 0xFF);
+        output[pos + 3] = (uchar)(vy & 0xFF);
+        pos += 4;
+    }
+}
+
+
+/**
+ Creates a 33-byte compressed public key.
+ Adds the prefix: 0x02 if Y is even or 0x03 if Y is odd
+ */
+inline void store_public_key_compressed(device uchar* output, uint index, uint256 x, uint256 y) {
+    // Each public key = 33 bytes: prefix (0x02/0x03) + 32 bytes X (big-endian)
+    int base = index * 33;
+
+    // Y parity: LSB of the whole 256-bit Y is in y.limbs[0]
+    uchar prefix = (y.limbs[0] & 1u) ? 0x03 : 0x02;
+    output[base + 0] = prefix;
+
+    // Write X in big-endian order: most-significant limb first, high byte first
+    int outPos = base + 1; // first byte of X
+    for (int limb = 7; limb >= 0; limb--) {
+        uint vx = x.limbs[limb];
+        // write bytes MSB -> LSB
+        output[outPos + 0] = (uchar)((vx >> 24) & 0xFF);
+        output[outPos + 1] = (uchar)((vx >> 16) & 0xFF);
+        output[outPos + 2] = (uchar)((vx >> 8)  & 0xFF);
+        output[outPos + 3] = (uchar)((vx >> 0)  & 0xFF);
+        outPos += 4;
+    }
+}
+
+
 
 inline bool is_zero(uint256 a) {
     for (int i = 0; i < 8; i++) {
@@ -847,21 +911,14 @@ Point point_mul(uint256 scalar, threadgroup const Point* G_table_tg) {
 // Main kernel - converts private keys to public keys
 kernel void private_to_public_keys(
     device const uint* private_keys [[buffer(0)]],
-    device uint* public_keys [[buffer(1)]],
+    device uchar* public_keys_comp [[buffer(1)]],
+    device uchar* public_keys_uncomp [[buffer(2)]],
     uint id [[thread_position_in_grid]],
     uint lid [[thread_position_in_threadgroup]]
                                    
 ) {
     // Load private key for this thread
     uint256 private_key = load_private_key(private_keys, id);
-    
-    // Skip if private key is zero
-    if (is_zero(private_key)) {
-        for (int i = 0; i < 16; i++) {
-            public_keys[id * 16 + i] = 0;
-        }
-        return;
-    }
     
     
     // START point_mul (traditional)
@@ -884,11 +941,15 @@ kernel void private_to_public_keys(
     
     // Store result
     if (public_key_point.infinity) {
-        for (int i = 0; i < 16; i++) {
-            public_keys[id * 16 + i] = 0;
+        for (int i = 0; i < 33; i++) {
+            public_keys_comp[id * 33 + i] = 0;
+        }
+        for (int i = 0; i < 65; i++) {
+            public_keys_uncomp[id * 65 + i] = 0;
         }
     } else {
-        store_public_key(public_keys, id, public_key_point.x, public_key_point.y);
+        store_public_key_compressed(public_keys_comp, id, public_key_point.x, public_key_point.y);
+        store_public_key_uncompressed(public_keys_uncomp, id, public_key_point.x, public_key_point.y);
     }
 }
 

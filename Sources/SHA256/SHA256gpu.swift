@@ -66,12 +66,19 @@ class SHA256gpu {
         encoder.setBuffer(numMessagesBuffer, offset: 0, index: 3)
         
         // dispatch: 1 thread per message
-        let threadsPerThreadgroup = MTLSize(width: pipeline.maxTotalThreadsPerThreadgroup, height: 1, depth: 1)
-        let threadgroups = MTLSize(width: (metas.count + threadsPerThreadgroup.width - 1) / threadsPerThreadgroup.width,
-                                   height: 1,
-                                   depth: 1)
-        let threadsPerGrid = MTLSize(width: metas.count, height: 1, depth: 1)
+    
+        /*
+         let threadsPerThreadgroup = MTLSize(width: pipeline.maxTotalThreadsPerThreadgroup, height: 1, depth: 1)
         
+         let threadgroups = MTLSize(width: (metas.count + threadsPerThreadgroup.width - 1) / threadsPerThreadgroup.width,
+                                    height: 1,
+                                    depth: 1)
+         let threadsPerGrid = MTLSize(width: metas.count, height: 1, depth: 1)
+         */
+        
+        let threadsPerGrid = MTLSize(width: metas.count, height: 1, depth: 1)
+        let threadsPerThreadgroup = MTLSize(width: pipeline.threadExecutionWidth, height: 1, depth: 1)
+
         //print("sha \(threadsPerGrid) \(threadsPerThreadgroup)")
         
         encoder.dispatchThreads(threadsPerGrid, threadsPerThreadgroup: threadsPerThreadgroup)

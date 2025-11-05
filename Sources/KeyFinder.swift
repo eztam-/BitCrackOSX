@@ -20,7 +20,7 @@ struct KeyFinder {
         
         // TODO: check for maximum range wich is: 0xFFFF FFFF FFFF FFFF FFFF FFFF FFFF FFFE BAAE DCE6 AF48 A03B BFD2 5E8C D036 4140
         
-            let startKey = "0000000000000000000000000000000000000000000000000001000000000000"
+        let startKey = "0000000000000000000000000000000000000000000000000001000000000000"
         //let startKey = Helpers.generateRandom256BitHex()
         
         let keyGen = KeyGen(device: device, batchSize: BATCH_SIZE, startKeyHex: startKey)
@@ -53,20 +53,43 @@ struct KeyFinder {
             
             // Using secp256k1 EC to calculate public keys for the given private keys
             start = DispatchTime.now()
-            let pubKeys = secp256k1obj.generatePublicKeys(privateKeys: secp256k1_input_data)
-            for pk in pubKeys {
-                pubKeyBatch.append(pk.toCompressed())
+            let (pubKeysComp, pubKeysUncomp) = secp256k1obj.generatePublicKeys(privateKeys: secp256k1_input_data)
+            
+            // Convert results back to PublicKey objects
+            let publicKeyCompArray = pubKeysComp.bindMemory(
+                to: UInt8.self,
+                capacity: BATCH_SIZE * 33
+            )
+            
+            var pubKeysCompData : [Data] = []
+            for i in 0..<BATCH_SIZE {
+                var d = Data()
+                for b in 0..<33 {
+                    let index = i*33 + b
+                    d.append(publicKeyCompArray[index])
+                }
+               // print(d.hexString)
+                pubKeysCompData.append(d)
             }
+            
+            // Convert results back to PublicKey objects
+            let publicKeyUncompArray = pubKeysUncomp.bindMemory(
+                to: UInt8.self,
+                capacity: BATCH_SIZE * 65
+            )
             t.secp256k1 = Double(DispatchTime.now().uptimeNanoseconds - start.uptimeNanoseconds) / 1_000_000.0
             
             
        
+       
             // Calculate SHA256 for the batch of public keys
             start = DispatchTime.now()
-            let outPtr = SHA256.run(batchOfData: pubKeyBatch)
+            let outPtr = SHA256.run(batchOfData: pubKeysCompData)
             //printSha256Output(BATCH_SIZE, outPtr)
             t.sha256 = Double(DispatchTime.now().uptimeNanoseconds - start.uptimeNanoseconds) / 1_000_000.0
             
+            
+          
         
             
             // Calculate RIPEDM160
@@ -97,7 +120,7 @@ struct KeyFinder {
             }
             t.bloomFilter = Double(DispatchTime.now().uptimeNanoseconds - start.uptimeNanoseconds) / 1_000_000.0
             
-       
+    
             
             
             //print("bloomfilter took: \(end.uptimeNanoseconds - start.uptimeNanoseconds)ns")
