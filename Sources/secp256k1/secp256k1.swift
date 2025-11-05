@@ -40,11 +40,11 @@ public class Secp256k1_GPU {
         )!;
         let publicKeyBufferComp = device.makeBuffer(
                 length: MemoryLayout<UInt8>.stride * bufferSize * 33, // Compressed public key is 256 bits + 8 bits = 33 bytes
-                options: .storageModeShared
+                options: .storageModePrivate
         )!;
         let publicKeyBufferUncomp = device.makeBuffer(
                 length: MemoryLayout<UInt8>.stride * bufferSize * 65, // Uncompressed public key is 512 bits + 8 bits = 65 bytes
-                options: .storageModeShared
+                options: .storageModePrivate
         )!;
         
         self.privateKeyBuffer = privateKeyBuffer
@@ -69,14 +69,14 @@ public class Secp256k1_GPU {
     }
     
     
-    public func generatePublicKeys(privateKeys: Data) -> (MTLBuffer, MTLBuffer) {
+    public func generatePublicKeys(privateKeyBuffer: MTLBuffer) -> (MTLBuffer, MTLBuffer) {
        // let keyCount = privateKeys.count / 32
         //guard keyCount > 0 else { return [] }
         
         //print("secp \(threadgroupsPerGrid) \(threadsPerThreadgroup)")
         // Copy private key data to buffer
         //privateKeyBuffer.contents().copyMemory(from: privateKeys, byteCount: privateKeyBuffer.length)
-        let privateKeyBuffer = device.makeBuffer(bytes: (privateKeys as NSData).bytes, length: privateKeys.count, options: [])!
+        //let privateKeyBuffer = device.makeBuffer(bytes: (privateKeys as NSData).bytes, length: privateKeys.count, options: [])!
         
         // Create command buffer and encoder
         let commandBuffer = commandQueue.makeCommandBuffer()!

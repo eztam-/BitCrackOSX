@@ -45,15 +45,15 @@ struct KeyFinder {
             
             // Generate batch of private keys
             var start = DispatchTime.now()
-            let outPtrKeyGen = keyGen.run()
-            let secp256k1_input_data = Data(bytesNoCopy: outPtrKeyGen, count: BATCH_SIZE*32, deallocator: .custom({ (ptr, size) in ptr.deallocate() }))
+            let privateKeyBuffer = keyGen.run()
+            //let privateKeyBuffer = Data(bytesNoCopy: outPtrKeyGen, count: BATCH_SIZE*32, deallocator: .custom({ (ptr, size) in ptr.deallocate() }))
             t.keyGen = Double(DispatchTime.now().uptimeNanoseconds - start.uptimeNanoseconds) / 1_000_000.0
 
             
             
             // Using secp256k1 EC to calculate public keys for the given private keys
             start = DispatchTime.now()
-            let (pubKeysCompBuff, pubKeysUncompBuff) = secp256k1obj.generatePublicKeys(privateKeys: secp256k1_input_data)
+            let (pubKeysCompBuff, pubKeysUncompBuff) = secp256k1obj.generatePublicKeys(privateKeyBuffer: privateKeyBuffer)
             t.secp256k1 = Double(DispatchTime.now().uptimeNanoseconds - start.uptimeNanoseconds) / 1_000_000.0
             
             
@@ -84,8 +84,13 @@ struct KeyFinder {
             for i in 0..<BATCH_SIZE {
                 let addrExists = bloomFilter.contains(pointer: ripemd160_result, length: 5, offset: i*5)
                 if addrExists {
-                    let privateKeyLimbs = Array(UnsafeBufferPointer(start: outPtrKeyGen.advanced(by: i*8), count: 8))
-                    let hexKey = privateKeyLimbs.map { String(format: "%08x", $0) }.reversed().joined()
+                 
+               
+                    var privKey = [UInt8](repeating: 0, count: 32)
+                    memcpy(&privKey, privateKeyBuffer.contents().advanced(by: i*32), 32)
+                    let hexKey = Data(privKey.reversed()).hexString
+                    //let privateKeyLimbs = Array<>(UnsafeBufferPointer(start: privateKeyBuffer.contents().advanced(by: i*8), count: 8))
+                    //let hexKey = privateKeyLimbs.map { String(format: "%08x", $0) }.reversed().joined()
                     print("#########################################################")
                     //print("Found matching address: \(createData(from: ripemd160_result, offset: i*5, length: 5).hex) for private key: \(hexKey)")
                     print("Found private key for address from list. Private key: \(hexKey)")

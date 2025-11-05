@@ -61,7 +61,7 @@ public class KeyGen {
     
     
     
-    public func run() -> UnsafeMutablePointer<UInt32>{
+    public func run() -> MTLBuffer{
         
         
         // Dispatch
@@ -82,6 +82,6 @@ public class KeyGen {
         //let limbs = Helpers.pointerToLimbs(currentKeyBuf!.contents().assumingMemoryBound(to: UInt32.self))
         //Helpers.printLimbs(limbs: limbs)
         
-        return outBuf.contents().assumingMemoryBound(to: UInt32.self)
+        return outBuf
     }
 }
