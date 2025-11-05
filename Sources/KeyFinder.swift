@@ -27,8 +27,7 @@ struct KeyFinder {
         let secp256k1obj = Secp256k1_GPU(on:  device, bufferSize: BATCH_SIZE)
         let SHA256 = SHA256gpu(on: device)
         let RIPEMD160 = RIPEMD160(on: device, batchSize: BATCH_SIZE)
-        let bloomFilter = AddressFileLoader.load(path: "/Users/x/Downloads/bitcoin_very_short.tsv")
-        //let bloomFilter = AddressFileLoader.load(path: "/Users/x/Downloads/bitcoin.tsv")
+        let bloomFilter = AddressFileLoader.load(path: "/Users/x/src/CryptKeyFinder/test_files/btc_very_short.tsv")
         let t = TimeMeasurement.instance
         
         
@@ -61,14 +60,14 @@ struct KeyFinder {
             t.secp256k1 = Double(DispatchTime.now().uptimeNanoseconds - start.uptimeNanoseconds) / 1_000_000.0
             
             
-            
+       
             // Calculate SHA256 for the batch of public keys
             start = DispatchTime.now()
             let outPtr = SHA256.run(batchOfData: pubKeyBatch)
             //printSha256Output(BATCH_SIZE, outPtr)
             t.sha256 = Double(DispatchTime.now().uptimeNanoseconds - start.uptimeNanoseconds) / 1_000_000.0
             
-            
+        
             
             // Calculate RIPEDM160
             start = DispatchTime.now()
@@ -97,6 +96,10 @@ struct KeyFinder {
                 }
             }
             t.bloomFilter = Double(DispatchTime.now().uptimeNanoseconds - start.uptimeNanoseconds) / 1_000_000.0
+            
+       
+            
+            
             //print("bloomfilter took: \(end.uptimeNanoseconds - start.uptimeNanoseconds)ns")
             // The following would do all the further steps to calculate the address but we don't need it, since the addresses in the bloomfilter
             // are already BASE58 decoded and also the version byte and checksum were removed.
@@ -132,6 +135,9 @@ struct KeyFinder {
              }
              
              */
+            
+            
+            
             let endTime = CFAbsoluteTimeGetCurrent()
             let elapsed = endTime - startTime
             let hashesPerSec = Double(BATCH_SIZE) / elapsed
