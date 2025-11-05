@@ -53,30 +53,7 @@ struct KeyFinder {
             
             // Using secp256k1 EC to calculate public keys for the given private keys
             start = DispatchTime.now()
-            let (pubKeysComp, pubKeysUncomp) = secp256k1obj.generatePublicKeys(privateKeys: secp256k1_input_data)
-            
-            // Convert results back to PublicKey objects
-            let publicKeyCompArray = pubKeysComp.bindMemory(
-                to: UInt8.self,
-                capacity: BATCH_SIZE * 33
-            )
-            
-            var pubKeysCompData : [Data] = []
-            for i in 0..<BATCH_SIZE {
-                var d = Data()
-                for b in 0..<33 {
-                    let index = i*33 + b
-                    d.append(publicKeyCompArray[index])
-                }
-               // print(d.hexString)
-                pubKeysCompData.append(d)
-            }
-            
-            // Convert results back to PublicKey objects
-            let publicKeyUncompArray = pubKeysUncomp.bindMemory(
-                to: UInt8.self,
-                capacity: BATCH_SIZE * 65
-            )
+            let (pubKeysCompBuff, pubKeysUncompBuff) = secp256k1obj.generatePublicKeys(privateKeys: secp256k1_input_data)
             t.secp256k1 = Double(DispatchTime.now().uptimeNanoseconds - start.uptimeNanoseconds) / 1_000_000.0
             
             
@@ -84,7 +61,7 @@ struct KeyFinder {
        
             // Calculate SHA256 for the batch of public keys
             start = DispatchTime.now()
-            let outPtr = SHA256.run(batchOfData: pubKeysCompData)
+            let outPtr = SHA256.run(publicKeysBuffer: pubKeysCompBuff, batchSize: BATCH_SIZE)
             //printSha256Output(BATCH_SIZE, outPtr)
             t.sha256 = Double(DispatchTime.now().uptimeNanoseconds - start.uptimeNanoseconds) / 1_000_000.0
             

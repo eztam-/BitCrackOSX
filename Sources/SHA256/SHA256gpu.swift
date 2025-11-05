@@ -33,24 +33,24 @@ class SHA256gpu {
         
     }
     
-    func run(batchOfData: [Data]) -> UnsafeMutablePointer<UInt32> {
+    func run(publicKeysBuffer: MTLBuffer, batchSize: Int) -> UnsafeMutablePointer<UInt32> {
 
 
         
-        let messageBytes = packMessages(batchOfData)
+       
         
         // Create buffers
-        let messageBuffer = device.makeBuffer(bytes: (messageBytes as NSData).bytes, length: messageBytes.count, options: [])!
+       // let messageBuffer = device.makeBuffer(bytes: (messageBytes as NSData).bytes, length: messageBytes.count, options: [])!
         
         //var metaCpy = metas // copy to mutable
         //let metaBuffer = device.makeBuffer(bytes: &metaCpy, length: MemoryLayout<MsgMeta>.stride * metaCpy.count, options: [])!
         
         // Output buffer: uint (32bit) * 8 words per message
-        let outWordCount = batchOfData.count * 8
+        let outWordCount = batchSize * 8
         let outBuffer = device.makeBuffer(length: outWordCount * MemoryLayout<UInt32>.stride, options: [])!
         
         // numMessages buffer (we pass it as a small uniform buffer)
-        var numMessagesUInt32 = UInt32(batchOfData.count)
+        var numMessagesUInt32 = UInt32(batchSize)
         let numMessagesBuffer = device.makeBuffer(bytes: &numMessagesUInt32, length: MemoryLayout<UInt32>.stride, options: [])!
         
         // Message size in bytes (we pass it as a small uniform buffer)
@@ -64,7 +64,7 @@ class SHA256gpu {
         }
         
         encoder.setComputePipelineState(pipeline)
-        encoder.setBuffer(messageBuffer, offset: 0, index: 0)
+        encoder.setBuffer(publicKeysBuffer, offset: 0, index: 0)
         encoder.setBuffer(messageSizeBuffer, offset: 0, index: 1)
         encoder.setBuffer(outBuffer, offset: 0, index: 2)
         encoder.setBuffer(numMessagesBuffer, offset: 0, index: 3)
@@ -80,7 +80,7 @@ class SHA256gpu {
          let threadsPerGrid = MTLSize(width: metas.count, height: 1, depth: 1)
          */
         
-        let threadsPerGrid = MTLSize(width: batchOfData.count, height: 1, depth: 1)
+        let threadsPerGrid = MTLSize(width: batchSize, height: 1, depth: 1)
         let threadsPerThreadgroup = MTLSize(width: pipeline.threadExecutionWidth, height: 1, depth: 1)
 
         //print("sha \(threadsPerGrid) \(threadsPerThreadgroup)")

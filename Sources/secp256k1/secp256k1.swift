@@ -69,7 +69,7 @@ public class Secp256k1_GPU {
     }
     
     
-    public func generatePublicKeys(privateKeys: Data) -> (UnsafeMutableRawPointer, UnsafeMutableRawPointer) {
+    public func generatePublicKeys(privateKeys: Data) -> (MTLBuffer, MTLBuffer) {
        // let keyCount = privateKeys.count / 32
         //guard keyCount > 0 else { return [] }
         
@@ -132,7 +132,7 @@ public class Secp256k1_GPU {
         }
          */
         
-        return (publicKeyBufferComp.contents(), publicKeyBufferUncomp.contents())
+        return (publicKeyBufferComp, publicKeyBufferUncomp)
     }
 }
 
