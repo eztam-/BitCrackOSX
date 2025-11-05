@@ -54,19 +54,18 @@ inline uint sigma1(uint x) {
     return rotr(x,17) ^ rotr(x,19) ^ (x >> 10);
 }
 
-// meta format: struct { uint offset; uint length; }
-struct MsgMeta {
-    uint offset;
-    uint length;
-};
 
 struct NumMessages {
     uint value;
 };
 
+struct MessageSize {
+    uint value;
+};
+
 kernel void sha256_batch_kernel(
     const device uchar*         messages       [[ buffer(0) ]],
-    const device MsgMeta*       metas          [[ buffer(1) ]],
+    const device MessageSize*   msgSizePtr     [[ buffer(1) ]],
     device uint*                outHashes      [[ buffer(2) ]],
     const device NumMessages*   numMsgPtr      [[ buffer(3) ]],
     uint                        gid            [[ thread_position_in_grid ]]
@@ -75,19 +74,18 @@ kernel void sha256_batch_kernel(
     uint numMessages = numMsgPtr->value;
     if (gid >= numMessages) return;
 
+    uint messageSize = msgSizePtr->value;
+    
     // read offset and length
-    MsgMeta m = metas[gid];
-    uint offset = m.offset;
-    uint length = m.length;
-    if (length > MAX_MSG_BYTES) {
-        // clamp length if too long (should be prevented by host)
-        length = MAX_MSG_BYTES;
-    }
+    //MsgMeta m = metas[gid];
+    uint offset = gid * messageSize;
+
+
 
     // compute number of 512-bit blocks after padding
     // padding: 1 byte 0x80, then zeroes, then 8-byte big-endian length (bits)
-    uint64_t bitLen = (uint64_t)length * 8ull;
-    uint paddedLen = (uint)((((length + 9) + 63) / 64) * 64); // in bytes
+    uint64_t bitLen = (uint64_t)messageSize * 8ull;
+    uint paddedLen = (uint)((((messageSize + 9) + 63) / 64) * 64); // in bytes
     uint numBlocks = paddedLen / 64;
 
     // initial hash values
@@ -111,9 +109,9 @@ kernel void sha256_batch_kernel(
             for (uint j = 0; j < 4; ++j) {
                 uint globalByteIndex = baseByteIndex + t*4 + j;
                 uchar b = 0u;
-                if (globalByteIndex < length) {
+                if (globalByteIndex < messageSize) {
                     b = messages[offset + globalByteIndex];
-                } else if (globalByteIndex == length) {
+                } else if (globalByteIndex == messageSize) {
                     b = 0x80u;
                 } else if (globalByteIndex >= (paddedLen - 8)) {
                     // last 8 bytes: big-endian bit length

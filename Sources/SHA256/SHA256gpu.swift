@@ -37,21 +37,25 @@ class SHA256gpu {
 
 
         
-        let (messageBytes, metas) = packMessages(batchOfData)
+        let messageBytes = packMessages(batchOfData)
         
         // Create buffers
         let messageBuffer = device.makeBuffer(bytes: (messageBytes as NSData).bytes, length: messageBytes.count, options: [])!
         
-        var metaCpy = metas // copy to mutable
-        let metaBuffer = device.makeBuffer(bytes: &metaCpy, length: MemoryLayout<MsgMeta>.stride * metaCpy.count, options: [])!
+        //var metaCpy = metas // copy to mutable
+        //let metaBuffer = device.makeBuffer(bytes: &metaCpy, length: MemoryLayout<MsgMeta>.stride * metaCpy.count, options: [])!
         
         // Output buffer: uint (32bit) * 8 words per message
-        let outWordCount = metas.count * 8
+        let outWordCount = batchOfData.count * 8
         let outBuffer = device.makeBuffer(length: outWordCount * MemoryLayout<UInt32>.stride, options: [])!
         
         // numMessages buffer (we pass it as a small uniform buffer)
-        var numMessagesUInt32 = UInt32(metas.count)
+        var numMessagesUInt32 = UInt32(batchOfData.count)
         let numMessagesBuffer = device.makeBuffer(bytes: &numMessagesUInt32, length: MemoryLayout<UInt32>.stride, options: [])!
+        
+        // Message size in bytes (we pass it as a small uniform buffer)
+        var messageSizeUInt32 = UInt32(33) // TODO: 33 = compressed 65 = uncompressed
+        let messageSizeBuffer = device.makeBuffer(bytes: &messageSizeUInt32, length: MemoryLayout<UInt32>.stride, options: [])!
         
         // encode command
         guard let commandBuffer = commandQueue.makeCommandBuffer(),
@@ -61,7 +65,7 @@ class SHA256gpu {
         
         encoder.setComputePipelineState(pipeline)
         encoder.setBuffer(messageBuffer, offset: 0, index: 0)
-        encoder.setBuffer(metaBuffer, offset: 0, index: 1)
+        encoder.setBuffer(messageSizeBuffer, offset: 0, index: 1)
         encoder.setBuffer(outBuffer, offset: 0, index: 2)
         encoder.setBuffer(numMessagesBuffer, offset: 0, index: 3)
         
@@ -76,7 +80,7 @@ class SHA256gpu {
          let threadsPerGrid = MTLSize(width: metas.count, height: 1, depth: 1)
          */
         
-        let threadsPerGrid = MTLSize(width: metas.count, height: 1, depth: 1)
+        let threadsPerGrid = MTLSize(width: batchOfData.count, height: 1, depth: 1)
         let threadsPerThreadgroup = MTLSize(width: pipeline.threadExecutionWidth, height: 1, depth: 1)
 
         //print("sha \(threadsPerGrid) \(threadsPerThreadgroup)")
@@ -93,15 +97,12 @@ class SHA256gpu {
     
     // TODO: the Sha256.metal implementation has support for different input length per nmessage. We dont need taht. Instread we can define the input length once per batch which is more performant. By that we can also remove this MsgMeta completely.
     // Length can certainly be removed but not sure about offest, because of the multi thread computation
-    private func packMessages(_ messages: [Data]) -> (Data, [MsgMeta]) {
+    private func packMessages(_ messages: [Data]) -> Data {
         var raw = Data()
-        var metas: [MsgMeta] = []
         for msg in messages {
-            let offset = UInt32(raw.count)
-            metas.append(MsgMeta(offset: offset, length: UInt32(msg.count)))
             raw.append(msg)
         }
-        return (raw, metas)
+        return (raw)
     }
     
 
