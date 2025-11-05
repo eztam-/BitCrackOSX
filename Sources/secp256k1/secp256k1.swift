@@ -14,8 +14,6 @@ public class Secp256k1_GPU {
     let threadsPerThreadgroup : MTLSize
     let threadgroupsPerGrid : MTLSize
     
-    let t = TimeMeasurement.instance
-    
     public init(on device: MTLDevice, bufferSize : Int) {
         self.bufferSize = bufferSize
         let commandQueue = device.makeCommandQueue()!
@@ -71,48 +69,6 @@ public class Secp256k1_GPU {
     }
     
     
-    
-    public struct PublicKey {
-        public let x: Data
-        public let y: Data
-        
-        public init(x: Data, y: Data) {
-            self.x = x
-            self.y = y
-        }
-        
-        public func toUncompressed() -> Data {
-            var result = Data([0x04])  // Uncompressed prefix
-            result.append(x)
-            result.append(y)
-            return result
-        }
-        
-        public func toCompressed() -> Data {
-            let lastByte = y.last ?? 0
-            let prefix: UInt8 = (lastByte & 1) == 0 ? 0x02 : 0x03
-            var result = Data([prefix])
-            result.append(x)
-            return result
-        }
-        
-        static func fromUInt32Array(_ array: [UInt32], index: Int) -> PublicKey {
-            var xData = Data(count: 32)
-            var yData = Data(count: 32)
-            
-            for i in 0..<8 {
-                var xValue = array[index * 16 + i].bigEndian
-                var yValue = array[index * 16 + 8 + i].bigEndian
-                
-                xData.withUnsafeMutableBytes { $0.storeBytes(of: xValue, toByteOffset: (7 - i) * 4, as: UInt32.self) }
-                yData.withUnsafeMutableBytes { $0.storeBytes(of: yValue, toByteOffset: (7 - i) * 4, as: UInt32.self) }
-            }
-            
-            return PublicKey(x: xData, y: yData)
-        }
-    }
-    
-    
     public func generatePublicKeys(privateKeys: Data) -> (UnsafeMutableRawPointer, UnsafeMutableRawPointer) {
        // let keyCount = privateKeys.count / 32
         //guard keyCount > 0 else { return [] }
@@ -137,13 +93,12 @@ public class Secp256k1_GPU {
         commandEncoder.dispatchThreadgroups(threadgroupsPerGrid, threadsPerThreadgroup: threadsPerThreadgroup)
         commandEncoder.endEncoding()
         
-        var start = DispatchTime.now()
+        
 
         // Execute and wait for completion
         commandBuffer.commit()
         commandBuffer.waitUntilCompleted()
-        
-        t.secp256k1_2 = Double(DispatchTime.now().uptimeNanoseconds - start.uptimeNanoseconds) / 1_000_000.0
+    
 
         
         // Check for errors
