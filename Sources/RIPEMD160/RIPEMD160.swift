@@ -44,7 +44,7 @@ class RIPEMD160 {
     }
     
     
-    func run(messagesBuffer: MTLBuffer, messageCount: Int) -> UnsafeMutablePointer<UInt32> {
+    func run(messagesBuffer: MTLBuffer, messageCount: Int) -> MTLBuffer {
 
         let cmdBuf = commandQueue.makeCommandBuffer()!
         let encoder = cmdBuf.makeComputeCommandEncoder()!
@@ -59,7 +59,7 @@ class RIPEMD160 {
         cmdBuf.waitUntilCompleted()
         
         let outWordCount = messageCount * 5
-        return outBuffer.contents().bindMemory(to: UInt32.self, capacity: outWordCount)
+        return outBuffer
     }
     
     

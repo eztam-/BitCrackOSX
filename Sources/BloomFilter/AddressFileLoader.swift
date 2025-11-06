@@ -57,7 +57,7 @@ struct AddressFileLoader {
 
         print("Instatiating bloom filter")
         //var bloomFilter = BloomFilter2(capacity: validAddrCount*256, falsePositiveRate: 0.0001)
-        var bloomFilter = BloomFilter(expectedInsertions: validAddrCount*100, itemBytes: 20, falsePositiveRate: 0.00001)
+        var bloomFilter = BloomFilter(expectedInsertions: validAddrCount*100, itemBytes: 20, falsePositiveRate: 0.001)
         
         // Opening the same file again to populate the bloomfilter
         guard let file = freopen(path, "r", stdin) else {

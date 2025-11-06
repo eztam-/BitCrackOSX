@@ -73,7 +73,7 @@ struct KeyFinder {
             
             // Calculate RIPEDM160
             start = DispatchTime.now()
-            let ripemd160_result = RIPEMD160.run(messagesBuffer: sha256Buff, messageCount: BATCH_SIZE)
+            let ripemd160Buffer = RIPEMD160.run(messagesBuffer: sha256Buff, messageCount: BATCH_SIZE)
             t.ripemd160 = Double(DispatchTime.now().uptimeNanoseconds - start.uptimeNanoseconds) / 1_000_000.0
             
             
@@ -84,8 +84,8 @@ struct KeyFinder {
             //for i in 0..<BATCH_SIZE {
                 
                 
-            let ripemd160Array = Helpers.ptrToDataArray(ripemd160_result, itemSize: 20, itemCount: BATCH_SIZE)
-            let result = bloomFilter.query(ripemd160Array)   //contains(pointer: ripemd160_result, length: 5, offset: i*5)
+           // let ripemd160Array = Helpers.ptrToDataArray(ripemd160_result, itemSize: 20, itemCount: BATCH_SIZE)
+            let result = bloomFilter.query(ripemd160Buffer, batchSize: BATCH_SIZE)   //contains(pointer: ripemd160_result, length: 5, offset: i*5)
           
             for i in 0..<BATCH_SIZE {
                 if result[i] {
@@ -98,7 +98,7 @@ struct KeyFinder {
                     //let privateKeyLimbs = Array<>(UnsafeBufferPointer(start: privateKeyBuffer.contents().advanced(by: i*8), count: 8))
                     //let hexKey = privateKeyLimbs.map { String(format: "%08x", $0) }.reversed().joined()
                     print("#########################################################")
-                    print(ripemd160Array[i].hexString)
+                    
                     //print("Found matching address: \(createData(from: ripemd160_result, offset: i*5, length: 5).hex) for private key: \(hexKey)")
                     print("Found private key for address from list. Private key: \(hexKey)")
                     print("Use any tool like btc_address_dump to get the address for the private key")

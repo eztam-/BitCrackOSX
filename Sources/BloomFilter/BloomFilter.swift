@@ -14,6 +14,7 @@ final class BloomFilter {
     
     private var itemsBuffer: MTLBuffer?
     private var resultsBuffer: MTLBuffer?
+    let  itemLengthBytes: Int
     
     init?(expectedInsertions: Int,
           itemBytes: Int,
@@ -33,6 +34,7 @@ final class BloomFilter {
         self.device = dev
         self.commandQueue = queue
         self.itemU32Length = itemBytes / 4
+        self.itemLengthBytes = itemBytes
         
         // Match Swift implementation exactly
         let m = ceil(-(Double(expectedInsertions) * log(falsePositiveRate)) / pow(log(2.0), 2.0))
@@ -122,35 +124,23 @@ final class BloomFilter {
         cmdBuffer.waitUntilCompleted()
     }
     
-    func query(_ items: [Data]) -> [Bool] {
-        guard !items.isEmpty else { return [] }
+    func query(_ itemsBuffer: MTLBuffer, batchSize: Int) -> [Bool] {
         
-        let count = items.count
-        let itemBytes = itemU32Length * 4
-        let itemsBufferSize = count * itemBytes
-        let resultsBufferSize = count * MemoryLayout<UInt32>.stride
         
-        if itemsBuffer == nil || itemsBuffer!.length < itemsBufferSize {
-            itemsBuffer = device.makeBuffer(length: itemsBufferSize, options: .storageModeShared)
-        }
+            
+        let resultsBufferSize = batchSize * MemoryLayout<UInt32>.stride // TODO why uint? it is bool??? FIXME
+        
+
         if resultsBuffer == nil || resultsBuffer!.length < resultsBufferSize {
             resultsBuffer = device.makeBuffer(length: resultsBufferSize, options: .storageModeShared)
         }
         
-        let ptr = itemsBuffer!.contents().assumingMemoryBound(to: UInt8.self)
-        for (i, item) in items.enumerated() {
-            let offset = i * itemBytes
-            let copyCount = min(item.count, itemBytes)
-            item.copyBytes(to: ptr.advanced(by: offset), count: copyCount)
-            if copyCount < itemBytes {
-                memset(ptr.advanced(by: offset + copyCount), 0, itemBytes - copyCount)
-            }
-        }
+       
         
         guard let cmdBuffer = commandQueue.makeCommandBuffer(),
               let encoder = cmdBuffer.makeComputeCommandEncoder() else { return [] }
         
-        var countU = UInt32(count)
+        var countU = UInt32(batchSize)
         var itemLenU = UInt32(itemU32Length)
         var mBits = UInt32(bitCount)
         var kHashes = UInt32(hashCount)
@@ -166,20 +156,20 @@ final class BloomFilter {
         
         let w = queryPipeline.threadExecutionWidth
         let threadsPerGroup = MTLSize(width: min(256, w), height: 1, depth: 1)
-        let threadgroups = MTLSize(width: (count + threadsPerGroup.width - 1) / threadsPerGroup.width, height: 1, depth: 1)
+        let threadgroups = MTLSize(width: (batchSize + threadsPerGroup.width - 1) / threadsPerGroup.width, height: 1, depth: 1)
         encoder.dispatchThreadgroups(threadgroups, threadsPerThreadgroup: threadsPerGroup)
         encoder.endEncoding()
         
         cmdBuffer.commit()
         cmdBuffer.waitUntilCompleted()
         
-        let resultsPtr = resultsBuffer!.contents().bindMemory(to: UInt32.self, capacity: count)
-        return (0..<count).map { resultsPtr[$0] != 0 }
+        let resultsPtr = resultsBuffer!.contents().bindMemory(to: UInt32.self, capacity: batchSize)
+        return (0..<batchSize).map { resultsPtr[$0] != 0 }
     }
 }
 
 // ==================== COMPARISON TEST ====================
-
+/*
 func bloomTest() {
     print("🔬 Comparing Swift vs Metal Bloom Filter\n")
     
@@ -254,3 +244,4 @@ func bloomTest() {
 
 // Run comparison
 
+*/
