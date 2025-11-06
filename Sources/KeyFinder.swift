@@ -20,6 +20,11 @@ struct KeyFinder {
     
     func run(){
         
+       // bloomTest()
+        //exit(0)
+    
+        
+        
         
         // TODO: check for maximum range wich is: 0xFFFF FFFF FFFF FFFF FFFF FFFF FFFF FFFE BAAE DCE6 AF48 A03B BFD2 5E8C D036 4140
         
@@ -32,6 +37,7 @@ struct KeyFinder {
         let RIPEMD160 = RIPEMD160(on: device, batchSize: BATCH_SIZE)
         let bloomFilter = AddressFileLoader.load(path: "/Users/x/src/CryptKeyFinder/test_files/btc_very_short.tsv")
         let t = TimeMeasurement.instance
+        
         
         
         
@@ -75,17 +81,24 @@ struct KeyFinder {
             // Check RIPEMD160 hashes against the bloom filter
             // Note, we have reverse-calculated BASE58 before inserting addresses into the bloom filter, so we can check directly the RIPEMD160 hashes which is faster.
             start = DispatchTime.now()
+            //for i in 0..<BATCH_SIZE {
+                
+                
+            let ripemd160Array = Helpers.ptrToDataArray(ripemd160_result, itemSize: 20, itemCount: BATCH_SIZE)
+            let result = bloomFilter.query(ripemd160Array)   //contains(pointer: ripemd160_result, length: 5, offset: i*5)
+          
             for i in 0..<BATCH_SIZE {
-                let addrExists = bloomFilter.contains(pointer: ripemd160_result, length: 5, offset: i*5)
-                if addrExists {
-                 
-               
+                if result[i] {
                     var privKey = [UInt8](repeating: 0, count: 32)
                     memcpy(&privKey, privateKeyBuffer.contents().advanced(by: i*32), 32)
                     let hexKey = Data(privKey.reversed()).hexString
+                    
+                   
+                    
                     //let privateKeyLimbs = Array<>(UnsafeBufferPointer(start: privateKeyBuffer.contents().advanced(by: i*8), count: 8))
                     //let hexKey = privateKeyLimbs.map { String(format: "%08x", $0) }.reversed().joined()
                     print("#########################################################")
+                    print(ripemd160Array[i].hexString)
                     //print("Found matching address: \(createData(from: ripemd160_result, offset: i*5, length: 5).hex) for private key: \(hexKey)")
                     print("Found private key for address from list. Private key: \(hexKey)")
                     print("Use any tool like btc_address_dump to get the address for the private key")
@@ -94,9 +107,11 @@ struct KeyFinder {
                    // exit(0) // TODO: do we really want to exit? Make this configurable
                 }
             }
+            
+
+          //  }
             t.bloomFilter = Double(DispatchTime.now().uptimeNanoseconds - start.uptimeNanoseconds) / 1_000_000.0
             
-    
             
             
             //print("bloomfilter took: \(end.uptimeNanoseconds - start.uptimeNanoseconds)ns")

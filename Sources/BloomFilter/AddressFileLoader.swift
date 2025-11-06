@@ -50,14 +50,14 @@ struct AddressFileLoader {
         return validAddrCount;
     }
     
-    static func load(path: String) -> BloomFilter2 {
+    static func load(path: String) -> BloomFilter {
         
         let BATCH_SIZE = 1000
         let validAddrCount = countValidAddressesInFile(path:path)
 
         print("Instatiating bloom filter")
-        var bloomFilter = BloomFilter2(capacity: validAddrCount*256, falsePositiveRate: 0.0001)
-
+        //var bloomFilter = BloomFilter2(capacity: validAddrCount*256, falsePositiveRate: 0.0001)
+        var bloomFilter = BloomFilter(expectedInsertions: validAddrCount*100, itemBytes: 20, falsePositiveRate: 0.00001)
         
         // Opening the same file again to populate the bloomfilter
         guard let file = freopen(path, "r", stdin) else {
@@ -72,7 +72,7 @@ struct AddressFileLoader {
         var progressCnt:Int = 1;
         var lastPerc :Int = 0
         
-        var addrBatch: [String] = [];
+        var addrBatch: [Data] = [];
         while let line = readLine() {
          
           
@@ -126,7 +126,9 @@ struct AddressFileLoader {
                 
                 //print("Inserting \(decodedAddress.unsafelyUnwrapped.hex) into bloom filter. Original address: \(line.trimmingCharacters(in: .whitespaces)).hex)")
                 let start2 = DispatchTime.now()
-                bloomFilter.insert(data: decodedAddress.unsafelyUnwrapped)
+                //bloomFilter.insert(data: decodedAddress.unsafelyUnwrapped)
+                addrBatch.append(decodedAddress!)
+
                 let end2 = DispatchTime.now()
                 let nanoTime2 = end2.uptimeNanoseconds - start2.uptimeNanoseconds // <<<<< Difference in nano seconds (UInt64)
 
@@ -151,10 +153,11 @@ struct AddressFileLoader {
             else if line.starts(with: "bc1p"){ // Taproot address
                 // NOT SUPPORTED YET
             }
-            
-            
-            
+   
         }
+        
+        
+        bloomFilter?.insert(addrBatch)
         
         print("Inserted \(validAddrCount) supoorted addresses into the bloom filter")
         
@@ -164,9 +167,8 @@ struct AddressFileLoader {
         }
         print("no")
         */
+        return bloomFilter!
         
-        
-        return bloomFilter
     }
 
     

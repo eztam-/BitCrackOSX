@@ -81,5 +81,23 @@ public class Helpers{
         return bytes.map { String(format: "%02x", $0) }.joined()
     }
     
+    
+    public static func ptrToDataArray(_ ptr: UnsafeMutablePointer<UInt32>,
+                              itemSize: Int,
+                              itemCount: Int) -> [Data] {
+
+        let rawPtr = UnsafeRawPointer(ptr)
+        var result: [Data] = []
+        result.reserveCapacity(itemCount)
+
+        for i in 0..<itemCount {
+            let itemPtr = rawPtr.advanced(by: i * itemSize)
+            let data = Data(bytes: itemPtr, count: itemSize)
+            result.append(data)
+        }
+
+        return result
+    }
+    
 }
 
