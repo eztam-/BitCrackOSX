@@ -78,7 +78,7 @@ constant uint K_RIGHT[5] = { 0x50A28BE6u, 0x5C4DD124u, 0x6D703EF3u, 0x7A6D76E9u,
 // Input buffer layout: messages are contiguous blocks of exactly 32 bytes each in big-endian
 // Output: outWords[gid*5 + 0..4] = resulting 5 uint words for that message.
 kernel void ripemd160_fixed32_kernel(
-    const device uchar *       messages        [[ buffer(0) ]],
+    const device uint *        messages        [[ buffer(0) ]],
     device uint *              outWords        [[ buffer(1) ]],
     uint                       gid             [[ thread_position_in_grid ]],
     uint                       tid_in_tg       [[ thread_index_in_threadgroup ]],
@@ -120,18 +120,11 @@ kernel void ripemd160_fixed32_kernel(
     // - X[15] = 0
     uint X[16];
 
-    // compute message base offset (32 bytes per message)
-    uint base = gid * 32u;
-
-    // Read 8 words (big-endian pack)
+    uint base = gid * 8u;          // 8 uint32s per message
     for (uint w = 0; w < 8u; ++w) {
-        uint b0 = (uint)messages[base + w*4u + 0u];
-        uint b1 = (uint)messages[base + w*4u + 1u];
-        uint b2 = (uint)messages[base + w*4u + 2u];
-        uint b3 = (uint)messages[base + w*4u + 3u];
-        //X[w] = (b0 << 24u) | (b1 << 16u) | (b2 << 8u) | (b3); // big-endian
-        X[w] = (b0) | (b1 << 8u) | (b2 << 16u) | (b3 << 24u); // little-endian
+        X[w] = messages[base + w]; // already little-endian uints
     }
+
      
     // padding and length (fixed for 32-byte messages)
     X[8]  = 0x00000080u;

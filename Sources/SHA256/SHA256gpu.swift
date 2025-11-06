@@ -67,7 +67,7 @@ class SHA256gpu {
         
     }
     
-    func run(publicKeysBuffer: MTLBuffer, batchSize: Int) -> UnsafeMutablePointer<UInt32> {
+    func run(publicKeysBuffer: MTLBuffer, batchSize: Int) -> MTLBuffer {
 
         let commandBuffer = commandQueue.makeCommandBuffer()!
         let encoder = commandBuffer.makeComputeCommandEncoder()!
@@ -83,7 +83,7 @@ class SHA256gpu {
         commandBuffer.commit()
         commandBuffer.waitUntilCompleted()
         
-        return outBuffer.contents().assumingMemoryBound(to: UInt32.self)
+        return outBuffer
     }
     
     

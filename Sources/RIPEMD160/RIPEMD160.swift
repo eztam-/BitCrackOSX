@@ -44,19 +44,8 @@ class RIPEMD160 {
     }
     
     
-    func run(messagesData: Data, messageCount: Int) -> UnsafeMutablePointer<UInt32> {
-        
-        // Host for ripemd160_fixed32_kernel
-        // - Packs N messages, each exactly 32 bytes (if you have shorter strings, left-pad or right-pad them on the host)
-        // - Dispatches GPU kernel and reads back 5 uint words per message.
-        // - Converts words to canonical RIPEMD-160 hex (little-endian word order).
-        // TODO: don't recreate the buffer each time this is costy
-        let messagesBuffer = device.makeBuffer(bytes: (messagesData as NSData).bytes, length: messagesData.count, options: [])!
+    func run(messagesBuffer: MTLBuffer, messageCount: Int) -> UnsafeMutablePointer<UInt32> {
 
-
-        
-
-        // Build and dispatch
         let cmdBuf = commandQueue.makeCommandBuffer()!
         let encoder = cmdBuf.makeComputeCommandEncoder()!
         
@@ -66,18 +55,12 @@ class RIPEMD160 {
         encoder.dispatchThreads(threadsPerGrid, threadsPerThreadgroup: threadsPerThreadgroup)
         encoder.endEncoding()
         
-       
         cmdBuf.commit()
         cmdBuf.waitUntilCompleted()
-    
         
         let outWordCount = messageCount * 5
         return outBuffer.contents().bindMemory(to: UInt32.self, capacity: outWordCount)
-
     }
     
-    
-   
-  
     
 }

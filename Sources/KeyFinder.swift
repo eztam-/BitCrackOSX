@@ -59,7 +59,7 @@ struct KeyFinder {
        
             // Calculate SHA256 for the batch of public keys
             start = DispatchTime.now()
-            let outPtr = SHA256.run(publicKeysBuffer: pubKeysCompBuff, batchSize: BATCH_SIZE)
+            let sha256Buff = SHA256.run(publicKeysBuffer: pubKeysCompBuff, batchSize: BATCH_SIZE)
             //printSha256Output(BATCH_SIZE, outPtr)
             t.sha256 = Double(DispatchTime.now().uptimeNanoseconds - start.uptimeNanoseconds) / 1_000_000.0
             
@@ -67,9 +67,7 @@ struct KeyFinder {
             
             // Calculate RIPEDM160
             start = DispatchTime.now()
-            let ripemd160_input_data = Data(bytesNoCopy: outPtr, count: BATCH_SIZE*32, deallocator: .custom({ (ptr, size) in ptr.deallocate() }))
-            let ripemd160_result = RIPEMD160.run(messagesData: ripemd160_input_data, messageCount: BATCH_SIZE)
-            //printRipemd160Output(BATCH_SIZE, ripemd160_result)
+            let ripemd160_result = RIPEMD160.run(messagesBuffer: sha256Buff, messageCount: BATCH_SIZE)
             t.ripemd160 = Double(DispatchTime.now().uptimeNanoseconds - start.uptimeNanoseconds) / 1_000_000.0
             
             

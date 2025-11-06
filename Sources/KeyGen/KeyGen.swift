@@ -43,6 +43,7 @@ public class KeyGen {
                                               options: .storageModeShared)!
         
         
+
         // Thread sizing - choose based on device
         self.threadsPerGrid = MTLSize(width: batchSize, height: 1, depth: 1)
         let w = pipeline.threadExecutionWidth
