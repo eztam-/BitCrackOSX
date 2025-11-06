@@ -3,7 +3,10 @@ import Metal
 
 
 let device = MTLCreateSystemDefaultDevice()!
-let BATCH_SIZE = 4096 // TODO: FIXME: If the key range is smaller than the batch size it doesnt work
+
+// TODO: FIXME: If the key range is smaller than the batch size it doesnt work
+// TODO: If the size is smaller, that we run into a memory leak since the garbage collector seem to slow, to free up the memory for the commandBuffers
+let BATCH_SIZE = 4096*8*8
 
 
 @main
@@ -34,9 +37,6 @@ struct KeyFinder {
         
         print("Starting on GPU: \(device.name)\n")
         print("Start key is: \(startKey)\n")
-        var pubKeyBatch: [Data] = []
-        
-
         
         while true {  // TODO: Shall we introduce an end key, if reached then the application stops?
             
@@ -145,7 +145,6 @@ struct KeyFinder {
             t.keysPerSec = String(format: "----[ %.0f keys/s ]----", hashesPerSec)
             
             
-            pubKeyBatch = []  //clearing batch
         }
         
     }
