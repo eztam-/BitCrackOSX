@@ -7,7 +7,7 @@ public class Secp256k1_GPU {
     private let pipelineState: MTLComputePipelineState
     private let bufferSize: Int // Number of private keys per batch
     
-    private let privateKeyBuffer: MTLBuffer
+    //private let privateKeyBuffer: MTLBuffer
     private let publicKeyBufferComp: MTLBuffer
     private let publicKeyBufferUncomp: MTLBuffer
     
@@ -34,20 +34,20 @@ public class Secp256k1_GPU {
         
         
         // Create Metal buffers
-        let privateKeyBuffer = device.makeBuffer(
-            length: MemoryLayout<UInt32>.stride * bufferSize * 8,
-            options: .storageModeShared
-        )!;
+        //let privateKeyBuffer = device.makeBuffer(
+        //    length: MemoryLayout<UInt32>.stride * bufferSize * 8,
+        //    options: .storageModeShared
+        //)!;
         let publicKeyBufferComp = device.makeBuffer(
                 length: MemoryLayout<UInt8>.stride * bufferSize * 33, // Compressed public key is 256 bits + 8 bits = 33 bytes
-                options: .storageModePrivate
+                options: .storageModeShared // TODO: we should mae this private for better performance. And only switch it to shared for unit tests who need that
         )!;
         let publicKeyBufferUncomp = device.makeBuffer(
                 length: MemoryLayout<UInt8>.stride * bufferSize * 65, // Uncompressed public key is 512 bits + 8 bits = 65 bytes
-                options: .storageModePrivate
+                options: .storageModeShared // TODO: we should mae this private for better performance. And only switch it to shared for unit tests who need that
         )!;
         
-        self.privateKeyBuffer = privateKeyBuffer
+       // self.privateKeyBuffer = privateKeyBuffer
         self.publicKeyBufferComp = publicKeyBufferComp
         self.publicKeyBufferUncomp = publicKeyBufferUncomp
         

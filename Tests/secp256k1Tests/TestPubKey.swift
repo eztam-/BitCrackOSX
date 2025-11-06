@@ -31,20 +31,27 @@ class TestPubKey: TestBase {
         var numFailedTests = 0
        
         var privKeysArr : [String] = []
-        var privKeys : Data = Data()
+        var privKeysData : Data = Data()
         for _ in 0..<numTests {
             
             let randomStr = Helpers.generateRandom256BitHex()
             let  limbs = Helpers.hex256ToUInt32Limbs(randomStr)
-            privKeys.append(dataFromUInt32Limbs(limbs))
+            privKeysData.append(dataFromUInt32Limbs(limbs))
             privKeysArr.append(randomStr)
         }
+        
+        let privKeysBuffer = device.makeBuffer(
+            bytes: privKeysData.bytes,
+            length: MemoryLayout<UInt32>.stride * numTests * 8,
+            options: .storageModeShared
+        )!;
+        
+        
         let secp256k1obj = Secp256k1_GPU(on:super.device, bufferSize: numTests)
-        let (pubKeysComp, pubKeysUncomp) = secp256k1obj.generatePublicKeys(privateKeys: privKeys)
+        let (pubKeysComp, pubKeysUncomp) = secp256k1obj.generatePublicKeys(privateKeyBuffer: privKeysBuffer)
         
-        let resultPubKeysComp = bytePtrToData(bytePtr: pubKeysComp, keySizeBytes: 33, numKeys: numTests)
-        let resultPubKeysUncomp = bytePtrToData(bytePtr: pubKeysUncomp, keySizeBytes: 65, numKeys: numTests)
-        
+        let resultPubKeysComp = bytePtrToData(bytePtr: pubKeysComp.contents(), keySizeBytes: 33, numKeys: numTests)
+        let resultPubKeysUncomp = bytePtrToData(bytePtr: pubKeysUncomp.contents(), keySizeBytes: 65, numKeys: numTests)
         
         
         for i in 0..<numTests{
@@ -122,21 +129,26 @@ class TestPubKey: TestBase {
         
         
         var privKeysArr : [Data] = []
-        var privKeys : Data = Data()
+        var privKeysData : Data = Data()
         for t in testCases {
             
             //Helpers.printLimbs(limbs: Helpers.hex256ToUInt32Limbs(t.0))
             
             let  limbs = Helpers.hex256ToUInt32Limbs(t.0)
             
-            privKeys.append(dataFromUInt32Limbs(limbs))
+            privKeysData.append(dataFromUInt32Limbs(limbs))
             privKeysArr.append(dataFromUInt32Limbs(limbs))
         }
-        let secp256k1obj = Secp256k1_GPU(on:super.device, bufferSize: testCases.count)
-        let (pubKeysComp, pubKeysUncomp) = secp256k1obj.generatePublicKeys(privateKeys: privKeys)
+        let privKeysBuffer = device.makeBuffer(bytes: privKeysData.bytes,
+                                           length: privKeysData.count * MemoryLayout<UInt32>.stride * 8,
+                                           options: [])!
         
-        let resultPubKeysComp = bytePtrToData(bytePtr: pubKeysComp, keySizeBytes: 33, numKeys: testCases.count)
-        let resultPubKeysUncomp = bytePtrToData(bytePtr: pubKeysUncomp, keySizeBytes: 65, numKeys: testCases.count)
+        
+        let secp256k1obj = Secp256k1_GPU(on:super.device, bufferSize: testCases.count)
+        let (pubKeysComp, pubKeysUncomp) = secp256k1obj.generatePublicKeys(privateKeyBuffer: privKeysBuffer)
+        
+        let resultPubKeysComp = bytePtrToData(bytePtr: pubKeysComp.contents(), keySizeBytes: 33, numKeys: testCases.count)
+        let resultPubKeysUncomp = bytePtrToData(bytePtr: pubKeysUncomp.contents(), keySizeBytes: 65, numKeys: testCases.count)
         
         
         for i in 0..<testCases.count {

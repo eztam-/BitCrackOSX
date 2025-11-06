@@ -23,7 +23,7 @@ class TestKeyGen: TestBase {
         // Calculate a first batch of keys
         var outPtr = keyGen.run()
 
-        for hexStr in privKeysToHexStr(1000, outPtr){
+        for hexStr in privKeysToHexStr(1000, outPtr.contents().assumingMemoryBound(to: UInt32.self)){
             let expected = reference!.asString(radix: 16).uppercased()
             if hexStr.uppercased() != expected {
                 print("❌ FAILED - actual: \(hexStr) does not match expected: hex")
@@ -38,7 +38,7 @@ class TestKeyGen: TestBase {
         // Second batch
         outPtr = keyGen.run()
 
-        for hexStr in privKeysToHexStr(1000, outPtr){
+        for hexStr in privKeysToHexStr(1000, outPtr.contents().assumingMemoryBound(to: UInt32.self)){
             let expected = reference!.asString(radix: 16).uppercased()
             if hexStr.uppercased() != expected {
                 print("❌ FAILED - actual: \(hexStr) does not match expected: hex")
