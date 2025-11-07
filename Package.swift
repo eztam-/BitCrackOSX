@@ -4,7 +4,7 @@
 import PackageDescription
 
 let package = Package(
-    name: "CryptKeyFinder",
+    name: "CryptKeySearch",
     platforms: [
         .macOS(.v26),
     ],
@@ -16,9 +16,10 @@ let package = Package(
     ],
     targets: [
         .executableTarget(
-            name: "CryptKeyFinder",
+            name: "CryptKeySearch",
             dependencies: [
                 .product(name: "ArgumentParser", package: "swift-argument-parser"),
+                .product(name: "SQLite", package: "SQLite.swift"),
             ],
             path: "Sources",
             resources: [
@@ -30,9 +31,9 @@ let package = Package(
             ],
         ),
         .testTarget(
-            name: "CryptKeyFinderTests",
+            name: "CryptKeySearchTests",
             dependencies: [
-                "CryptKeyFinder",
+                "CryptKeySearch",
                 .product(name: "P256K", package: "swift-secp256k1"),
                 .product(name: "BigNumber", package: "Swift-BigInt"),
             ],

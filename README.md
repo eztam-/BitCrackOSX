@@ -34,7 +34,7 @@ Build and run from the terminal.
 Within the project directory run the following command
 
 ```
-xcodebuild -scheme CryptKeyFinder -destination 'platform=macOS' -configuration Release -derivedDataPath ./build
+xcodebuild -scheme CryptKeySearch -destination 'platform=macOS' -configuration Release -derivedDataPath ./build
 ```
 After a successfull build, you can run the application:
 ```
