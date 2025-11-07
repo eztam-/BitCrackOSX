@@ -1,5 +1,45 @@
-# BitCrackOsx
-A tool for cracking Bitcoin private keys on Apple Silicon GPUs
+# CryptKeyFinder
+A tool for solving Bitcoin puzzles on OSX. The application is build to run on Apple Silicon GPUs for high performance.
+Other, similar tools like BitCrack stopped working entirely for OSX users since Apple switched to it's new Silicon Chips.
+This application aims to be a better replacement for such legacy tools which have many limitations. 
+Bitcrack for example only supports legacy addresses and has no support for modern Bitcoin addresses like Taproot or SegWit.
+
+CryptKeyFinder is build entirely from scratch for OSX and utilizes Apples Metal framework for high performance.
+
+**NOTE!**
+- The application is still new and under heavy development.
+- So far I have focussed on functionality and performance optimization still needs to be done.
+- If something isn't working or you miss a certain feature, then please let me know so I can improve the project. Please open an [new Issue](https://github.com/eztam-/CryptKeyFinder/issues/new) in such cases.
+- Support is very welcome, feel free to submit a merge request.
+- This application was build for solving bitcoin puzzles. Any illegal usage is prohibited.
+
+**Important**
+Many hours of work went and will go into this project. If you like it and want to support it, please do:
+- Give this Github repository a star. :star:
+- Support development :computer:
+- Any, even small donation is welcome :money_with_wings:
+
+ 
+
+## Build & Run
+
+### Option 1 (XCode):
+Import the project into XCode and just press the run button.
+
+### Option 2 (Terminal):
+Build and run from the terminal. 
+Within the project directory run the following command
+
+```
+xcodebuild -scheme CryptKeyFinder -destination 'platform=macOS' -configuration Release -derivedDataPath ./build
+```
+After a successfull build, you can run the application:
+```
+./build/Build/Products/Release/CryptKeyFinder
+```
+
+
+
 
 
 ## Architecture
@@ -40,3 +80,18 @@ Input and output endiangs by shader:<br>
 host-endian --> SHA256    --> host-endian<br>
 host-endian --> RIPEMD160 --> host-endian<br>
 
+
+
+## Disclaimer
+
+This software was developed **solely for educational purposes and solving Bitcoin puzzles**.  
+
+**Important:** Any illegal use of this software is strictly prohibited. The authors **do not endorse or accept any liability** for misuse, including but not limited to unauthorized access to systems, theft of cryptocurrencies, or any other illegal activity.
+
+By using this software, you agree to comply with all applicable laws in your jurisdiction.
+
+Permission is granted to use, copy, modify, and distribute this software **only for legal purposes** and for educational purposes such as solving Bitcoin puzzles. Any illegal use is prohibited.
+
+### AI-Generated Content
+
+Parts of this application, including code and documentation, were **generated or assisted by AI tools**. All generated content was reviewed and integrated by the project author.

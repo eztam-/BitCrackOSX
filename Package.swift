@@ -21,8 +21,11 @@ let package = Package(
             dependencies: [],
             path: "Sources",
             resources: [
+                .process("KeyGen/KeyGen.metal"),
+                .process("secp256k1/secp256k1.metal"),
                 .process("SHA256/SHA256.metal"),
-                .process("KeyGen/KeyGen.metal")
+                .process("RIPEMD160/RIPEMD160.metal"),
+                .process("BloomFilter/BloomFilter.metal")
             ],
         ),
         .testTarget(
