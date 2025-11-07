@@ -34,7 +34,7 @@ class KeyFinder {
         let secp256k1obj = Secp256k1_GPU(on:  device, bufferSize: BATCH_SIZE)
         let SHA256 = SHA256gpu(on: device, batchSize: BATCH_SIZE)
         let RIPEMD160 = RIPEMD160(on: device, batchSize: BATCH_SIZE)
-        let bloomFilter = AddressFileLoader.load(path: "/Users/x/src/CryptKeyFinder/test_files/btc_very_short.tsv")
+        let bloomFilter = AddressFileLoader.load(path: "/Users/x/src/CryptKeyFinder/test_files/btc_short.tsv")
         let t = TimeMeasurement.instance
         
         

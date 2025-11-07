@@ -56,7 +56,7 @@ struct Main: ParsableCommand {
     
     
     static let configuration = CommandConfiguration(
-        commandName: "keysearch",
+        commandName: "CryptKeySearch",
         abstract: "Before starting the key search, please import your address file by using the 'file-load'command. This is only required once before the first start. After that you can use the 'run' command to search for the private keys.",
         subcommands: [FileImportCommand.self, KeySearchCommand.self],
         defaultSubcommand: KeySearchCommand.self
