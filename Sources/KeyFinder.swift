@@ -9,16 +9,15 @@ let device = MTLCreateSystemDefaultDevice()!
 let BATCH_SIZE = 4096*8*8
 
 
-@main
-struct KeyFinder {
+class KeyFinder {
+
+
+   
     
-    
-    static func main() {
-        KeyFinder().run()
-    }
-    
-    
-    func run(){
+    func run(startKey: String){
+        
+      
+        
         
        // bloomTest()
         //exit(0)
@@ -28,8 +27,8 @@ struct KeyFinder {
         
         // TODO: check for maximum range wich is: 0xFFFF FFFF FFFF FFFF FFFF FFFF FFFF FFFE BAAE DCE6 AF48 A03B BFD2 5E8C D036 4140
         
-        let startKey = "0000000000000000000000000000000000000000000000000001000000000000"
-        //let startKey = Helpers.generateRandom256BitHex()
+        //let startKey = "0000000000000000000000000000000000000000000000000001000000000000"
+       
         
         let keyGen = KeyGen(device: device, batchSize: BATCH_SIZE, startKeyHex: startKey)
         let secp256k1obj = Secp256k1_GPU(on:  device, bufferSize: BATCH_SIZE)

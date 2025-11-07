@@ -9,16 +9,17 @@ let package = Package(
         .macOS(.v26),
     ],
     dependencies: [
-        .package(
-                url: "https://github.com/21-DOT-DEV/swift-secp256k1",
-                exact: "0.21.1"
-            ),
-        .package(url: "https://github.com/mkrd/Swift-BigInt", exact: "2.3.0")
+        .package(url: "https://github.com/21-DOT-DEV/swift-secp256k1",exact: "0.21.1"),
+        .package(url: "https://github.com/mkrd/Swift-BigInt", exact: "2.3.0"),
+        .package(url: "https://github.com/apple/swift-argument-parser", from: "1.6.2"),
+        .package(url: "https://github.com/stephencelis/SQLite.swift.git", from: "0.15.4")
     ],
     targets: [
         .executableTarget(
             name: "CryptKeyFinder",
-            dependencies: [],
+            dependencies: [
+                .product(name: "ArgumentParser", package: "swift-argument-parser"),
+            ],
             path: "Sources",
             resources: [
                 .process("KeyGen/KeyGen.metal"),

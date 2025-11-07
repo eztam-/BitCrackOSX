@@ -11,17 +11,20 @@ CryptKeyFinder is build entirely from scratch for OSX and utilizes Apples Metal 
 - So far I have focussed on functionality and performance optimization still needs to be done.
 - If something isn't working or you miss a certain feature, then please let me know so I can improve the project. Please open an [new Issue](https://github.com/eztam-/CryptKeyFinder/issues/new) in such cases.
 - Support is very welcome, feel free to submit a merge request.
+- I never programmed in Swift or Metal before starting this project. Therefore I'm also very happy for any code review or feedback. 
 - This application was build for solving bitcoin puzzles. Any illegal usage is prohibited.
 
 **Important**
 Many hours of work went and will go into this project. If you like it and want to support it, please do:
 - Give this Github repository a star. :star:
-- Support development :computer:
-- Any, even small donation is welcome :money_with_wings:
+- Support development by contributing to the code :computer:
+- Any, even small donation is welcome :money_with_wings: BTC: 39QmdfngkM3y4KJbwrgspNRQZvwow5BFpg
 
  
 
 ## Build & Run
+
+To build the application you need to install XCode from the App Store first.
 
 ### Option 1 (XCode):
 Import the project into XCode and just press the run button.

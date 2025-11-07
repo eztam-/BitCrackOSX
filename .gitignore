@@ -1,3 +1,5 @@
+.swiftpm/
+default.profraw
 test_files
 .DS_Store
 /.build
