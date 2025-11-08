@@ -5,6 +5,20 @@ import ArgumentParser
 @main
 struct Main: ParsableCommand {
     
+        
+        
+    static let banner = """
+_________                        __     ____  __.               _________                           .__     
+\\_   ___ \\_______ ___.__._______/  |_  |    |/ _|____ ___.__.  /   _____/ ____ _____ _______   ____ |  |__  
+/    \\  \\/\\_  __ <   |  |\\____ \\   __\\ |      <_/ __ <   |  |  \\_____  \\_/ __ \\\\__  \\\\_  __ \\_/ ___\\|  |  \\ 
+\\     \\____|  | \\/\\___  ||  |_> >  |   |    |  \\  ___/\\___  |  /        \\  ___/ / __ \\|  | \\/\\  \\___|   Y  \\
+ \\______  /|__|   / ____||   __/|__|   |____|__ \\___  > ____| /_______  /\\___  >____  /__|    \\___  >___|  /
+        \\/        \\/     |__|                  \\/   \\/\\/              \\/     \\/     \\/            \\/     \\/ 
+"""
+
+ 
+
+    
     
     struct FileImportCommand: ParsableCommand {
         
@@ -16,8 +30,11 @@ struct Main: ParsableCommand {
         @Argument(help: "A file containing bitcoin addresses (one address per row) to be included in the key search.")
         var filePath: String
         
-        mutating func run() {
-            print("FileLoad \(filePath)")
+        mutating func run() throws {
+            print(banner)
+            let db = try DB(deleteAndReCreateDB: true)
+            let loader = AddressFileLoader(db:db)
+            try loader.loadAddressesFromFile(path: filePath)
         }
     }
     
@@ -25,7 +42,7 @@ struct Main: ParsableCommand {
     struct KeySearchCommand: ParsableCommand {
         
         static let configuration = CommandConfiguration(
-            commandName: "keysearch",
+            commandName: Constants.APP_COMMAND_NAME,
             abstract: "Print the product of the values."
         )
         
@@ -37,13 +54,16 @@ struct Main: ParsableCommand {
                  help: "Path to the output file. The file will contain the private keys and their corresponding addresses. If not provided, the output will be printed to the console.")
         var outputFile: String = ""
 
-        mutating func run() {
+        mutating func run() throws {
+            print(banner)
+            let db = try DB()
+            let bloomFilter = try BloomFilter(db: db)
             if startKey.isEmpty{
                 startKey = Helpers.generateRandom256BitHex()
-                KeyFinder().run(startKey: startKey)
+                KeyFinder(bloomFilter: bloomFilter).run(startKey: startKey)
             }
             else if startKey.count == 64 && startKey.allSatisfy(\.isHexDigit) {
-                KeyFinder().run(startKey: startKey)
+                KeyFinder(bloomFilter: bloomFilter).run(startKey: startKey)
             }
             print("Invalid start key provided. Please provide a valid 32 byte hex string.")
         }
@@ -56,12 +76,11 @@ struct Main: ParsableCommand {
     
     
     static let configuration = CommandConfiguration(
-        commandName: "CryptKeySearch",
-        abstract: "Before starting the key search, please import your address file by using the 'file-load'command. This is only required once before the first start. After that you can use the 'run' command to search for the private keys.",
+        commandName: Constants.APP_COMMAND_NAME,
+        abstract: "Before starting the key search, please import your address file by using the 'file-load' command. This is only required once before the first start. After that you can use the 'run' command to search for the private keys.",
         subcommands: [FileImportCommand.self, KeySearchCommand.self],
         defaultSubcommand: KeySearchCommand.self
     )
-    
     
 
 }

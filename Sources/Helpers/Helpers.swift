@@ -6,7 +6,29 @@ extension Data {
     public var hexString: String {
         return map { String(format: "%02x", $0) }.joined()
     }
+    
+    init?(hex: String) {
+        let len = hex.count / 2
+        var data = Data(capacity: len)
+        var index = hex.startIndex
+
+        for _ in 0..<len {
+            let nextIndex = hex.index(index, offsetBy: 2)
+            if nextIndex > hex.endIndex { return nil }
+
+            let byteString = hex[index..<nextIndex]
+            if let byte = UInt8(byteString, radix: 16) {
+                data.append(byte)
+            } else {
+                return nil
+            }
+
+            index = nextIndex
+        }
+        self = data
+    }
 }
+
 
 
 public class Helpers{

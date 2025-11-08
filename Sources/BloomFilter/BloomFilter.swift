@@ -16,19 +16,37 @@ final class BloomFilter {
     private var resultsBuffer: MTLBuffer?
     let  itemLengthBytes: Int
     
-    init?(expectedInsertions: Int,
-          itemBytes: Int,
-          falsePositiveRate: Double = 0.001) {
+    enum BloomFilterError: Error {
+        case initializationFailed
+    }
+    
+    public convenience init(db: DB) throws{
+        
+        let cnt = try db.getAddressCount()
+
+        try self.init(expectedInsertions: cnt*100, itemBytes: 20) // TODO: *100 seems to be working well, but this should actuylly be solved by the falsPositiveRate
+       
+        var batch: [Data] = []
+        for row in try db.getAllAddresses() {
+            
+            batch.append(Data(hex: row.publicKeyHash)!)
+        }
+        self.insert(batch)
+        print("✅ Bloom filter initialized with \(cnt) addresses from database")
+
+    }
+    
+    private init(expectedInsertions: Int, itemBytes: Int, falsePositiveRate: Double = 0.001) throws {
         
         guard itemBytes % 4 == 0 else {
             print("❌ itemBytes must be multiple of 4 for UInt32 alignment")
-            return nil
+            throw BloomFilterError.initializationFailed
         }
         
         guard let dev = MTLCreateSystemDefaultDevice(),
               let queue = dev.makeCommandQueue() else {
-            print("Failed to create Metal device/queue")
-            return nil
+            print("❌ Failed to create Metal device/queue")
+            throw BloomFilterError.initializationFailed
         }
         
         self.device = dev
@@ -54,7 +72,7 @@ final class BloomFilter {
         
         guard let bits = dev.makeBuffer(length: bufferSize, options: .storageModeShared) else {
             print("Failed to allocate bits buffer")
-            return nil
+            throw BloomFilterError.initializationFailed
         }
         memset(bits.contents(), 0, bufferSize)
         self.bitsBuffer = bits
@@ -65,7 +83,7 @@ final class BloomFilter {
             guard let insertFunc = library.makeFunction(name: "bloom_insert"),
                   let queryFunc = library.makeFunction(name: "bloom_query") else {
                 print("Failed to create Metal functions")
-                return nil
+                throw BloomFilterError.initializationFailed
             }
             
             self.insertPipeline = try dev.makeComputePipelineState(function: insertFunc)
@@ -73,7 +91,7 @@ final class BloomFilter {
             
         } catch {
             print("Failed to compile shaders: \(error)")
-            return nil
+            throw BloomFilterError.initializationFailed
         }
     }
     

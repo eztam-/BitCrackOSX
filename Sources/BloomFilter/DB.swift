@@ -6,70 +6,87 @@ public class DB {
     let dbPath = "CryptKeySearch.sqlite3"
     let db: Connection
     
-    public struct row {
-        var address: String
-        var publicKeyHash: String
+    let addressesTbl = Table("addresses")
+    let addressCol      = Expression<String>("address")
+    let publicKeyHashCol = Expression<String>("public_key_hash")
+    
+    public struct AddressRow {
+        let address: String
+        let publicKeyHash: String
     }
     
-    public init(delete: Bool = false) {
-        do {
-            if delete {
-                if FileManager.default.fileExists(atPath: dbPath) {
-                    print("Database exists ✅")
-                    try FileManager.default.removeItem(atPath: dbPath)
-                    print("File deleted ✅")
-                } else {
-                    print("Database does NOT exist ❌")
-                }
-                
-                self.db = try! Connection("CryptKeySearch.sqlite3")
-                try db.run(
-                """
-                    CREATE TABLE "addresses" (
-                        "address" TEXT PRIMARY KEY NOT NULL,
-                        "public_key_hash" TEXT
-                    );
-                """)
-                
-                try db.run("CREATE INDEX Index_addresses_pubKeyHash ON addresses(public_key_hash);")
-                
-            } else {
-                self.db = try! Connection("CryptKeySearch.sqlite3")
-            }
-                
-            } catch {
-                print("Error creating the database", error)
-                _DarwinFoundation3.exit(1)
-            }
-       
-    }
-    
-
-
-
-    public func insert(address: String, publicKeyHash: String) {
-        do {
-            try db.run("INSERT INTO addresses (address, public_key_hash) VALUES( '\(address)', '\(publicKeyHash)');")
-        } catch {
-            print ("Error inserting into DB 😱",error)
-            _DarwinFoundation3.exit(1)
+    public init(deleteAndReCreateDB: Bool = false) throws{
+        
+        var dbFileExists = FileManager.default.fileExists(atPath: dbPath)
+        
+        if dbFileExists && deleteAndReCreateDB {
+            try FileManager.default.removeItem(atPath: dbPath)
+            print("✅ Database '\(dbPath)' deleted")
+            dbFileExists = false
         }
-    }
-    
-    public func get(publicKeyHash: String) -> [row] {
-        do {
-            var result: [row] = []
-            for r in try db.run("SELECT * FROM addresses WHERE public_key_hash == '\(publicKeyHash)';"){
-                result.append(row(address: r[0] as! String, publicKeyHash: r[1] as! String))
-            }
-            return result
-        } catch {
-            print ("Error inserting into DB 😱",error)
-            _DarwinFoundation3.exit(1)
+        
+        self.db = try Connection(dbPath)
+        if !dbFileExists {
+            try initializeDB()
+            print("✅ Database '\(dbPath)' initialized")
         }
     }
     
     
+    public func initializeDB() throws {
+        // Create table
+        try db.run(
+            addressesTbl.create(ifNotExists: true) { t in
+                t.column(addressCol, primaryKey: true)     // TEXT PRIMARY KEY NOT NULL
+                t.column(publicKeyHashCol)                 // TEXT
+            }
+        )
+        
+        // Create index on public_key_hash
+        try db.run(
+            addressesTbl.createIndex(publicKeyHashCol,unique: false, ifNotExists: true)
+        )
+    }
+    
+    
+    public func insert(address: String, publicKeyHash: String) throws {
+        let insertStmt = addressesTbl.insert(
+            addressCol <- address,
+            publicKeyHashCol <- publicKeyHash
+        )
+        try db.run(insertStmt)
+    }
+    
+    public  func getAddresses(for publicKeyHash: String, db: Connection) throws -> [AddressRow] {
+        let query = addressesTbl.filter(publicKeyHashCol == publicKeyHash)
+        var results: [AddressRow] = []
+        for row in try db.prepare(query) {
+            results.append(
+                AddressRow(
+                    address: row[addressCol],
+                    publicKeyHash: row[publicKeyHashCol]
+                )
+            )
+        }
+        return results
+    }
+    
+    
+    
+    public   func getAllAddresses() throws -> AnySequence<AddressRow> {
+        let seq = try db.prepare(addressesTbl)
+        return AnySequence(seq.lazy.map { row in
+            AddressRow(
+                address: row[self.addressCol],
+                publicKeyHash: row[self.publicKeyHashCol]
+            )
+        })
+    }
+    
+    
+    public func getAddressCount() throws -> Int {
+        return try db.scalar(addressesTbl.count)
+    }
     
     
 }

@@ -1,64 +1,27 @@
 import Foundation
+import SQLite
 
-struct AddressFileLoader {
+class AddressFileLoader {
     
+    private let db: DB
     
-    // TODO: store all valid addresses in a embedded DB like H2 equivalent.
-    //  - Then provide an option to use this file after a restart, without re-indexing
-    //  - This db can also be used to check fastly the addresses that were in the bloom filter
-    
-    static func countValidAddressesInFile(path: String) -> Int {
-        print("Counting supported addresses in file \(path)")
-        
-        // First we only need to count the relevant addresses, so that we can initialize the BloomFilter with the right capacity
-        var validAddrCount: Int = 0
-        guard let file = freopen(path, "r", stdin) else {
-            print("Error opening file")
-            exit(0) // TODO: throw error instead
-        }
-        defer {
-            fclose(file)
-        }
-        
-        // Get file size TODO: we could use this to faster calculate the number of addresses once we support all the other address types
-        do {
-          let attribute = try FileManager.default.attributesOfItem(atPath: path)
-          if let size = attribute[FileAttributeKey.size] as? NSNumber {
-            let sizeInMB = size.doubleValue / 1000000.0
-              print("File size is \(sizeInMB) MB")
-          }
-        } catch {
-          print("Error: \(error)")
-        }
-        
-        while let line = readLine() {
-            if line.starts(with: "1") { // Legacy address
-                validAddrCount+=1;
-            }
-            else if line.starts(with: "3"){ // P2SH address
-                // NOT SUPPORTED YET
-            }
-            else if line.starts(with: "bc1q"){ // Segwit Bech32 address
-                // NOT SUPPORTED YET
-            }
-            else if line.starts(with: "bc1p"){ // Taproot address
-                // NOT SUPPORTED YET
-            }
-            
-        }
-        print("Number of supported addresses: \(validAddrCount)")
-        return validAddrCount;
+    public init(db: DB){
+        self.db = db
     }
     
-    static func load(path: String) -> BloomFilter {
-        
-        let BATCH_SIZE = 1000
-        let validAddrCount = countValidAddressesInFile(path:path)
+    
+    public func loadAddressesFromFile(path: String) throws {
 
-        print("Instatiating bloom filter")
-        //var bloomFilter = BloomFilter2(capacity: validAddrCount*256, falsePositiveRate: 0.0001)
-        var bloomFilter = BloomFilter(expectedInsertions: validAddrCount*100, itemBytes: 20, falsePositiveRate: 0.001)
-        
+        var approxNumAddresses: Int32 = 0;
+        let attribute = try FileManager.default.attributesOfItem(atPath: path)
+        if let size = attribute[FileAttributeKey.size] as? NSNumber {
+            let sizeInBytes = size.doubleValue
+            approxNumAddresses = Int32(sizeInBytes/39.0) // 39 is the average length of BTC addresses with balance in 2025. We don't need to be precise for the progress status.
+            print("📄 File size is \(sizeInBytes/1000000.0) MB")
+            
+        }
+
+
         // Opening the same file again to populate the bloomfilter
         guard let file = freopen(path, "r", stdin) else {
             print("Error opening file")
@@ -68,15 +31,16 @@ struct AddressFileLoader {
             fclose(file)
         }
         
-        print("Reverse calculating and inserting public key hashes tinto bloom filter")
+        print("🧮 Reverse calculating and inserting public key hashes into database")
         var progressCnt:Int = 1;
         var lastPerc :Int = 0
         
         var addrBatch: [Data] = [];
         while let line = readLine() {
-         
-          
-            if line.starts(with: "1") { // Legacy address
+            let address = line.trimmingCharacters(in: .whitespaces)
+            progressCnt+=1
+            
+            if address.starts(with: "1") { // Legacy address
                      
      
                 // ASYNC Version
@@ -116,7 +80,7 @@ struct AddressFileLoader {
                 
              
                 let start = DispatchTime.now()
-                var decodedAddress = Base58.decode(line.trimmingCharacters(in: .whitespaces))
+                var decodedAddress = Base58.decode(address)
                 let end = DispatchTime.now()
                 let nanoTime = end.uptimeNanoseconds - start.uptimeNanoseconds // <<<<< Difference in nano seconds (UInt64)
 
@@ -127,47 +91,41 @@ struct AddressFileLoader {
                 //print("Inserting \(decodedAddress.unsafelyUnwrapped.hex) into bloom filter. Original address: \(line.trimmingCharacters(in: .whitespaces)).hex)")
                 let start2 = DispatchTime.now()
                 //bloomFilter.insert(data: decodedAddress.unsafelyUnwrapped)
-                addrBatch.append(decodedAddress!)
-
+                try db.insert(address: address, publicKeyHash: decodedAddress!.hexString)
                 let end2 = DispatchTime.now()
                 let nanoTime2 = end2.uptimeNanoseconds - start2.uptimeNanoseconds // <<<<< Difference in nano seconds (UInt64)
 
 
-                progressCnt+=1
-                var progressPercent = Int((100.0/Double(validAddrCount))*Double(progressCnt))
+              
+      
+                var progressPercent = Int(min((100.0/Double(approxNumAddresses))*Double(progressCnt),99))
+                
                 if lastPerc < progressPercent{
-                    print("Progress: \(progressPercent)%  -  BASE58 took \(nanoTime)ns  -   Bloomfilter insert took \(nanoTime2)ns")
+                    print("\rProgress: \(progressPercent)%", terminator: "")
+                    //print("\r⏳ Progress: \(progressPercent)%  -  BASE58 took \(nanoTime)ns  -   DB insert took \(nanoTime2)ns", terminator: "")
+                    fflush(stdout)
                     lastPerc = progressPercent
                 }
-                
+             
                 
                 
                 //print("Addr \(line)   \(decodedAddress.hex)")
             }
-            else if line.starts(with: "3"){ // P2SH address
+            else if address.starts(with: "3"){ // P2SH address
                 // NOT SUPPORTED YET
             }
-            else if line.starts(with: "bc1q"){ // Segwit Bech32 address
+            else if address.starts(with: "bc1q"){ // Segwit Bech32 address
                 // NOT SUPPORTED YET
             }
-            else if line.starts(with: "bc1p"){ // Taproot address
+            else if address.starts(with: "bc1p"){ // Taproot address
                 // NOT SUPPORTED YET
             }
-   
         }
         
+        print("\r⏳Progress: 100%")
+        fflush(stdout)
+        print("✅ Imported \(try db.getAddressCount()) supported addresses into the database.")
         
-        bloomFilter?.insert(addrBatch)
-        
-        print("Inserted \(validAddrCount) supoorted addresses into the bloom filter")
-        
-       /*
-        if bloomFilter.contains("ssss"){
-            print("yes")
-        }
-        print("no")
-        */
-        return bloomFilter!
         
     }
 

@@ -22,7 +22,7 @@ Many hours of work went and will go into this project. If you like it and want t
 
  
 
-## Build & Run
+## Build
 
 To build the application you need to install XCode from the App Store first.
 
@@ -41,7 +41,20 @@ After a successfull build, you can run the application:
 ./build/Build/Products/Release/CryptKeyFinder
 ```
 
+## Usage
+Before we can start the key search, we must fill the database with a list of addresses we want to include in the private key search.
+This is only required once and we can use the application afterwards for finding keys many thimes, without repeating this step.
+Only you wan't to use a different address list, you have to repeat this step again.
+The address list must be provided in a file, whereby each line contains exactly one address.
 
+```
+CryptKeySearch import _<path_to_your_file>_  
+```
+
+Once the database was popuated we can start the key search from a given start address:
+```
+CryptKeySearch keysearch -s 0000000000000000000000000000000000000000000000000000000000000001
+```
 
 
 

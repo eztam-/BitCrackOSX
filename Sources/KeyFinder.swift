@@ -11,8 +11,11 @@ let BATCH_SIZE = 4096*8*8
 
 class KeyFinder {
 
+    let bloomFilter: BloomFilter
 
-   
+    public init(bloomFilter: BloomFilter) {
+        self.bloomFilter = bloomFilter
+    }
     
     func run(startKey: String){
         
@@ -34,7 +37,8 @@ class KeyFinder {
         let secp256k1obj = Secp256k1_GPU(on:  device, bufferSize: BATCH_SIZE)
         let SHA256 = SHA256gpu(on: device, batchSize: BATCH_SIZE)
         let RIPEMD160 = RIPEMD160(on: device, batchSize: BATCH_SIZE)
-        let bloomFilter = AddressFileLoader.load(path: "/Users/x/src/CryptKeyFinder/test_files/btc_short.tsv")
+        //let bloomFilter = AddressFileLoader.load(path: "/Users/x/src/CryptKeyFinder/test_files/btc_short.tsv")
+        //let bloomFilter = BloomFilter(expectedInsertions: 1, itemBytes: 1)!
         let t = TimeMeasurement.instance
         
         
