@@ -12,9 +12,11 @@ let BATCH_SIZE = 4096*8*8
 class KeyFinder {
 
     let bloomFilter: BloomFilter
-
-    public init(bloomFilter: BloomFilter) {
+    let db: DB
+    
+    public init(bloomFilter: BloomFilter, database: DB) {
         self.bloomFilter = bloomFilter
+        self.db = database
     }
     
     func run(startKey: String){
@@ -94,20 +96,34 @@ class KeyFinder {
                 if result[i] {
                     var privKey = [UInt8](repeating: 0, count: 32)
                     memcpy(&privKey, privateKeyBuffer.contents().advanced(by: i*32), 32)
-                    let hexKey = Data(privKey.reversed()).hexString
+                    let privKeyHex = Data(privKey.reversed()).hexString
                     
-                   
+                    var pubKeyHash = [UInt8](repeating: 0, count: 20)
+                    memcpy(&pubKeyHash, ripemd160Buffer.contents().advanced(by: i*20), 20)
+                    let pubKeyHashHex = Data(pubKeyHash).hexString
+                    let addresses = try! db.getAddresses(for: pubKeyHashHex)
                     
-                    //let privateKeyLimbs = Array<>(UnsafeBufferPointer(start: privateKeyBuffer.contents().advanced(by: i*8), count: 8))
-                    //let hexKey = privateKeyLimbs.map { String(format: "%08x", $0) }.reversed().joined()
-                    print("#########################################################")
+                    if addresses.isEmpty {
+                        print("False positive bloom filter result")
+                    }
+                    else {
+                        print("---------------------------------------------------------------------")
+                        print("💰 Found private key: \(privKeyHex)")
+                        print("For addresses:")
+                        for addr in addresses{
+                            print("   \(addr.address)")
+                        }
+                        //print("Use any tool like btc_address_dump to get the address for the private key")
+                        //print("!!! NOTE !!! At the moment this address is just the RIPEMD160 result, you need to add the address byte and do a base58 decode and a checksum validation to get the actual address.")
+                        print("---------------------------------------------------------------------\n")
+                       // exit(0) // TODO: do we really want to exit? Make this configurable
+                        
+                        try!	 appendToResultFile(text: "Found private key: \(privKeyHex) for addresses: \(addresses.map(\.address).joined(separator: ", ")) \n")
+                        
+                        
+                    }
                     
-                    //print("Found matching address: \(createData(from: ripemd160_result, offset: i*5, length: 5).hex) for private key: \(hexKey)")
-                    print("Found private key for address from list. Private key: \(hexKey)")
-                    print("Use any tool like btc_address_dump to get the address for the private key")
-                    //print("!!! NOTE !!! At the moment this address is just the RIPEMD160 result, you need to add the address byte and do a base58 decode and a checksum validation to get the actual address.")
-                    print("#########################################################")
-                   // exit(0) // TODO: do we really want to exit? Make this configurable
+                    
                 }
             }
             
@@ -165,7 +181,20 @@ class KeyFinder {
         
     }
     
-
+    func appendToResultFile(text: String) throws {
+        let filePath = "result.txt"
+        let url = URL(fileURLWithPath: filePath)
+        if FileManager.default.fileExists(atPath: url.path) {
+            let fileHandle = try FileHandle(forWritingTo: url)
+            defer { fileHandle.closeFile() }
+            fileHandle.seekToEndOfFile()
+            if let data = text.data(using: .utf8) {
+                fileHandle.write(data)
+            }
+        } else {
+            try text.write(to: url, atomically: true, encoding: .utf8)
+        }
+    }
     
     
     

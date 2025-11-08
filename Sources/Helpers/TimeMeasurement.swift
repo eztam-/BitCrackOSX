@@ -17,6 +17,8 @@ class TimeMeasurement {
         
         timer.schedule(deadline: .now()+DispatchTimeInterval.seconds(3), repeating: 1.0)
         timer.setEventHandler {
+            print("\r   ⏳ Progress: 100%")
+            fflush(stdout)
             print("Key gen    :\(String(format: "%8.3f", self.keyGen)) ms")
             print("secp256k1  :\(String(format: "%8.3f", self.secp256k1)) ms")
             print("SHA256     :\(String(format: "%8.3f", self.sha256)) ms")

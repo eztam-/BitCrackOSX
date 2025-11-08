@@ -11,8 +11,8 @@ public class DB {
     let publicKeyHashCol = Expression<String>("public_key_hash")
     
     public struct AddressRow {
-        let address: String
-        let publicKeyHash: String
+        var address: String
+        var publicKeyHash: String
     }
     
     public init(deleteAndReCreateDB: Bool = false) throws{
@@ -57,7 +57,19 @@ public class DB {
         try db.run(insertStmt)
     }
     
-    public  func getAddresses(for publicKeyHash: String, db: Connection) throws -> [AddressRow] {
+    public func insertBatch(_ rows: [AddressRow]) throws {
+        guard !rows.isEmpty else { return }
+
+        // Build placeholders (?, ?) for each row
+        let valuePlaceholders = Array(repeating: "(?, ?)", count: rows.count).joined(separator: ", ")
+        
+        // Flatten the values into a single array and cast to [Binding?]
+        let bindings: [Binding?] = rows.flatMap { [$0.address as Binding?, $0.publicKeyHash as Binding?] }
+        let sql = "INSERT INTO addresses (address, public_key_hash) VALUES \(valuePlaceholders);"
+        try db.run(sql, bindings)
+    }
+    
+    public  func getAddresses(for publicKeyHash: String) throws -> [AddressRow] {
         let query = addressesTbl.filter(publicKeyHashCol == publicKeyHash)
         var results: [AddressRow] = []
         for row in try db.prepare(query) {
@@ -73,7 +85,7 @@ public class DB {
     
     
     
-    public   func getAllAddresses() throws -> AnySequence<AddressRow> {
+    public func getAllAddresses() throws -> AnySequence<AddressRow> {
         let seq = try db.prepare(addressesTbl)
         return AnySequence(seq.lazy.map { row in
             AddressRow(

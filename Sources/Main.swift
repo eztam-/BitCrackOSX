@@ -60,10 +60,10 @@ _________                        __     ____  __.               _________       
             let bloomFilter = try BloomFilter(db: db)
             if startKey.isEmpty{
                 startKey = Helpers.generateRandom256BitHex()
-                KeyFinder(bloomFilter: bloomFilter).run(startKey: startKey)
+                KeyFinder(bloomFilter: bloomFilter, database: db).run(startKey: startKey)
             }
             else if startKey.count == 64 && startKey.allSatisfy(\.isHexDigit) {
-                KeyFinder(bloomFilter: bloomFilter).run(startKey: startKey)
+                KeyFinder(bloomFilter: bloomFilter, database: db).run(startKey: startKey)
             }
             print("Invalid start key provided. Please provide a valid 32 byte hex string.")
         }
