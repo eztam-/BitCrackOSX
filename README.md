@@ -26,11 +26,6 @@ Many hours of work went and will go into this project. If you like it and want t
 
 To build the application you need to install XCode from the App Store first.
 
-### Option 1 (XCode):
-Import the project into XCode and just press the run button.
-
-### Option 2 (Terminal):
-Build and run from the terminal. 
 Within the project directory run the following command
 
 ```
