@@ -4,6 +4,7 @@ result.txt
 default.profraw
 test_files
 .DS_Store
+.build/
 build/
 build2/
 /Packages
