@@ -62,7 +62,9 @@ CryptKeySearch keysearch -s 0000000000000000000000000000000000000000000000000000
 
 ## Roadmap
 - Add better comand line iterface (replacing the command structure)
-- Improve performance of secp256k1 claculations. This will significantly improve the general performance since this is the main bottleneck
+- Improve performance
+    - secp256k1 EC claculations are the main bottleneck and need o be improved. This will significantly improve the general performance
+    - Put all the different pipeline steps into one commandBuffer to avoid back and forth between CPU and GPU between the different steps.
 - The loading of addresses from file into the DB and Bloomfilter is very slow, when loading large files >1GB. This needs to be improved
     - possible solutions
         - Disk-backed key/value store (LMDB / RocksDB / LevelDB)

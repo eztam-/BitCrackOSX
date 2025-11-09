@@ -6,7 +6,7 @@ let device = MTLCreateSystemDefaultDevice()!
 
 // TODO: FIXME: If the key range is smaller than the batch size it doesnt work
 // TODO: If the size is smaller, that we run into a memory leak since the garbage collector seem to slow, to free up the memory for the commandBuffers
-let BATCH_SIZE = 4096*8*8
+let BATCH_SIZE = 4096*8*8*4
 
 
 class KeyFinder {
@@ -108,7 +108,7 @@ class KeyFinder {
                     }
                     else {
                         print("---------------------------------------------------------------------")
-                        print("💰 Found private key: \(privKeyHex)")
+                        print("💰 Private key found: \(privKeyHex)")
                         print("For addresses:")
                         for addr in addresses{
                             print("   \(addr.address)")

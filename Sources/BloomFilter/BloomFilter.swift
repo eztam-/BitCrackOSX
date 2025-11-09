@@ -21,9 +21,10 @@ final class BloomFilter {
     }
     
     public convenience init(db: DB) throws{
+        print("Initializing bloom filter")
 
         let cnt = try db.getAddressCount()
-        try self.init(expectedInsertions: cnt*10, itemBytes: 20) // TODO: *10 seems to be working well, but this should actuylly be solved by the falsPositiveRate
+        try self.init(expectedInsertions: cnt*5, itemBytes: 20) // TODO: *10 seems to be working well, but this should actuylly be solved by the falsPositiveRate
         print("Start loading \(cnt) public key hashes from database into the bloom filter.")
 
         var batch = [Data]()
