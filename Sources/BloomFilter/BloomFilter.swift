@@ -24,6 +24,10 @@ final class BloomFilter {
         print("Initializing bloom filter")
 
         let cnt = try db.getAddressCount()
+        if cnt == 0 {
+            print("❌ No records found in the database. Please load some addresses first.")
+            exit(1)
+        }
         try self.init(expectedInsertions: cnt*5, itemBytes: 20) // TODO: *10 seems to be working well, but this should actuylly be solved by the falsPositiveRate
         print("Start loading \(cnt) public key hashes from database into the bloom filter.")
 
