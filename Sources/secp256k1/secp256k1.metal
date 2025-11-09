@@ -104,6 +104,7 @@ constant Point G_TABLE[16] = {
 
 inline uint256 load_private_key(device const uint* private_keys, uint index) {
     uint256 result;
+    #pragma unroll
     for (int i = 0; i < 8; i++) {
         result.limbs[i] = private_keys[index * 8 + i];
     }
@@ -133,6 +134,7 @@ inline void store_public_key_uncompressed(device uchar* output, uint index, uint
 
     // Write X coordinate in big-endian order
     int pos = base + 1;
+    #pragma unroll
     for (int limb = 7; limb >= 0; limb--) {
         uint vx = x.limbs[limb];
         output[pos + 0] = (uchar)((vx >> 24) & 0xFF);
@@ -143,6 +145,7 @@ inline void store_public_key_uncompressed(device uchar* output, uint index, uint
     }
 
     // Write Y coordinate in big-endian order
+    #pragma unroll
     for (int limb = 7; limb >= 0; limb--) {
         uint vy = y.limbs[limb];
         output[pos + 0] = (uchar)((vy >> 24) & 0xFF);
@@ -168,6 +171,7 @@ inline void store_public_key_compressed(device uchar* output, uint index, uint25
 
     // Write X in big-endian order: most-significant limb first, high byte first
     int outPos = base + 1; // first byte of X
+    #pragma unroll
     for (int limb = 7; limb >= 0; limb--) {
         uint vx = x.limbs[limb];
         // write bytes MSB -> LSB
@@ -182,6 +186,7 @@ inline void store_public_key_compressed(device uchar* output, uint index, uint25
 
 
 inline bool is_zero(uint256 a) {
+    #pragma unroll
     for (int i = 0; i < 8; i++) {
         if (a.limbs[i] != 0) return false;
     }
@@ -189,6 +194,7 @@ inline bool is_zero(uint256 a) {
 }
 
 inline bool is_equal(uint256 a, uint256 b) {
+    #pragma unroll
     for (int i = 0; i < 8; i++) {
         if (a.limbs[i] != b.limbs[i]) return false;
     }
@@ -196,6 +202,7 @@ inline bool is_equal(uint256 a, uint256 b) {
 }
 
 inline int compare(uint256 a, uint256 b) {
+    #pragma unroll
     for (int i = 7; i >= 0; i--) {
         if (a.limbs[i] > b.limbs[i]) return 1;
         if (a.limbs[i] < b.limbs[i]) return -1;
@@ -210,7 +217,7 @@ inline int compare(uint256 a, uint256 b) {
 uint256 field_sub(uint256 a, uint256 b) {
     uint256 result;
     ulong borrow = 0;
-
+    #pragma unroll
     for (int i = 0; i < 8; i++) {
         ulong ai = (ulong)a.limbs[i];
         ulong bi = (ulong)b.limbs[i];
@@ -224,6 +231,7 @@ uint256 field_sub(uint256 a, uint256 b) {
     // If borrow == 1, we underflowed: add modulus back
     if (borrow) {
         ulong carry = 0;
+        #pragma unroll
         for (int i = 0; i < 8; i++) {
             ulong sum = (ulong)result.limbs[i] + (ulong)P[i] + carry;
             result.limbs[i] = (uint)sum;
@@ -257,6 +265,7 @@ uint256 sub_uint256(uint256 a, uint256 b) {
     uint256 result;
     uint borrow = 0;
     
+    #pragma unroll
     for (int i = 0; i < 8; i++) {
         uint ai = a.limbs[i];
         uint bi = b.limbs[i];
@@ -281,6 +290,7 @@ uint256 field_add(uint256 a, uint256 b) {
     uint carry = 0;
     
     // Add a + b with carry propagation
+    #pragma unroll
     for (int i = 0; i < 8; i++) {
         uint sum, carry_out;
         add_with_carry(a.limbs[i], b.limbs[i], carry, &sum, &carry_out);
@@ -292,6 +302,7 @@ uint256 field_add(uint256 a, uint256 b) {
     // We need to reduce: result = (a + b) - P if (a + b) >= P
     
     uint256 p;
+    #pragma unroll
     for (int i = 0; i < 8; i++) {
         p.limbs[i] = P[i];
     }
@@ -311,6 +322,7 @@ uint256 field_add(uint256 a, uint256 b) {
 uint256 field_mul(uint256 a, uint256 b) {
     // Step 1: 8x8 schoolbook multiplication -> 512-bit product
     uint512 product;
+    #pragma unroll
     for (int i = 0; i < 16; i++) {
         product.limbs[i] = 0;
     }
@@ -383,16 +395,18 @@ uint256 field_mul(uint256 a, uint256 b) {
     
     // Copy to result
     uint256 result;
+    #pragma unroll
     for (int i = 0; i < 8; i++) {
         result.limbs[i] = product.limbs[i];
     }
     
     // Final reductions
     uint256 p;
+    #pragma unroll
     for (int i = 0; i < 8; i++) {
         p.limbs[i] = P[i];
     }
-    
+    #pragma unroll
     for (int i = 0; i < 3; i++) {
         if (compare(result, p) >= 0) {
             result = sub_uint256(result, p);
@@ -403,55 +417,17 @@ uint256 field_mul(uint256 a, uint256 b) {
 }
 
 
-
 uint256 field_sqr(uint256 a) {
     return field_mul(a, a);
 }
 
-/*
-TODO: verify this once more against the other implementaations
-// This is another version fully correct, but slower
-// Modular inverse using Fermat's Little Theorem: a^(p-2) mod p
-// For secp256k1: P-2 = 0xFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFEFFFFFC2D
-uint256 field_inv(uint256 a) {
-    if (is_zero(a)) {
-        return a;  // No inverse for zero
-    }
-    
-
-    
-    uint256 result;
-    for (int i = 0; i < 8; i++) result.limbs[i] = 0;
-    result.limbs[0] = 1;  // result = 1
-    
-    uint256 base = a;  // base = a
-    
-    // Binary exponentiation: LSB to MSB
-    for (int limb = 0; limb < 8; limb++) {
-        uint exp_limb = P_MINUS_2[limb];
-        
-        for (int bit = 0; bit < 32; bit++) {
-            // If bit is set, multiply result by current base
-            if ((exp_limb >> bit) & 1u) {
-                result = field_mul(result, base);
-            }
-            
-            // Square base for next bit (except on very last iteration)
-            if (limb < 7 || bit < 31) {
-                base = field_sqr(base);
-            }
-        }
-    }
-    
-    return result;
-}
-*/
 
 
 
 // Build a uint256 from the global modulus P[8]
 inline uint256 mod_p_u256() {
     uint256 m;
+    #pragma unroll
     for (int i = 0; i < 8; i++) m.limbs[i] = P[i];
     return m;
 }
@@ -461,6 +437,7 @@ inline uint256 rshift1_with_msb(uint256 a, uint msb_in) {
     uint256 r;
     uint carry = msb_in & 1u; // becomes top bit after shifting
     // walk from MS limb to LS limb
+    #pragma unroll
     for (int i = 7; i >= 0; i--) {
         uint new_carry = a.limbs[i] & 1u;              // LSB that falls to next limb
         r.limbs[i] = (a.limbs[i] >> 1) | (carry << 31);
@@ -472,6 +449,7 @@ inline uint256 rshift1_with_msb(uint256 a, uint msb_in) {
 // Plain 256-bit add: r = a + b (no modular reduction). Returns final carry (0/1).
 inline uint add_uint256_raw(thread uint256 &r, uint256 a, uint256 b) {
     uint carry = 0;
+    #pragma unroll
     for (int i = 0; i < 8; i++) {
         uint sum, c1;
         add_with_carry(a.limbs[i], b.limbs[i], carry, &sum, &c1);
@@ -480,6 +458,7 @@ inline uint add_uint256_raw(thread uint256 &r, uint256 a, uint256 b) {
     }
     return carry; // 0 or 1
 }
+
 
 
 // Modular inverse using a binary extended GCD variant (fast, branchy, GPU-friendly)
@@ -494,10 +473,12 @@ uint256 field_inv(uint256 a) {
     uint256 t1 = p;
 
     uint256 t2; // accumulator for a^{-1} mod p
+    #pragma unroll
     for (int i = 0; i < 8; i++) t2.limbs[i] = 0;
     t2.limbs[0] = 1;
 
     uint256 t3; // auxiliary (for p - a^{-1})
+    #pragma unroll
     for (int i = 0; i < 8; i++) t3.limbs[i] = 0;
 
     // while (t0 != t1)
@@ -581,16 +562,6 @@ uint256 field_inv(uint256 a) {
 }
 
 
-
-
-// Plain comparison helper (already present, but keeping here for clarity):
-// int compare(uint256 a, uint256 b) // returns -1,0,1
-// bool is_equal(uint256 a, uint256 b)
-// uint256 sub_uint256(uint256 a, uint256 b) // non-mod, may underflow (we guard by adding p first)
-
-
-
-
 // ================ Point operations ================
 
 Point point_double(Point p) {
@@ -669,6 +640,7 @@ PointJacobian affine_to_jacobian(Point p) {
     result.X = p.x;
     result.Y = p.y;
     // Z = 1
+    #pragma unroll
     for (int i = 0; i < 8; i++) result.Z.limbs[i] = 0;
     result.Z.limbs[0] = 1;
     result.infinity = false;
@@ -698,6 +670,8 @@ Point jacobian_to_affine(PointJacobian p) {
     result.infinity = false;
     return result;
 }
+
+
 
 // Point doubling in Jacobian coordinates (NO INVERSION!)
 // Formula from: http://hyperelliptic.org/EFD/g1p/auto-shortw-jacobian.html
@@ -798,41 +772,8 @@ PointJacobian point_add_mixed_jacobian(PointJacobian p, Point q) {
     return result;
 }
 
-/* TODO: compare against the other, implementation which uses pre-calculated values. To do so, you need to add the generator point again in the main kernel
-// Point multiplication using Jacobian coordinates
-Point point_mul(Point base, uint256 scalar) {
-    // Convert base to Jacobian
-    PointJacobian base_jac = affine_to_jacobian(base);
-    PointJacobian result;
-    result.infinity = true;
-    
-    // Double-and-add in Jacobian space (no inversions during loop!)
-    for (int limb = 7; limb >= 0; limb--) {
-        uint word = scalar.limbs[limb];
-        for (int bit = 31; bit >= 0; bit--) {
-            if (!result.infinity) {
-                result = point_double_jacobian(result);
-            }
-            
-            if ((word >> bit) & 1u) {
-                if (result.infinity) {
-                    result = base_jac;
-                } else {
-                    // Use mixed addition (result in Jacobian, base in affine)
-                    result = point_add_mixed_jacobian(result, base);
-                }
-            }
-        }
-    }
-    
-    // Convert back to affine (only ONE inversion for the entire multiplication!)
-    return jacobian_to_affine(result);
-}
 
-*/
-
-
-Point point_mul(uint256 scalar, threadgroup const Point* G_table_tg) {
+Point point_mul(uint256 scalar) {
     PointJacobian result;
     result.infinity = true;
 
@@ -840,7 +781,7 @@ Point point_mul(uint256 scalar, threadgroup const Point* G_table_tg) {
     for (int limb = 7; limb >= 0; limb--) {
         uint word = scalar.limbs[limb];
 
-        #pragma unroll
+
         for (int nib = 7; nib >= 0; nib--) {
             // Each nibble = 4 bits
             uint nibble = (word >> (nib * 4)) & 0xFu;
@@ -854,7 +795,7 @@ Point point_mul(uint256 scalar, threadgroup const Point* G_table_tg) {
             }
 
             if (nibble != 0u) {
-                Point addend = G_table_tg[nibble - 1];
+                Point addend = G_TABLE[nibble - 1];
                 if (result.infinity) {
                     result = affine_to_jacobian(addend);
                 } else {
@@ -886,30 +827,18 @@ kernel void private_to_public_keys(
     // Load private key for this thread
     uint256 private_key = load_private_key(private_keys, id);
     
-    
-    // START point_mul (traditional)
-    //Point public_key_point = point_mul(generator, private_key);
-    // END
-    
-    // START point_mul windowed with pre-calculated G table
-    // We create copies of the G-Table in each thread group, for faster access
-    threadgroup Point G_table_tg[16];
-    if (lid == 0) {
-        for (int i = 0; i < 16; i++) G_table_tg[i] = G_TABLE[i];
-    }
-    threadgroup_barrier(mem_flags::mem_threadgroup);
-    //END
 
     // Multiply generator by private key to get public key
-    Point public_key_point = point_mul(private_key, G_table_tg); // Pre-calculated G values
+    Point public_key_point = point_mul(private_key); // Pre-calculated G values
     
-
     
     // Store result
     if (public_key_point.infinity) {
+        #pragma unroll
         for (int i = 0; i < 33; i++) {
             public_keys_comp[id * 33 + i] = 0;
         }
+        #pragma unroll
         for (int i = 0; i < 65; i++) {
             public_keys_uncomp[id * 65 + i] = 0;
         }
