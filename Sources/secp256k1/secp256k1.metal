@@ -674,46 +674,39 @@ Point jacobian_to_affine(PointJacobian p) {
 
 
 // Point doubling in Jacobian coordinates (NO INVERSION!)
-// Formula from: http://hyperelliptic.org/EFD/g1p/auto-shortw-jacobian.html
-PointJacobian point_double_jacobian(PointJacobian p) {
-    if (p.infinity) return p;
-    
-    // For curve y² = x³ + 7 (secp256k1)
-    // S = 4*X*Y²
-    // M = 3*X² (since a=0)
-    // X' = M² - 2*S
-    // Y' = M*(S - X') - 8*Y⁴
-    // Z' = 2*Y*Z
-    
-    uint256 Y_sq = field_sqr(p.Y);                    // Y²
-    uint256 S = field_mul(p.X, Y_sq);                 // X*Y²
-    S = field_add(S, S);                              // 2*X*Y²
-    S = field_add(S, S);                              // 4*X*Y² = S
-    
-    uint256 X_sq = field_sqr(p.X);                    // X²
-    uint256 M = field_add(X_sq, X_sq);                // 2*X²
-    M = field_add(M, X_sq);                           // 3*X² = M
-    
-    uint256 M_sq = field_sqr(M);                      // M²
-    uint256 two_S = field_add(S, S);                  // 2*S
-    
-    PointJacobian result;
-    result.X = field_sub(M_sq, two_S);                // X' = M² - 2*S
-    
-    uint256 Y_sq_sq = field_sqr(Y_sq);                // Y⁴
-    uint256 eight_Y4 = field_add(Y_sq_sq, Y_sq_sq);   // 2*Y⁴
-    eight_Y4 = field_add(eight_Y4, eight_Y4);         // 4*Y⁴
-    eight_Y4 = field_add(eight_Y4, eight_Y4);         // 8*Y⁴
-    
-    uint256 S_minus_X = field_sub(S, result.X);       // S - X'
-    uint256 M_times = field_mul(M, S_minus_X);        // M*(S - X')
-    result.Y = field_sub(M_times, eight_Y4);          // Y' = M*(S - X') - 8*Y⁴
-    
-    uint256 two_Y = field_add(p.Y, p.Y);              // 2*Y
-    result.Z = field_mul(two_Y, p.Z);                 // Z' = 2*Y*Z
-    
-    result.infinity = false;
-    return result;
+inline PointJacobian point_double_jacobian(PointJacobian P) {
+    if (P.infinity) return P;
+
+    // S = 4 * X * Y^2
+    uint256 Y2 = field_sqr(P.Y);
+    uint256 S = field_mul(P.X, Y2);
+    S = field_add(S, S);  // *2
+    S = field_add(S, S);  // *4
+
+    // M = 3 * X^2
+    uint256 X2 = field_sqr(P.X);
+    uint256 M = field_add(field_add(X2, X2), X2);
+
+    // X3 = M^2 - 2*S
+    uint256 M2 = field_sqr(M);
+    uint256 twoS = field_add(S, S);
+    uint256 X3 = field_sub(M2, twoS);
+
+    // Y3 = M*(S - X3) - 8*Y^4
+    uint256 Y4 = field_sqr(Y2);
+    uint256 eightY4 = field_add(field_add(Y4, Y4), field_add(Y4, Y4));
+    eightY4 = field_add(eightY4, eightY4); // multiply by 8 total
+    uint256 Y3 = field_sub(field_mul(M, field_sub(S, X3)), eightY4);
+
+    // Z3 = 2 * Y * Z
+    uint256 Z3 = field_mul(field_add(P.Y, P.Y), P.Z);
+
+    PointJacobian R;
+    R.X = X3;
+    R.Y = Y3;
+    R.Z = Z3;
+    R.infinity = false;
+    return R;
 }
 
 // Point addition in Jacobian coordinates (NO INVERSION!)
