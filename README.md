@@ -24,6 +24,8 @@ Many hours of work went and will go into this project. If you like it and want t
 
 ## Build
 
+Don't run directly from XCode for other reasons than development, since it is significantly slower there compared to creating a releasebuild and running it from terminal!
+
 To build the application you need to install XCode from the App Store first.
 
 Within the project directory run the following command
@@ -51,6 +53,21 @@ Once the database was popuated we can start the key search from a given start ad
 CryptKeySearch keysearch -s 0000000000000000000000000000000000000000000000000000000000000001
 ```
 
+## Current State
+- Only supporting compressed legacy keys at the moment (uncompressed and SegWit will be added later)
+- Loading large address files (more than a GB) takes very long. (This will be improved)
+- Performance depends on various factors like start address (one with many leading zeors perform 10x faster) -> will be improved by optimizing secp256k1 calc
+- Maximum observed performance is 1M keys/s on M1 Pro and about 2M keys/s on a M4 Pro. This will be imprufed later by optimizing secp256k1 calc
+
+
+## Roadmap
+- Add better comand line iterface (replacing the command structure)
+- Improve performance of secp256k1 claculations. This will significantly improve the general performance since this is the main bottleneck
+- The loading of addresses from file into the DB and Bloomfilter is very slow, when loading large files >1GB. This needs to be improved
+    - possible solutions
+        - Disk-backed key/value store (LMDB / RocksDB / LevelDB)
+        - Memory-mapped sorted file + binary search
+        - In mem hash map? -> the limit is the memory
 
 
 ## Architecture

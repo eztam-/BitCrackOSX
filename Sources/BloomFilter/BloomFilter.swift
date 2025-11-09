@@ -21,16 +21,31 @@ final class BloomFilter {
     }
     
     public convenience init(db: DB) throws{
-        
-        let cnt = try db.getAddressCount()
 
-        try self.init(expectedInsertions: cnt*100, itemBytes: 20) // TODO: *100 seems to be working well, but this should actuylly be solved by the falsPositiveRate
-       
-        var batch: [Data] = []
-        for row in try db.getAllAddresses() {
+        let cnt = try db.getAddressCount()
+        try self.init(expectedInsertions: cnt*10, itemBytes: 20) // TODO: *10 seems to be working well, but this should actuylly be solved by the falsPositiveRate
+        print("Start loading \(cnt) public key hashes from database into the bloom filter.")
+
+        var batch = [Data]()
+        let batchSize = 50_000
+        let rows = try db.getAllAddresses() // keeping this outside of the loop iterates only over the cursers instead of loading all into the memory?
+        for row in rows {
             batch.append(Data(hex: row.publicKeyHash)!)
+            if batch.count >= batchSize {
+                self.insert(batch)
+                batch.removeAll(keepingCapacity: true)
+            }
         }
-        self.insert(batch)
+        if !batch.isEmpty {
+            self.insert(batch)
+        }
+        
+        
+        
+        
+        
+        
+      
         print("✅ Bloom filter initialized with \(cnt) addresses from database")
 
     }
@@ -96,7 +111,6 @@ final class BloomFilter {
     
     func insert(_ items: [Data]) {
         guard !items.isEmpty else { return }
-        
         let count = items.count
         let itemBytes = itemU32Length * 4
         let bufferSize = count * itemBytes
@@ -104,7 +118,6 @@ final class BloomFilter {
         if itemsBuffer == nil || itemsBuffer!.length < bufferSize {
             itemsBuffer = device.makeBuffer(length: bufferSize, options: .storageModeShared)
         }
-        
         let ptr = itemsBuffer!.contents().assumingMemoryBound(to: UInt8.self)
         for (i, item) in items.enumerated() {
             let offset = i * itemBytes
@@ -117,7 +130,6 @@ final class BloomFilter {
         
         guard let cmdBuffer = commandQueue.makeCommandBuffer(),
               let encoder = cmdBuffer.makeComputeCommandEncoder() else { return }
-        
         var countU = UInt32(count)
         var itemLenU = UInt32(itemU32Length)
         var mBits = UInt32(bitCount)
@@ -130,15 +142,17 @@ final class BloomFilter {
         encoder.setBuffer(bitsBuffer, offset: 0, index: 3)
         encoder.setBytes(&mBits, length: 4, index: 4)
         encoder.setBytes(&kHashes, length: 4, index: 5)
-        
+
         let w = insertPipeline.threadExecutionWidth
         let threadsPerGroup = MTLSize(width: min(256, w), height: 1, depth: 1)
         let threadgroups = MTLSize(width: (count + threadsPerGroup.width - 1) / threadsPerGroup.width, height: 1, depth: 1)
         encoder.dispatchThreadgroups(threadgroups, threadsPerThreadgroup: threadsPerGroup)
         encoder.endEncoding()
-        
+
         cmdBuffer.commit()
         cmdBuffer.waitUntilCompleted()
+    
+
     }
     
     func query(_ itemsBuffer: MTLBuffer, batchSize: Int) -> [Bool] {
