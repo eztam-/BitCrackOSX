@@ -242,28 +242,8 @@ inline void mul_32x32(uint a, uint b, thread uint* low, thread uint* high) {
     *high = (uint)(prod >> 32);
 }
 
-/*
- TODO: compare with the other implementation for performance. This one is well tested and is correct!
-inline void mul_32x32(uint a, uint b, thread uint* low, thread uint* high) {
-    uint a_lo = a & 0xFFFFu;
-    uint a_hi = a >> 16;
-    uint b_lo = b & 0xFFFFu;
-    uint b_hi = b >> 16;
-    
-    uint p0 = a_lo * b_lo;
-    uint p1 = a_lo * b_hi;
-    uint p2 = a_hi * b_lo;
-    uint p3 = a_hi * b_hi;
-    
-    uint middle = p1 + p2;
-    uint middle_carry = (middle < p1) ? 1u : 0u;
-    
-    *low = p0 + (middle << 16);
-    uint carry = (*low < p0) ? 1u : 0u;
-    
-    *high = p3 + (middle >> 16) + (middle_carry << 16) + carry;
-}
-*/
+
+
 
 
 inline void add_with_carry(uint a, uint b, uint carry_in, thread uint* result, thread uint* carry_out) {
@@ -272,21 +252,7 @@ inline void add_with_carry(uint a, uint b, uint carry_in, thread uint* result, t
     *carry_out = (uint)(sum >> 32);
 }
 
-/*
-TODO: compare with the other implementation for performance. This one is well tested and is correct!
-inline void add_with_carry(uint a, uint b, uint carry_in, thread uint* result, thread uint* carry_out) {
-    uint sum1 = a + b;
-    uint c1 = (sum1 < a) ? 1u : 0u;
-    
-    uint sum2 = sum1 + carry_in;
-    uint c2 = (sum2 < sum1) ? 1u : 0u;
-    
-    *result = sum2;
-    *carry_out = c1 + c2;
-}
- */
 
-// TODO I assume we need to apply P-2 if negative? Same as for sub_uint256? but then it would be the same??
 uint256 sub_uint256(uint256 a, uint256 b) {
     uint256 result;
     uint borrow = 0;
