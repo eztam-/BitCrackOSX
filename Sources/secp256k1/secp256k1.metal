@@ -564,62 +564,6 @@ uint256 field_inv(uint256 a) {
 
 // ================ Point operations ================
 
-Point point_double(Point p) {
-  
-    
-    if (p.infinity) return p;
-    
-    // lambda = (3 * x^2) * (2 * y)^-1
-    uint256 x_sqr = field_sqr(p.x);
-    uint256 three_x_sqr = field_add(field_add(x_sqr, x_sqr), x_sqr);
-    uint256 two_y = field_add(p.y, p.y);
-    uint256 inv_two_y = field_inv(two_y);
-    uint256 lambda = field_mul(three_x_sqr, inv_two_y);
-    
-    // x_r = lambda^2 - 2*x
-    uint256 lambda_sqr = field_sqr(lambda);
-    uint256 two_x = field_add(p.x, p.x);
-    
-    Point result;
-    result.x = field_sub(lambda_sqr, two_x);
-    result.y = field_sub(field_mul(lambda, field_sub(p.x, result.x)), p.y);
-    result.infinity = false;
-    
-    return result;
-}
-
-Point point_add(Point p, Point q) {
-    if (p.infinity) return q;
-    if (q.infinity) return p;
-    
-    if (is_equal(p.x, q.x)) {
-        if (is_equal(p.y, q.y)) {
-            return point_double(p);
-        } else {
-            Point result;
-            result.infinity = true;
-            return result;
-        }
-    }
-    
-    // lambda = (q_y - p_y) * (q_x - p_x)^-1
-    uint256 dy = field_sub(q.y, p.y);
-    uint256 dx = field_sub(q.x, p.x);
-    uint256 inv_dx = field_inv(dx);
-    uint256 lambda = field_mul(dy, inv_dx);
-    
-    // x_r = lambda^2 - p_x - q_x
-    uint256 lambda_sqr = field_sqr(lambda);
-    
-    Point result;
-    result.x = field_sub(lambda_sqr, field_add(p.x, q.x));
-    result.y = field_sub(field_mul(lambda, field_sub(p.x, result.x)), p.y);
-    result.infinity = false;
-    
-    return result;
-}
-
-
 
 // Add Jacobian point structure
 struct PointJacobian {
@@ -629,24 +573,7 @@ struct PointJacobian {
     bool infinity;
 };
 
-// Convert affine to Jacobian
-PointJacobian affine_to_jacobian(Point p) {
-    PointJacobian result;
-    if (p.infinity) {
-        result.infinity = true;
-        return result;
-    }
-    
-    result.X = p.x;
-    result.Y = p.y;
-    // Z = 1
-    #pragma unroll
-    for (int i = 0; i < 8; i++) result.Z.limbs[i] = 0;
-    result.Z.limbs[0] = 1;
-    result.infinity = false;
-    
-    return result;
-}
+
 
 // Convert Jacobian to affine (requires ONE inversion)
 Point jacobian_to_affine(PointJacobian p) {
@@ -672,30 +599,29 @@ Point jacobian_to_affine(PointJacobian p) {
 }
 
 
-
-// Point doubling in Jacobian coordinates (NO INVERSION!)
 inline PointJacobian point_double_jacobian(PointJacobian P) {
     if (P.infinity) return P;
 
-    // S = 4 * X * Y^2
+    // Y2 = Y^2
     uint256 Y2 = field_sqr(P.Y);
+
+    // S = 4 * X * Y^2
     uint256 S = field_mul(P.X, Y2);
     S = field_add(S, S);  // *2
     S = field_add(S, S);  // *4
 
     // M = 3 * X^2
     uint256 X2 = field_sqr(P.X);
-    uint256 M = field_add(field_add(X2, X2), X2);
+    uint256 M  = field_add(field_add(X2, X2), X2);
 
     // X3 = M^2 - 2*S
     uint256 M2 = field_sqr(M);
-    uint256 twoS = field_add(S, S);
-    uint256 X3 = field_sub(M2, twoS);
+    uint256 X3 = field_sub(M2, field_add(S, S));
 
     // Y3 = M*(S - X3) - 8*Y^4
     uint256 Y4 = field_sqr(Y2);
-    uint256 eightY4 = field_add(field_add(Y4, Y4), field_add(Y4, Y4));
-    eightY4 = field_add(eightY4, eightY4); // multiply by 8 total
+    uint256 eightY4 = field_add(field_add(Y4, Y4), field_add(Y4, Y4)); // *4
+    eightY4 = field_add(eightY4, eightY4);                              // *8
     uint256 Y3 = field_sub(field_mul(M, field_sub(S, X3)), eightY4);
 
     // Z3 = 2 * Y * Z
@@ -709,8 +635,7 @@ inline PointJacobian point_double_jacobian(PointJacobian P) {
     return R;
 }
 
-// Point addition in Jacobian coordinates (NO INVERSION!)
-// Mixed addition: p in Jacobian, q in affine (Z2=1)
+
 // Jacobian + Affine (Z2 = 1) : R = P + Q
 // P is Jacobian (X1, Y1, Z1), Q is affine (x2, y2)
 // Handles P or Q at infinity; zero-cost for Z2 since it's 1.
@@ -784,41 +709,51 @@ inline PointJacobian point_add_mixed_jacobian(PointJacobian P, Point Q) {
 
 
 
-Point point_mul(uint256 scalar) {
-    PointJacobian result;
-    result.infinity = true;
+// Windowed scalar multiplication with Jacobian accumulator and affine table.
+// Uses your existing 4-bit G_TABLE[16] (values 1*G .. 16*G).
+inline Point point_mul(uint256 k) {
+    // R = ∞ in Jacobian
+    PointJacobian R;
+    R.infinity = true;
 
-    // Process scalar from most significant nibble (4 bits) to least
+    // Process from MS nibble to LS nibble, 4 doublings per step
     for (int limb = 7; limb >= 0; limb--) {
-        uint word = scalar.limbs[limb];
+        uint word = k.limbs[limb];
 
-
+        // 8 nibbles per 32-bit word
         for (int nib = 7; nib >= 0; nib--) {
-            // Each nibble = 4 bits
-            uint nibble = (word >> (nib * 4)) & 0xFu;
-
-            
-            // Always perform 4 doublings (to shift left by 4 bits)
-            if (!result.infinity) {
-                for (int i = 0; i < 4; i++) {
-                    result = point_double_jacobian(result);
-                }
+            // R = 16*R (4 doublings) — skip if infinity to avoid wasted work
+            if (!R.infinity) {
+                R = point_double_jacobian(R);
+                R = point_double_jacobian(R);
+                R = point_double_jacobian(R);
+                R = point_double_jacobian(R);
             }
 
-            if (nibble != 0u) {
-                Point addend = G_TABLE[nibble - 1];
-                if (result.infinity) {
-                    result = affine_to_jacobian(addend);
+            uint idx = (word >> (nib * 4)) & 0xFu;
+            if (idx != 0u) {
+                // Table holds affine points at indices 0..15.
+                // If your table is (1..16)*G at [0..15], use idx-1.
+                const Point addend = G_TABLE[idx - 1];
+                if (R.infinity) {
+                    // Lift addend to Jacobian (Z=1)
+                    R.X = addend.x;
+                    R.Y = addend.y;
+                    #pragma unroll
+                    for (int i = 0; i < 8; i++) R.Z.limbs[i] = 0;
+                    R.Z.limbs[0] = 1;
+                    R.infinity = false;
                 } else {
-                    result = point_add_mixed_jacobian(result, addend);
+                    R = point_add_mixed_jacobian(R, addend);
                 }
             }
         }
     }
 
-    // Convert back to affine (1 inversion total)
-    return jacobian_to_affine(result);
+    // Single inversion here
+    return jacobian_to_affine(R);
 }
+
 
 
 
