@@ -28,7 +28,6 @@ final class BloomFilter {
        
         var batch: [Data] = []
         for row in try db.getAllAddresses() {
-            print(row)
             batch.append(Data(hex: row.publicKeyHash)!)
         }
         self.insert(batch)
