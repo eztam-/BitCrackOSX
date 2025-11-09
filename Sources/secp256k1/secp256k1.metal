@@ -711,59 +711,77 @@ inline PointJacobian point_double_jacobian(PointJacobian P) {
 
 // Point addition in Jacobian coordinates (NO INVERSION!)
 // Mixed addition: p in Jacobian, q in affine (Z2=1)
-PointJacobian point_add_mixed_jacobian(PointJacobian p, Point q) {
-    if (p.infinity) return affine_to_jacobian(q);
-    if (q.infinity) return p;
-    
-    // U1 = X1, U2 = X2*Z1²
-    // S1 = Y1, S2 = Y2*Z1³
-    // H = U2 - U1
-    // r = S2 - S1
-    
-    uint256 Z1_sq = field_sqr(p.Z);                   // Z1²
-    uint256 Z1_cube = field_mul(Z1_sq, p.Z);          // Z1³
-    
-    uint256 U2 = field_mul(q.x, Z1_sq);               // U2 = X2*Z1²
-    uint256 S2 = field_mul(q.y, Z1_cube);             // S2 = Y2*Z1³
-    
-    uint256 H = field_sub(U2, p.X);                   // H = U2 - U1
-    uint256 r = field_sub(S2, p.Y);                   // r = S2 - S1
-    
-    // Check if points are equal (H=0 and r=0 means double)
+// Jacobian + Affine (Z2 = 1) : R = P + Q
+// P is Jacobian (X1, Y1, Z1), Q is affine (x2, y2)
+// Handles P or Q at infinity; zero-cost for Z2 since it's 1.
+inline PointJacobian point_add_mixed_jacobian(PointJacobian P, Point Q) {
+    if (P.infinity) {
+        // Lift Q to Jacobian (Z=1)
+        PointJacobian R;
+        R.X = Q.x;
+        R.Y = Q.y;
+        #pragma unroll
+        for (int i = 0; i < 8; i++) R.Z.limbs[i] = 0;
+        R.Z.limbs[0] = 1;
+        R.infinity = Q.infinity;
+        return R;
+    }
+    if (Q.infinity) return P;
+
+    // Z1Z1 = Z1^2
+    uint256 Z1Z1 = field_sqr(P.Z);
+
+    // U2 = x2 * Z1Z1
+    uint256 U2 = field_mul(Q.x, Z1Z1);
+
+    // Z1^3
+    uint256 Z1_cubed = field_mul(Z1Z1, P.Z);
+
+    // S2 = y2 * Z1^3
+    uint256 S2 = field_mul(Q.y, Z1_cubed);
+
+    // H = U2 - X1
+    uint256 H = field_sub(U2, P.X);
+    // r = S2 - Y1
+    uint256 r = field_sub(S2, P.Y);
+
+    // If H == 0:
     if (is_zero(H)) {
+        // If r == 0: P == Q -> doubling
         if (is_zero(r)) {
-            return point_double_jacobian(p);
+            return point_double_jacobian(P);
         } else {
-            PointJacobian result;
-            result.infinity = true;
-            return result;
+            PointJacobian R;
+            R.infinity = true;
+            return R;
         }
     }
-    
-    // X3 = r² - H³ - 2*U1*H²
-    // Y3 = r*(U1*H² - X3) - S1*H³
-    // Z3 = H*Z1
-    
-    uint256 H_sq = field_sqr(H);                      // H²
-    uint256 H_cube = field_mul(H_sq, H);              // H³
-    uint256 U1_H_sq = field_mul(p.X, H_sq);           // U1*H²
-    uint256 two_U1_H_sq = field_add(U1_H_sq, U1_H_sq); // 2*U1*H²
-    
-    uint256 r_sq = field_sqr(r);                      // r²
-    PointJacobian result;
-    result.X = field_sub(r_sq, H_cube);               // r² - H³
-    result.X = field_sub(result.X, two_U1_H_sq);     // X3 = r² - H³ - 2*U1*H²
-    
-    uint256 diff = field_sub(U1_H_sq, result.X);     // U1*H² - X3
-    uint256 r_times_diff = field_mul(r, diff);        // r*(U1*H² - X3)
-    uint256 S1_H_cube = field_mul(p.Y, H_cube);       // S1*H³
-    result.Y = field_sub(r_times_diff, S1_H_cube);    // Y3
-    
-    result.Z = field_mul(H, p.Z);                     // Z3 = H*Z1
-    result.infinity = false;
-    
-    return result;
+
+    // HH = H^2
+    uint256 HH = field_sqr(H);
+    // HHH = H^3
+    uint256 HHH = field_mul(HH, H);
+    // V = X1 * HH
+    uint256 V = field_mul(P.X, HH);
+
+    // X3 = r^2 - H^3 - 2*V
+    uint256 r2 = field_sqr(r);
+    uint256 X3 = field_sub(field_sub(r2, HHH), field_add(V, V));
+
+    // Y3 = r*(V - X3) - Y1*HHH
+    uint256 Y3 = field_sub(field_mul(r, field_sub(V, X3)), field_mul(P.Y, HHH));
+
+    // Z3 = Z1 * H
+    uint256 Z3 = field_mul(P.Z, H);
+
+    PointJacobian R;
+    R.X = X3;
+    R.Y = Y3;
+    R.Z = Z3;
+    R.infinity = false;
+    return R;
 }
+
 
 
 Point point_mul(uint256 scalar) {
