@@ -39,8 +39,11 @@ let package = Package(
             ],
             path: "Tests",
             resources: [
+                .process("../Sources/KeyGen/KeyGen.metal"),
                 .process("../Sources/secp256k1/secp256k1.metal"),
-                .process("../Sources/KeyGen/KeyGen.metal")
+                .process("../Sources/SHA256/SHA256.metal"),
+                .process("../Sources/RIPEMD160/RIPEMD160.metal"),
+                .process("../Sources/BloomFilter/BloomFilter.metal")
             ],)
     ]
 )

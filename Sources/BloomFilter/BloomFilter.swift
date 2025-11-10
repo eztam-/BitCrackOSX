@@ -1,7 +1,7 @@
 import Foundation
 import Metal
 
-final class BloomFilter {
+public class BloomFilter {
     private let device: MTLDevice
     private let commandQueue: MTLCommandQueue
     private let insertPipeline: MTLComputePipelineState
@@ -23,7 +23,7 @@ final class BloomFilter {
     public convenience init(db: DB) throws{
         print("──────────────────────────────────────────────────")
         print("🚀 Initializing Bloom Filter...")
-
+        
         let cnt = try db.getAddressCount()
         if cnt == 0 {
             print("❌ No records found in the database. Please load some addresses first.")
@@ -31,7 +31,7 @@ final class BloomFilter {
         }
         try self.init(expectedInsertions: cnt*10, itemBytes: 20) // TODO: *10 seems to be working well, but this should actuylly be solved by the falsPositiveRate
         print("\n🌀 Start loading \(cnt) public key hashes from database into the bloom filter.")
-
+        
         var batch = [Data]()
         let batchSize = 50_000
         let rows = try db.getAllAddresses() // keeping this outside of the loop iterates only over the cursers instead of loading all into the memory?
@@ -46,17 +46,11 @@ final class BloomFilter {
             self.insert(batch)
         }
         
+        print("\n✅ Bloom filter initialized with \(cnt) addresses from database")
         
-        
-        
-        
-        
-      
-        print("✅ Bloom filter initialized with \(cnt) addresses from database")
-
     }
     
-    private init(expectedInsertions: Int, itemBytes: Int, falsePositiveRate: Double = 0.001) throws {
+    public init(expectedInsertions: Int, itemBytes: Int, falsePositiveRate: Double = 0.001) throws {
         
         guard itemBytes % 4 == 0 else {
             print("❌ itemBytes must be multiple of 4 for UInt32 alignment")
@@ -99,7 +93,7 @@ final class BloomFilter {
         
         do {
             let library: MTLLibrary! = try? device.makeDefaultLibrary(bundle: Bundle.module)
-
+            
             guard let insertFunc = library.makeFunction(name: "bloom_insert"),
                   let queryFunc = library.makeFunction(name: "bloom_query") else {
                 print("Failed to create Metal functions")
@@ -115,7 +109,7 @@ final class BloomFilter {
         }
     }
     
-    func insert(_ items: [Data]) {
+    public func insert(_ items: [Data]) {
         guard !items.isEmpty else { return }
         let count = items.count
         let itemBytes = itemU32Length * 4
@@ -148,31 +142,31 @@ final class BloomFilter {
         encoder.setBuffer(bitsBuffer, offset: 0, index: 3)
         encoder.setBytes(&mBits, length: 4, index: 4)
         encoder.setBytes(&kHashes, length: 4, index: 5)
-
+        
         let w = insertPipeline.threadExecutionWidth
         let threadsPerGroup = MTLSize(width: min(256, w), height: 1, depth: 1)
         let threadgroups = MTLSize(width: (count + threadsPerGroup.width - 1) / threadsPerGroup.width, height: 1, depth: 1)
         encoder.dispatchThreadgroups(threadgroups, threadsPerThreadgroup: threadsPerGroup)
         encoder.endEncoding()
-
+        
         cmdBuffer.commit()
         cmdBuffer.waitUntilCompleted()
-    
-
+        
+        
     }
     
-    func query(_ itemsBuffer: MTLBuffer, batchSize: Int) -> [Bool] {
+    public func query(_ itemsBuffer: MTLBuffer, batchSize: Int) -> [Bool] {
         
         
-            
+        
         let resultsBufferSize = batchSize * MemoryLayout<UInt32>.stride // TODO why uint? it is bool??? FIXME
         
-
+        
         if resultsBuffer == nil || resultsBuffer!.length < resultsBufferSize {
             resultsBuffer = device.makeBuffer(length: resultsBufferSize, options: .storageModeShared)
         }
         
-       
+        
         
         guard let cmdBuffer = commandQueue.makeCommandBuffer(),
               let encoder = cmdBuffer.makeComputeCommandEncoder() else { return [] }
@@ -204,81 +198,3 @@ final class BloomFilter {
         return (0..<batchSize).map { resultsPtr[$0] != 0 }
     }
 }
-
-// ==================== COMPARISON TEST ====================
-/*
-func bloomTest() {
-    print("🔬 Comparing Swift vs Metal Bloom Filter\n")
-    
-    let capacity = 100_000
-    let fpr = 0.0001
-    let itemBytes = 20
-    
-    // Create both filters
-    let swiftFilter = BloomFilter2(capacity: capacity, falsePositiveRate: fpr)
-    guard let metalFilter = BloomFilter(
-        expectedInsertions: capacity,
-        itemBytes: itemBytes,
-        falsePositiveRate: fpr
-    ) else {
-        print("Failed to create Metal filter")
-        return
-    }
-    
-    print("\n📝 Inserting \(capacity) items into both filters...")
-    
-    // Generate test data
-    var testItems: [Data] = []
-    for _ in 0..<capacity {
-        let data = Data((0..<itemBytes).map { _ in UInt8.random(in: 0...255) })
-        testItems.append(data)
-    }
-    
-    // Insert into both
-    for item in testItems {
-        swiftFilter.insert(data: item)
-    }
-    metalFilter.insert(testItems)
-    
-    print("✅ Insertion complete\n")
-    
-    // Test positive queries
-    print("🔍 Testing inserted items (should all return true)...")
-    let metalPositive = metalFilter.query(testItems)
-    var swiftPositive = 0
-    for item in testItems {
-        if swiftFilter.contains(pointer: item.withUnsafeBytes { $0.bindMemory(to: UInt32.self).baseAddress! },
-                               length: itemBytes / 4) {
-            swiftPositive += 1
-        }
-    }
-    
-    print("   Swift: \(swiftPositive)/\(capacity) true")
-    print("   Metal: \(metalPositive.filter { $0 }.count)/\(capacity) true\n")
-    
-    // Test false positives
-    print("🎯 Testing false positive rate with 10K random items...")
-    var negativeItems: [Data] = []
-    for _ in 0..<10_000 {
-        let data = Data((0..<itemBytes).map { _ in UInt8.random(in: 0...255) })
-        negativeItems.append(data)
-    }
-    
-    let metalNegative = metalFilter.query(negativeItems)
-    var swiftFP = 0
-    for item in negativeItems {
-        if swiftFilter.contains(pointer: item.withUnsafeBytes { $0.bindMemory(to: UInt32.self).baseAddress! },
-                               length: itemBytes / 4) {
-            swiftFP += 1
-        }
-    }
-    let metalFP = metalNegative.filter { $0 }.count
-    
-    print("   Swift FPR: \(String(format: "%.4f%%", Double(swiftFP) / 100.0))")
-    print("   Metal FPR: \(String(format: "%.4f%%", Double(metalFP) / 100.0))")
-    print("   Expected:  \(String(format: "%.4f%%", fpr * 100))")
-}
-
-// Run comparison
-
-*/

@@ -3,7 +3,7 @@ import Foundation
 import Testing
 import Security
 import BigNumber
-import CryptKeySearch
+import keysearch
 
 class TestKeyGen: TestBase {
     
