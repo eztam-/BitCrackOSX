@@ -21,7 +21,8 @@ final class BloomFilter {
     }
     
     public convenience init(db: DB) throws{
-        print("Initializing bloom filter")
+        print("──────────────────────────────────────────────────")
+        print("🚀 Initializing Bloom Filter...")
 
         let cnt = try db.getAddressCount()
         if cnt == 0 {
@@ -29,7 +30,7 @@ final class BloomFilter {
             exit(1)
         }
         try self.init(expectedInsertions: cnt*10, itemBytes: 20) // TODO: *10 seems to be working well, but this should actuylly be solved by the falsPositiveRate
-        print("Start loading \(cnt) public key hashes from database into the bloom filter.")
+        print("\n🌀 Start loading \(cnt) public key hashes from database into the bloom filter.")
 
         var batch = [Data]()
         let batchSize = 50_000
@@ -83,11 +84,11 @@ final class BloomFilter {
         let wordCount = (bitCount + 31) / 32
         let bufferSize = wordCount * MemoryLayout<UInt32>.stride
         
-        print("📊 Metal Bloom Filter Configuration:")
-        print("   Expected insertions: \(expectedInsertions)")
-        print("   Bit count: \(bitCount) bits (\(bufferSize / 1024) KB)")
-        print("   Hash functions: \(hashCount)")
-        print("   Target FPR: \(falsePositiveRate)")
+        print("\n📊 Metal Bloom Filter Configuration:")
+        print("    Expected insertions: \(expectedInsertions)")
+        print("    Bit count: \(bitCount) bits (\(bufferSize / 1024) KB)")
+        print("    Hash functions: \(hashCount)")
+        print("    Target FPR: \(falsePositiveRate)")
         
         guard let bits = dev.makeBuffer(length: bufferSize, options: .storageModeShared) else {
             print("Failed to allocate bits buffer")

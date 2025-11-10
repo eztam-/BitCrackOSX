@@ -44,24 +44,30 @@ _________                        __     ____  __.               _________       
             abstract: "Print the product of the values."
         )
         
-        @Option(name: .shortAndLong,
-                help: "Any Bitcoin private key to start with. Always provide a full length key of 32 bytes in hexadecimal representation like: 0000000000000000000000000000000000000000000000000000000000000001. If not provided, a random key will be used.")
-        var startKey: String = ""
+        @Option(
+            name: [.short, .customShort("s"), .customLong("start-key")],
+                help: ArgumentHelp("Either a private key from which the search will start like: 0000000000000000000000000000000000000000000000000000000000000001. Or 'RANDOM' to start with a random private key.",
+                                   valueName: "start-key|RANDOM",
+                                  ))
+        var startKey: String
      
         @Option( name: .shortAndLong,
-                 help: "Path to the output file. The file will contain the private keys and their corresponding addresses. If not provided, the output will be printed to the console.")
-        var outputFile: String = ""
+                 help: "Path to the output file. The file will contain the found private keys and their corresponding addresses. If not provided, then the output will be written into 'result.txt'.")
+        var outputFile: String = "result.txt"
 
         mutating func run() throws {
             print(banner)
+            if startKey == "RANDOM" {
+                print("\n✨ Using random start key")
+                startKey = Helpers.generateRandom256BitHex()
+            }
             let db = try DB()
             let bloomFilter = try BloomFilter(db: db)
-            if startKey.isEmpty{
-                startKey = Helpers.generateRandom256BitHex()
-                KeySearch(bloomFilter: bloomFilter, database: db).run(startKey: startKey)
+            if startKey == "RANDOM" {
+                KeySearch(bloomFilter: bloomFilter, database: db, outputFile: outputFile).run(startKey: startKey)
             }
             else if startKey.count == 64 && startKey.allSatisfy(\.isHexDigit) {
-                KeySearch(bloomFilter: bloomFilter, database: db).run(startKey: startKey)
+                KeySearch(bloomFilter: bloomFilter, database: db, outputFile: outputFile).run(startKey: startKey)
             }
             print("Invalid start key provided. Please provide a valid 32 byte hex string.")
         }

@@ -1,5 +1,5 @@
 import Foundation
-
+import Metal
 
 // Extension for hex string conversion
 extension Data {
@@ -119,6 +119,29 @@ public class Helpers{
         }
 
         return result
+    }
+    
+    
+    public static func printGPUInfo(device: MTLDevice) {
+        let name = device.name
+        let maxThreadsPerThreadgroup = device.maxThreadsPerThreadgroup
+        let registryID = device.registryID
+        let isLowPower = device.isLowPower
+        let hasUnifiedMemory = device.hasUnifiedMemory
+        let recommendedMaxWorkingSetSize = device.recommendedMaxWorkingSetSize
+        let memoryMB = recommendedMaxWorkingSetSize / (1024 * 1024)
+
+        print("""
+        ──────────────────────────────────────────────────
+        ⚡ GPU Information
+            Name:               \(name)
+            Registry ID:        \(registryID)
+            Low Power:          \(isLowPower ? "Yes" : "No")
+            Unified Memory:     \(hasUnifiedMemory ? "Yes" : "No")
+            Max Threads:        \(maxThreadsPerThreadgroup.width) x \(maxThreadsPerThreadgroup.height) x \(maxThreadsPerThreadgroup.depth)
+            Recommended Memory: \(memoryMB) MB
+        ──────────────────────────────────────────────────
+        """)
     }
     
 }

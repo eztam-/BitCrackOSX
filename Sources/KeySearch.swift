@@ -12,10 +12,12 @@ class KeySearch {
 
     let bloomFilter: BloomFilter
     let db: DB
+    let outputFile: String
     
-    public init(bloomFilter: BloomFilter, database: DB) {
+    public init(bloomFilter: BloomFilter, database: DB, outputFile: String) {
         self.bloomFilter = bloomFilter
         self.db = database
+        self.outputFile = outputFile
     }
     
     func run(startKey: String){
@@ -45,8 +47,9 @@ class KeySearch {
         
         
         
-        print("Starting on GPU: \(device.name)\n")
-        print("Start key is: \(startKey)\n")
+        //print("⚡ Running on GPU: \(device.name)\n")
+        Helpers.printGPUInfo(device: device)
+        print("🚀 Starting key search from: \(startKey)\n")
         
         while true {  // TODO: Shall we introduce an end key, if reached then the application stops?
             
@@ -181,7 +184,7 @@ class KeySearch {
     }
     
     func appendToResultFile(text: String) throws {
-        let filePath = "result.txt"
+        let filePath = self.outputFile
         let url = URL(fileURLWithPath: filePath)
         if FileManager.default.fileExists(atPath: url.path) {
             let fileHandle = try FileHandle(forWritingTo: url)
