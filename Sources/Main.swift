@@ -5,8 +5,8 @@ import ArgumentParser
 @main
 struct Main: ParsableCommand {
     
-        
-        
+    
+    
     static let banner = """
 _________                        __     ____  __.               _________                           .__     
 \\_   ___ \\_______ ___.__._______/  |_  |    |/ _|____ ___.__.  /   _____/ ____ _____ _______   ____ |  |__  
@@ -15,15 +15,15 @@ _________                        __     ____  __.               _________       
  \\______  /|__|   / ____||   __/|__|   |____|__ \\___  > ____| /_______  /\\___  >____  /__|    \\___  >___|  /
         \\/        \\/     |__|                  \\/   \\/\\/              \\/     \\/     \\/            \\/     \\/ 
 """
-
- 
+    
+    
     
     struct FileLoadCommand: ParsableCommand {
         
         static let configuration = CommandConfiguration(
             commandName: "load",
             abstract: "Loads an address file into the applications database. This is only required once before the first start or if you want to add a different set of addresses.",
-            )
+        )
         
         @Argument(help: "A file containing bitcoin addresses (one address per row) to be included in the key search.")
         var filePath: String
@@ -46,15 +46,15 @@ _________                        __     ____  __.               _________       
         
         @Option(
             name: [.short, .customShort("s"), .customLong("start-key")],
-                help: ArgumentHelp("Either a private key from which the search will start like: 0000000000000000000000000000000000000000000000000000000000000001. Or 'RANDOM' to start with a random private key.",
-                                   valueName: "start-key|RANDOM",
-                                  ))
+            help: ArgumentHelp("Either a private key from which the search will start like: 0000000000000000000000000000000000000000000000000000000000000001. Or 'RANDOM' to start with a random private key.",
+                               valueName: "start-key|RANDOM",
+                              ))
         var startKey: String
-     
+        
         @Option( name: .shortAndLong,
                  help: "Path to the output file. The file will contain the found private keys and their corresponding addresses. If not provided, then the output will be written into 'result.txt'.")
         var outputFile: String = "result.txt"
-
+        
         mutating func run() throws {
             print(banner)
             if startKey == "RANDOM" {
@@ -81,5 +81,5 @@ _________                        __     ____  __.               _________       
         defaultSubcommand: RunCommand.self
     )
     
-
+    
 }
