@@ -858,7 +858,9 @@ inline PointJacobian point_double_jacobian(PointJacobian P) {
 
     // Y3 = M*(S - X3) - 8*Y^4
     uint256 Y4 = field_sqr(Y2);
-    uint256 eightY4 = field_add(field_add(Y4, Y4), field_add(Y4, Y4)); // *4
+    
+    uint256 Y4_2 = field_add(Y4, Y4); // *2
+    uint256 eightY4 = field_add(Y4_2, Y4_2); // *2
     eightY4 = field_add(eightY4, eightY4);                              // *8
     uint256 Y3 = field_sub(field_mul(M, field_sub(S, X3)), eightY4);
 
