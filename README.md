@@ -1,6 +1,6 @@
 # CryptKeySearch
-A tool for solving Bitcoin puzzles on OSX. The application is build to run on Apple Silicon GPUs for high performance.
-Other, similar tools like BitCrack stopped working entirely for OSX users since Apple switched to it's new Silicon Chips.
+A tool for solving Bitcoin puzzles on OSX. The application is build and optimized to run on Apple Silicon GPUs for high performance.
+Other, similar tools like BitCrack stopped working for OSX users since Apple switched to it's new Silicon Chips.
 This application aims to be a better replacement for such legacy tools which have many limitations. 
 Bitcrack for example only supports legacy addresses and has no support for modern Bitcoin addresses like Taproot or SegWit.
 
@@ -67,26 +67,32 @@ keysearch run -s 000000000000000000000000000000000000000000000000000000000000000
 - Improve performance
     - secp256k1 EC claculations are the main bottleneck and need o be improved. This will significantly improve the general performance
     - Put all the different pipeline steps into one commandBuffer to avoid back and forth between CPU and GPU between the different steps.
+    - Switch to metal 4 classes which promise better performance
+    - Improve tthe bloomfilter query performance
 - The loading of addresses from file into the DB and Bloomfilter is very slow, when loading large files >1GB. This needs to be improved
     - possible solutions
         - Disk-backed key/value store (LMDB / RocksDB / LevelDB)
         - Memory-mapped sorted file + binary search
         - In mem hash map? -> the limit is the memory
         
-## Performance Improvement Notes
+## secp256k1 Performance Improvement Notes
 - Mixing Jacobian and Affine (“Mixed Addition”).
-  this is what other like hashcats impelemnations do as well and I have adopted my implementation already to that.
-  _If both points are in Jacobian form, addition is slower because both have Z ≠ 1._
-  _But in most scalar multiplication algorithms (like the precomputed-table method you’re using), one point is fixed — e.g. (i+1)*G — and can be stored in affine form (x, y) with Z = 1._
+  this is what other high performance OpenCL omplementations like hashcats do as well and I have adopted this in my implementation already.<br>
+    _If both points are in Jacobian form, addition is slower because both have Z ≠ 1._<br>
+   _But in most scalar multiplication algorithms (like the precomputed-table method we're using), one point is fixed — e.g. (i+1)*G — and can be stored in affine form (x, y) with Z = 1._
 
 ## Architecture
-The GPU is used for the heavy elliptic curve (secp256k1) computations, i.e. generating public keys and computing hashes (SHA256 + RIPEMD160) for massive numbers of private keys in parallel.
+The GPU is used for:
+* Heavy elliptic curve (secp256k1) computations
+* computing hashes (SHA256 + RIPEMD160)
+* Iterating over a range of private keys
+* Using a bloom filter to verify addresses existing in large datasets (serveral GB)
 
 The CPU handles:
-* Managing key ranges and work distribution to the GPU kernels.
-* Maintaining and querying the Bloom filter, which stores the target addresses (or their hash160 values).
-* Checking candidate hashes returned from the GPU against the Bloom filter to quickly discard non-matching results.
-* False positive results from the bloomfilter will be checked against the blockchain (Can we configure the bloomfilter such that the probability is so low, that we don't need that? How is this done in BitCrack?)
+* Managing work distribution to the GPU kernels.
+* Reverse calculating addresses to their public key hashes and inserting them into a local database
+* Checking bloom filter results against the database to quickly discard false-positive results.
+
 
 ### Address Types
 |Type|Address Type|Starts With|Address Format|Public Key Format|Supported|

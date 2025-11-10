@@ -1,3 +1,4 @@
+*.drawio.svg.bkp
 result.txt
 *.sqlite3
 .swiftpm/
