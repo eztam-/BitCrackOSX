@@ -542,103 +542,125 @@ uint256 field_add(uint256 a, uint256 b) {
 
 
 // ===== Main Multiplication Function =====
+inline uint256 reduce_secp256k1(uint512 T) {
+    uint limbs[16];
+    #pragma unroll
+    for (int i = 0; i < 16; i++) limbs[i] = T.limbs[i];
+
+    // --- Fold upper limbs 8..15 ---
+    for (int i = 8; i < 16; i++) {
+        uint c = limbs[i];
+        if (c == 0) continue;
+        limbs[i] = 0;
+
+        int k = i - 8;
+
+        // (1) Add c * 977 at offset k
+        uint lo, hi;
+        mul_32x32(c, 977u, &lo, &hi);
+
+        uint sum, carry_out;
+        add_with_carry(limbs[k], lo, 0, &sum, &carry_out);
+        limbs[k] = sum;
+        uint carry = hi + carry_out;
+
+        for (int j = k + 1; j < 16 && carry; j++) {
+            add_with_carry(limbs[j], 0, carry, &sum, &carry_out);
+            limbs[j] = sum;
+            carry = carry_out;
+        }
+
+        // (2) Add c shifted by +1 limb (2^32 term)
+        add_with_carry(limbs[k + 1], c, 0, &sum, &carry_out);
+        limbs[k + 1] = sum;
+        carry = carry_out;
+
+        for (int j = k + 2; j < 16 && carry; j++) {
+            add_with_carry(limbs[j], 0, carry, &sum, &carry_out);
+            limbs[j] = sum;
+            carry = carry_out;
+        }
+    }
+
+    // --- Now fold once more in case additions overflow into limb8..15 ---
+    for (int i = 8; i < 16; i++) {
+        uint c = limbs[i];
+        if (c == 0) continue;
+        limbs[i] = 0;
+
+        int k = i - 8;
+
+        uint lo, hi;
+        mul_32x32(c, 977u, &lo, &hi);
+
+        uint sum, carry_out;
+        add_with_carry(limbs[k], lo, 0, &sum, &carry_out);
+        limbs[k] = sum;
+        uint carry = hi + carry_out;
+
+        for (int j = k + 1; j < 16 && carry; j++) {
+            add_with_carry(limbs[j], 0, carry, &sum, &carry_out);
+            limbs[j] = sum;
+            carry = carry_out;
+        }
+
+        add_with_carry(limbs[k + 1], c, 0, &sum, &carry_out);
+        limbs[k + 1] = sum;
+        carry = carry_out;
+
+        for (int j = k + 2; j < 16 && carry; j++) {
+            add_with_carry(limbs[j], 0, carry, &sum, &carry_out);
+            limbs[j] = sum;
+            carry = carry_out;
+        }
+    }
+
+    // --- Construct 256-bit result ---
+    uint256 r;
+    #pragma unroll
+    for (int i = 0; i < 8; i++) r.limbs[i] = limbs[i];
+
+    // --- Final conditional subtraction of p ---
+    uint256 P256;
+    #pragma unroll
+    for (int i = 0; i < 8; i++) P256.limbs[i] = P[i];
+    if (compare(r, P256) >= 0)
+        r = sub_uint256(r, P256);
+
+    return r;
+}
+
+
 
 uint256 field_mul(uint256 a, uint256 b) {
-    // Step 1: 8x8 schoolbook multiplication -> 512-bit product
     uint512 product;
     #pragma unroll
-    for (int i = 0; i < 16; i++) {
-        product.limbs[i] = 0;
-    }
-    
-    
+    for (int i = 0; i < 16; i++) product.limbs[i] = 0;
+
     for (int i = 0; i < 8; i++) {
         uint carry = 0;
-        
         for (int j = 0; j < 8; j++) {
-            uint mul_low, mul_high;
-            mul_32x32(a.limbs[i], b.limbs[j], &mul_low, &mul_high);
-            
-            uint sum, sum_carry;
-            add_with_carry(product.limbs[i + j], mul_low, carry, &sum, &sum_carry);
+            uint lo, hi;
+            mul_32x32(a.limbs[i], b.limbs[j], &lo, &hi);
+
+            uint sum, c1;
+            add_with_carry(product.limbs[i + j], lo, carry, &sum, &c1);
             product.limbs[i + j] = sum;
-            
-            carry = mul_high + sum_carry;
+            carry = hi + c1;
         }
-        
-        product.limbs[i + 8] = carry;
+        uint idx = i + 8;
+        uint sum, c1;
+        add_with_carry(product.limbs[idx], carry, 0, &sum, &c1);
+        product.limbs[idx] = sum;
+        if (c1 && idx + 1 < 16)
+            product.limbs[idx + 1] += c1;
     }
-    
-    // Step 2: Barrett-style reduction
-    // Instead of complex reduction, do simple: while (product >= P * 2^256) subtract P * 2^256
-    // Then final cleanup
-    
-    // Reduce upper limbs iteratively
-    for (int round = 0; round < 9; round++) {
-        for (int i = 15; i >= 8; i--) {
-            uint c = product.limbs[i];
-            if (c == 0) continue;
-            
-            product.limbs[i] = 0;
-            
-            // c * 2^(32*i) needs reduction
-            // 2^256 ≡ 2^32 + 977 (mod P)
-            // So 2^(32*i) = 2^(32*(i-8)) * 2^256 ≡ 2^(32*(i-8)) * (2^32 + 977)
-            
-            int pos = i - 8;
-            
-            // Add c * 977 at position pos
-            uint mul_low, mul_high;
-            mul_32x32(c, 977u, &mul_low, &mul_high);
-            
-            uint sum, carry_out;
-            add_with_carry(product.limbs[pos], mul_low, 0u, &sum, &carry_out);
-            product.limbs[pos] = sum;
-            
-            uint carry = mul_high + carry_out;
-            for (int j = pos + 1; j < 16 && carry > 0; j++) {
-                add_with_carry(product.limbs[j], 0u, carry, &sum, &carry_out);
-                product.limbs[j] = sum;
-                carry = carry_out;
-            }
-            
-            // Add c * 2^32 at position pos+1
-            if (pos + 1 < 16) {
-                add_with_carry(product.limbs[pos + 1], c, 0u, &sum, &carry_out);
-                product.limbs[pos + 1] = sum;
-                
-                carry = carry_out;
-                for (int j = pos + 2; j < 16 && carry > 0; j++) {
-                    add_with_carry(product.limbs[j], 0u, carry, &sum, &carry_out);
-                    product.limbs[j] = sum;
-                    carry = carry_out;
-                }
-            }
-        }
-    }
-    
-    // Copy to result
-    uint256 result;
-    #pragma unroll
-    for (int i = 0; i < 8; i++) {
-        result.limbs[i] = product.limbs[i];
-    }
-    
-    // Final reductions
-    uint256 p;
-    #pragma unroll
-    for (int i = 0; i < 8; i++) {
-        p.limbs[i] = P[i];
-    }
-    #pragma unroll
-    for (int i = 0; i < 3; i++) {
-        if (compare(result, p) >= 0) {
-            result = sub_uint256(result, p);
-        }
-    }
-    
-    return result;
+
+    return reduce_secp256k1(product);
 }
+
+
+
 
 
 uint256 field_sqr(uint256 a) {
