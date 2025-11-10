@@ -541,8 +541,6 @@ uint256 field_add(uint256 a, uint256 b) {
 
 
 
-
-
 // =========================================
 // Branchless, SIMD-aware secp256k1 reduction
 // 2^256 ≡ 2^32 + 977 (mod p)
@@ -950,7 +948,7 @@ inline PointJacobian point_add_mixed_jacobian(PointJacobian P, Point Q) {
 
 
 
-inline Point point_mul_8bit_tg(uint256 k, constant Point* tg_table)
+inline Point point_mul(uint256 k, constant Point* tg_table)
 {
     PointJacobian R;
     R.infinity = true;
@@ -994,11 +992,7 @@ inline Point point_mul_8bit_tg(uint256 k, constant Point* tg_table)
 }
 
 
-// wrapper so the rest of your code keeps calling point_mul()
-inline Point point_mul(uint256 k, constant Point* tg_table)
-{
-    return point_mul_8bit_tg(k, tg_table);
-}
+
 
 
 
@@ -1022,7 +1016,7 @@ kernel void private_to_public_keys(
     uint256 priv = load_private_key(private_keys, id);
 
     // --- scalar multiply ---
-    Point pub = point_mul_8bit_tg(priv, G_TABLE256);
+    Point pub = point_mul(priv, G_TABLE256);
 
     // --- store outputs ---
     if (pub.infinity) {
