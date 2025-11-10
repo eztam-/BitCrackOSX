@@ -9,7 +9,6 @@ struct Base58 {
     static func encode(_ data: Data) -> String {
         var bytes = [UInt8](data)
         var zerosCount = 0
-        var length = 0
         var prefix: [Character] = []
         
         // Count leading zeros
@@ -179,7 +178,6 @@ struct Base58 {
      
     /// Parallel BASE58 decoding using all available CPU cores (blocking version)
     static func decodeBatchAsync(_ inputs: [String]) -> [Data] {
-        let processorCount = ProcessInfo.processInfo.processorCount
         var results = [Data?](repeating: nil, count: inputs.count)
         let lock = NSLock()
         

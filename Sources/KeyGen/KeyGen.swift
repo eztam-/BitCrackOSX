@@ -47,7 +47,7 @@ public class KeyGen {
         // Thread sizing - choose based on device
         self.threadsPerGrid = MTLSize(width: batchSize, height: 1, depth: 1)
         let w = pipeline.threadExecutionWidth
-        let maxT = pipeline.maxTotalThreadsPerThreadgroup
+        //let maxT = pipeline.maxTotalThreadsPerThreadgroup
         let tgWidth = min(w, batchSize)
         self.threadsPerThreadgroup = MTLSize(width: tgWidth, height: 1, depth: 1)
         

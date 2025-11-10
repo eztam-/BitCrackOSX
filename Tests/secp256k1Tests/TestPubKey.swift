@@ -64,7 +64,7 @@ class TestPubKey: TestBase {
             
             
             // Testing compressed keys
-            var pubKeyComp =  resultPubKeysComp[i].hexString
+            let pubKeyComp =  resultPubKeysComp[i].hexString
             if pubKeyComp != expPubKeyComp {
                 print("❌ FAIL Comp Private Key: \(privKeysArr[i])")
                 print("                  Actual: \(pubKeyComp)")
@@ -73,7 +73,7 @@ class TestPubKey: TestBase {
             }
             
             // Testing uncompressed keys
-            var pubKeyUncomp =  resultPubKeysUncomp[i].hexString
+            let pubKeyUncomp =  resultPubKeysUncomp[i].hexString
             if pubKeyUncomp != expPubKeyUncomp {
                 print("❌ FAIL Uncomp Private Key: \(privKeysArr[i])")
                 print("                    Actual: \(pubKeyUncomp)")
@@ -152,7 +152,7 @@ class TestPubKey: TestBase {
         
         
         for i in 0..<testCases.count {
-            var pubKey = testCases[i].2 ? resultPubKeysComp[i].hexString : resultPubKeysUncomp[i].hexString
+            let pubKey = testCases[i].2 ? resultPubKeysComp[i].hexString : resultPubKeysUncomp[i].hexString
             let pass = pubKey == testCases[i].1 ?  "✅ PASS" : "❌ FAIL"
             print("\(pass)  Private Key: \(testCases[i].0)")
             print("         Actual:      \(pubKey)")

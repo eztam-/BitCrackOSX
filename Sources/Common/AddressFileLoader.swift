@@ -53,7 +53,7 @@ class AddressFileLoader {
                     batch.removeAll(keepingCapacity: true) // reuse array memory
                     
                     // Print status
-                    var progressPercent = Int(min((100.0/Double(approxNumAddresses))*Double(progressCnt),99))
+                    let progressPercent = Int(min((100.0/Double(approxNumAddresses))*Double(progressCnt),99))
                     if lastPerc < progressPercent {
                         print("\r   ⏳ Progress: \(progressPercent)%", terminator: "")
                         fflush(stdout)

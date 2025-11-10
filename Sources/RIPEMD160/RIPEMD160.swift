@@ -58,7 +58,6 @@ class RIPEMD160 {
         cmdBuf.commit()
         cmdBuf.waitUntilCompleted()
         
-        let outWordCount = messageCount * 5
         return outBuffer
     }
     

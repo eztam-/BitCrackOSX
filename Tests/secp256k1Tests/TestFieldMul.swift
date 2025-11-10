@@ -33,11 +33,11 @@ class TestFieldMul: TestBase {
             var expectedHex = expected.asString(radix: 16).uppercased()
             
             // Adding missing trailing zeros
-            for i in expectedHex.count..<64{
+            for _ in expectedHex.count..<64{
                 expectedHex = "\(0)\(expectedHex)"
             }
             
-            let expectedLimbs = hexToLimbs(expectedHex)
+            //let expectedLimbs = hexToLimbs(expectedHex)
             
             
             guard let result = multiply(aLimbs, bLimbs) else {

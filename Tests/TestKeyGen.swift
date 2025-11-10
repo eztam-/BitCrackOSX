@@ -92,7 +92,7 @@ class TestKeyGen: TestBase {
             for j in 0..<8 {
                 words.append(result[base + j])
             }
-            let hex = limbsToHex(words)
+            //let hex = limbsToHex(words)
             //print("Sample[\(i)] -> KEY: \(hex)")
             Helpers.printLimbs(limbs: words)
         }
