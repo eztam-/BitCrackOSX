@@ -540,105 +540,95 @@ uint256 field_add(uint256 a, uint256 b) {
 }
 
 
+// ---- helper: single pass carry propagation over 16 limbs ----
+inline void propagate16(thread uint limbs[16], thread uint carry[17]) {
+    ulong acc = 0ul;
+    #pragma unroll
+    for (int i = 0; i < 16; i++) {
+        acc = (ulong)limbs[i] + (ulong)carry[i];
+        limbs[i] = (uint)acc;
+        carry[i + 1] += (uint)(acc >> 32);
+    }
+}
 
-// ===== Main Multiplication Function =====
-inline uint256 reduce_secp256k1(uint512 T) {
-    uint limbs[16];
+// ---- vectorized specialized reduction for secp256k1 ----
+// Uses: 2^256 ≡ 2^32 + 977 (mod p), so for each high limb c at i≥8:
+//   add (c * 977) at limb (i-8)
+//   add (c)       at limb (i-8+1)
+inline uint256 reduce_secp256k1_vec(uint512 T) {
+    thread uint limbs[16];
+    thread uint carry[17];
+
+    // bulk load T into limbs; zero carries
     #pragma unroll
     for (int i = 0; i < 16; i++) limbs[i] = T.limbs[i];
+    #pragma unroll
+    for (int i = 0; i < 17; i++) carry[i] = 0u;
 
-    // --- Fold upper limbs 8..15 ---
-    for (int i = 8; i < 16; i++) {
-        uint c = limbs[i];
-        if (c == 0) continue;
-        limbs[i] = 0;
+    auto fold_once = [&](void) {
+        // fold high limbs 8..15 down using deferred carries
+        #pragma unroll
+        for (int i = 8; i < 16; i++) {
+            uint c = limbs[i];
+            if (!c) continue;
+            limbs[i] = 0u;
 
-        int k = i - 8;
+            const int k = i - 8;
 
-        // (1) Add c * 977 at offset k
-        uint lo, hi;
-        mul_32x32(c, 977u, &lo, &hi);
+            // term1: c * 977 at limb k
+            uint lo, hi;
+            mul_32x32(c, 977u, &lo, &hi);
+            // add lo at k, accumulate hi into carry[k+1]
+            uint sum, c1;
+            add_with_carry(limbs[k], lo, 0u, &sum, &c1);
+            limbs[k] = sum;
+            carry[k + 1] += (hi + c1);
 
-        uint sum, carry_out;
-        add_with_carry(limbs[k], lo, 0, &sum, &carry_out);
-        limbs[k] = sum;
-        uint carry = hi + carry_out;
-
-        for (int j = k + 1; j < 16 && carry; j++) {
-            add_with_carry(limbs[j], 0, carry, &sum, &carry_out);
-            limbs[j] = sum;
-            carry = carry_out;
+            // term2: + c at limb k+1 (2^32 contribution)
+            add_with_carry(limbs[k + 1], c, 0u, &sum, &c1);
+            limbs[k + 1] = sum;
+            carry[k + 2] += c1;
         }
 
-        // (2) Add c shifted by +1 limb (2^32 term)
-        add_with_carry(limbs[k + 1], c, 0, &sum, &carry_out);
-        limbs[k + 1] = sum;
-        carry = carry_out;
+        // one linear propagation for the whole array
+        propagate16(limbs, carry);
 
-        for (int j = k + 2; j < 16 && carry; j++) {
-            add_with_carry(limbs[j], 0, carry, &sum, &carry_out);
-            limbs[j] = sum;
-            carry = carry_out;
-        }
-    }
+        // reset carry for potential second pass
+        #pragma unroll
+        for (int i = 0; i < 17; i++) carry[i] = 0u;
+    };
 
-    // --- Now fold once more in case additions overflow into limb8..15 ---
-    for (int i = 8; i < 16; i++) {
-        uint c = limbs[i];
-        if (c == 0) continue;
-        limbs[i] = 0;
+    // Two passes are sufficient
+    fold_once();
+    fold_once();
 
-        int k = i - 8;
-
-        uint lo, hi;
-        mul_32x32(c, 977u, &lo, &hi);
-
-        uint sum, carry_out;
-        add_with_carry(limbs[k], lo, 0, &sum, &carry_out);
-        limbs[k] = sum;
-        uint carry = hi + carry_out;
-
-        for (int j = k + 1; j < 16 && carry; j++) {
-            add_with_carry(limbs[j], 0, carry, &sum, &carry_out);
-            limbs[j] = sum;
-            carry = carry_out;
-        }
-
-        add_with_carry(limbs[k + 1], c, 0, &sum, &carry_out);
-        limbs[k + 1] = sum;
-        carry = carry_out;
-
-        for (int j = k + 2; j < 16 && carry; j++) {
-            add_with_carry(limbs[j], 0, carry, &sum, &carry_out);
-            limbs[j] = sum;
-            carry = carry_out;
-        }
-    }
-
-    // --- Construct 256-bit result ---
+    // Take the low 256 bits
     uint256 r;
     #pragma unroll
     for (int i = 0; i < 8; i++) r.limbs[i] = limbs[i];
 
-    // --- Final conditional subtraction of p ---
+    // Final conditional subtraction(s)
     uint256 P256;
     #pragma unroll
     for (int i = 0; i < 8; i++) P256.limbs[i] = P[i];
-    if (compare(r, P256) >= 0)
-        r = sub_uint256(r, P256);
+
+    // Up to two subs are enough after the double-fold
+    if (compare(r, P256) >= 0) r = sub_uint256(r, P256);
+    if (compare(r, P256) >= 0) r = sub_uint256(r, P256);
 
     return r;
 }
 
-
-
-uint256 field_mul(uint256 a, uint256 b) {
+// ---- schoolbook mul ----
+inline uint256 field_mul(uint256 a, uint256 b) {
     uint512 product;
     #pragma unroll
     for (int i = 0; i < 16; i++) product.limbs[i] = 0;
 
+    #pragma unroll
     for (int i = 0; i < 8; i++) {
-        uint carry = 0;
+        uint carry = 0u;
+        #pragma unroll
         for (int j = 0; j < 8; j++) {
             uint lo, hi;
             mul_32x32(a.limbs[i], b.limbs[j], &lo, &hi);
@@ -648,17 +638,19 @@ uint256 field_mul(uint256 a, uint256 b) {
             product.limbs[i + j] = sum;
             carry = hi + c1;
         }
+        // spill final carry
         uint idx = i + 8;
         uint sum, c1;
-        add_with_carry(product.limbs[idx], carry, 0, &sum, &c1);
+        add_with_carry(product.limbs[idx], carry, 0u, &sum, &c1);
         product.limbs[idx] = sum;
-        if (c1 && idx + 1 < 16)
+        if (c1 && idx + 1 < 16) {
+            // no carry chain here; reduction will handle it
             product.limbs[idx + 1] += c1;
+        }
     }
 
-    return reduce_secp256k1(product);
+    return reduce_secp256k1_vec(product);
 }
-
 
 
 
