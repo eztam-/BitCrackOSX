@@ -16,7 +16,7 @@ let package = Package(
     ],
     targets: [
         .executableTarget(
-            name: "CryptKeySearch",
+            name: "keysearch",
             dependencies: [
                 .product(name: "ArgumentParser", package: "swift-argument-parser"),
                 .product(name: "SQLite", package: "SQLite.swift"),
@@ -31,9 +31,9 @@ let package = Package(
             ],
         ),
         .testTarget(
-            name: "CryptKeySearchTests",
+            name: "KeySearchTests",
             dependencies: [
-                "CryptKeySearch",
+                "keysearch",
                 .product(name: "P256K", package: "swift-secp256k1"),
                 .product(name: "BigNumber", package: "Swift-BigInt"),
             ],

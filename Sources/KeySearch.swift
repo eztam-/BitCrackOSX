@@ -6,10 +6,9 @@ let device = MTLCreateSystemDefaultDevice()!
 
 // TODO: FIXME: If the key range is smaller than the batch size it doesnt work
 // TODO: If the size is smaller, that we run into a memory leak since the garbage collector seem to slow, to free up the memory for the commandBuffers
-let BATCH_SIZE = 4096*8*8*4
 
 
-class KeyFinder {
+class KeySearch {
 
     let bloomFilter: BloomFilter
     let db: DB
@@ -35,10 +34,10 @@ class KeyFinder {
         //let startKey = "0000000000000000000000000000000000000000000000000001000000000000"
        
         
-        let keyGen = KeyGen(device: device, batchSize: BATCH_SIZE, startKeyHex: startKey)
-        let secp256k1obj = Secp256k1_GPU(on:  device, bufferSize: BATCH_SIZE)
-        let SHA256 = SHA256gpu(on: device, batchSize: BATCH_SIZE)
-        let RIPEMD160 = RIPEMD160(on: device, batchSize: BATCH_SIZE)
+        let keyGen = KeyGen(device: device, batchSize: Constants.BATCH_SIZE, startKeyHex: startKey)
+        let secp256k1obj = Secp256k1_GPU(on:  device, bufferSize: Constants.BATCH_SIZE)
+        let SHA256 = SHA256gpu(on: device, batchSize: Constants.BATCH_SIZE)
+        let RIPEMD160 = RIPEMD160(on: device, batchSize: Constants.BATCH_SIZE)
         //let bloomFilter = AddressFileLoader.load(path: "/Users/x/src/CryptKeyFinder/test_files/btc_short.tsv")
         //let bloomFilter = BloomFilter(expectedInsertions: 1, itemBytes: 1)!
         let t = TimeMeasurement.instance
@@ -70,7 +69,7 @@ class KeyFinder {
        
             // Calculate SHA256 for the batch of public keys
             start = DispatchTime.now()
-            let sha256Buff = SHA256.run(publicKeysBuffer: pubKeysCompBuff, batchSize: BATCH_SIZE)
+            let sha256Buff = SHA256.run(publicKeysBuffer: pubKeysCompBuff, batchSize: Constants.BATCH_SIZE)
             //printSha256Output(BATCH_SIZE, outPtr)
             t.sha256 = Double(DispatchTime.now().uptimeNanoseconds - start.uptimeNanoseconds) / 1_000_000.0
             
@@ -78,7 +77,7 @@ class KeyFinder {
             
             // Calculate RIPEDM160
             start = DispatchTime.now()
-            let ripemd160Buffer = RIPEMD160.run(messagesBuffer: sha256Buff, messageCount: BATCH_SIZE)
+            let ripemd160Buffer = RIPEMD160.run(messagesBuffer: sha256Buff, messageCount: Constants.BATCH_SIZE)
             t.ripemd160 = Double(DispatchTime.now().uptimeNanoseconds - start.uptimeNanoseconds) / 1_000_000.0
             
             
@@ -90,9 +89,9 @@ class KeyFinder {
                 
                 
            // let ripemd160Array = Helpers.ptrToDataArray(ripemd160_result, itemSize: 20, itemCount: BATCH_SIZE)
-            let result = bloomFilter.query(ripemd160Buffer, batchSize: BATCH_SIZE)   //contains(pointer: ripemd160_result, length: 5, offset: i*5)
+            let result = bloomFilter.query(ripemd160Buffer, batchSize: Constants.BATCH_SIZE)   //contains(pointer: ripemd160_result, length: 5, offset: i*5)
           
-            for i in 0..<BATCH_SIZE {
+            for i in 0..<Constants.BATCH_SIZE {
                 if result[i] {
                     var privKey = [UInt8](repeating: 0, count: 32)
                     memcpy(&privKey, privateKeyBuffer.contents().advanced(by: i*32), 32)
@@ -173,7 +172,7 @@ class KeyFinder {
             
             let endTime = CFAbsoluteTimeGetCurrent()
             let elapsed = endTime - startTime
-            let hashesPerSec = Double(BATCH_SIZE) / elapsed
+            let hashesPerSec = Double(Constants.BATCH_SIZE) / elapsed
             t.keysPerSec = String(format: "----[ %.0f keys/s ]----", hashesPerSec)
             
             

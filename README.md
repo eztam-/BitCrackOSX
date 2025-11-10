@@ -1,15 +1,15 @@
-# CryptKeyFinder
+# CryptKeySearch
 A tool for solving Bitcoin puzzles on OSX. The application is build to run on Apple Silicon GPUs for high performance.
 Other, similar tools like BitCrack stopped working entirely for OSX users since Apple switched to it's new Silicon Chips.
 This application aims to be a better replacement for such legacy tools which have many limitations. 
 Bitcrack for example only supports legacy addresses and has no support for modern Bitcoin addresses like Taproot or SegWit.
 
-CryptKeyFinder is build entirely from scratch for OSX and utilizes Apples Metal framework for high performance.
+CryptKeySearch is build entirely from scratch for OSX and utilizes Apples Metal framework for high performance.
 
 **NOTE!**
 - The application is still new and under heavy development.
 - So far I have focussed on functionality and performance optimization still needs to be done.
-- If something isn't working or you miss a certain feature, then please let me know so I can improve the project. Please open an [new Issue](https://github.com/eztam-/CryptKeyFinder/issues/new) in such cases.
+- If something isn't working or you miss a certain feature, then please let me know so I can improve the project. Please open an [new Issue](https://github.com/eztam-/CryptKeySearch/issues/new) in such cases.
 - Support is very welcome, feel free to submit a merge request.
 - I never programmed in Swift or Metal before starting this project. Therefore I'm also very happy for any code review or feedback. 
 - This application was build for solving bitcoin puzzles. Any illegal usage is prohibited.
@@ -35,7 +35,9 @@ xcodebuild -scheme CryptKeySearch -destination 'platform=macOS' -configuration R
 ```
 After a successfull build, you can run the application:
 ```
-./build/Build/Products/Release/CryptKeyFinder
+cd ./build/Build/Products/Release/
+
+./keysearch -h 
 ```
 
 ## Usage
@@ -45,12 +47,12 @@ Only you wan't to use a different address list, you have to repeat this step aga
 The address list must be provided in a file, whereby each line contains exactly one address.
 
 ```
-CryptKeySearch import _<path_to_your_file>_  
+keysearch load <path_to_your_file> 
 ```
 
 Once the database was popuated we can start the key search from a given start address:
 ```
-CryptKeySearch keysearch -s 0000000000000000000000000000000000000000000000000000000000000001
+keysearch run -s 0000000000000000000000000000000000000000000000000000000000000001
 ```
 
 ## Current State
@@ -70,7 +72,12 @@ CryptKeySearch keysearch -s 0000000000000000000000000000000000000000000000000000
         - Disk-backed key/value store (LMDB / RocksDB / LevelDB)
         - Memory-mapped sorted file + binary search
         - In mem hash map? -> the limit is the memory
-
+        
+## Performance Improvement Notes
+- Mixing Jacobian and Affine (“Mixed Addition”).
+  this is what other like hashcats impelemnations do as well and I have adopted my implementation already to that.
+  _If both points are in Jacobian form, addition is slower because both have Z ≠ 1._
+  _But in most scalar multiplication algorithms (like the precomputed-table method you’re using), one point is fixed — e.g. (i+1)*G — and can be stored in affine form (x, y) with Z = 1._
 
 ## Architecture
 The GPU is used for the heavy elliptic curve (secp256k1) computations, i.e. generating public keys and computing hashes (SHA256 + RIPEMD160) for massive numbers of private keys in parallel.

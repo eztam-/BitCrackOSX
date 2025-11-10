@@ -17,15 +17,13 @@ _________                        __     ____  __.               _________       
 """
 
  
-
     
-    
-    struct FileImportCommand: ParsableCommand {
+    struct FileLoadCommand: ParsableCommand {
         
         static let configuration = CommandConfiguration(
-            commandName: "import",
+            commandName: "load",
             abstract: "Loads an address file into the applications database. This is only required once before the first start or if you want to add a different set of addresses.",
-            aliases: ["i"])
+            )
         
         @Argument(help: "A file containing bitcoin addresses (one address per row) to be included in the key search.")
         var filePath: String
@@ -39,10 +37,10 @@ _________                        __     ____  __.               _________       
     }
     
     
-    struct KeySearchCommand: ParsableCommand {
+    struct RunCommand: ParsableCommand {
         
         static let configuration = CommandConfiguration(
-            commandName: Constants.APP_COMMAND_NAME,
+            commandName: "run",
             abstract: "Print the product of the values."
         )
         
@@ -60,26 +58,21 @@ _________                        __     ____  __.               _________       
             let bloomFilter = try BloomFilter(db: db)
             if startKey.isEmpty{
                 startKey = Helpers.generateRandom256BitHex()
-                KeyFinder(bloomFilter: bloomFilter, database: db).run(startKey: startKey)
+                KeySearch(bloomFilter: bloomFilter, database: db).run(startKey: startKey)
             }
             else if startKey.count == 64 && startKey.allSatisfy(\.isHexDigit) {
-                KeyFinder(bloomFilter: bloomFilter, database: db).run(startKey: startKey)
+                KeySearch(bloomFilter: bloomFilter, database: db).run(startKey: startKey)
             }
             print("Invalid start key provided. Please provide a valid 32 byte hex string.")
         }
     }
     
     
-
-    
-    
-    
-    
     static let configuration = CommandConfiguration(
         commandName: Constants.APP_COMMAND_NAME,
-        abstract: "Before starting the key search, please import your address file by using the 'file-load' command. This is only required once before the first start. After that you can use the 'run' command to search for the private keys.",
-        subcommands: [FileImportCommand.self, KeySearchCommand.self],
-        defaultSubcommand: KeySearchCommand.self
+        abstract: "Before starting the key search, please import your address file by using the '\(FileLoadCommand.configuration.commandName!)' command. This is only required once before the first start. After that you can use the '\(RunCommand.configuration.commandName!)' command to search for the private keys.",
+        subcommands: [FileLoadCommand.self, RunCommand.self],
+        defaultSubcommand: RunCommand.self
     )
     
 
