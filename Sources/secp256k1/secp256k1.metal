@@ -1,6 +1,15 @@
 #include <metal_stdlib>
 using namespace metal;
 
+
+// Silicon GPU integer ALUs are natively 32-bit wide, so 64-bit (ulong, long, ulong4, etc.) arithmetic is emulated using multiple 32-bit ops.
+// Therefore this implementation uses mainly 32-bit arithmetic.
+
+
+
+
+
+
 // ---- SECP256k1 constants (little-endian limb order) ----
 
 // Secp256k1 prime modulus p = 2^256 - 2^32 - 977

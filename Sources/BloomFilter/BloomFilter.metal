@@ -32,7 +32,7 @@ kernel void bloom_insert(
     constant uint &item_count      [[buffer(1)]],
     constant uint &item_u32_len    [[buffer(2)]],
     device atomic_uint *bits       [[buffer(3)]],
-    constant uint &m_bits          [[buffer(4)]],
+    constant ulong &m_bits          [[buffer(4)]],
     constant uint &k_hashes        [[buffer(5)]],
     uint gid [[thread_position_in_grid]])
 {
@@ -46,7 +46,7 @@ kernel void bloom_insert(
     for (uint i = 0; i < k_hashes; i++) {
         // Matching Swift: (h1 + i * h2) % m_bits
         ulong combined = (ulong)h1 + (ulong)i * (ulong)h2;
-        uint bit_idx = (uint)(combined % (ulong)m_bits);
+        uint bit_idx = (uint)(combined % m_bits);
         
         uint word_idx = bit_idx >> 5;
         uint bit_mask = 1u << (bit_idx & 31u);
@@ -60,7 +60,7 @@ kernel void bloom_query(
     constant uint &item_count      [[buffer(1)]],
     constant uint &item_u32_len    [[buffer(2)]],
     const device uint *bits        [[buffer(3)]],
-    constant uint &m_bits          [[buffer(4)]],
+    constant ulong &m_bits          [[buffer(4)]],
     constant uint &k_hashes        [[buffer(5)]],
     device uint *results           [[buffer(6)]],
     uint gid [[thread_position_in_grid]])
@@ -74,7 +74,7 @@ kernel void bloom_query(
     
     for (uint i = 0; i < k_hashes; i++) {
         ulong combined = (ulong)h1 + (ulong)i * (ulong)h2;
-        uint bit_idx = (uint)(combined % (ulong)m_bits);
+        uint bit_idx = (uint)(combined % m_bits);
         
         uint word_idx = bit_idx >> 5;
         uint bit_mask = 1u << (bit_idx & 31u);

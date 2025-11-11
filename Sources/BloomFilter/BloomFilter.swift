@@ -20,7 +20,7 @@ public class BloomFilter {
         case initializationFailed
     }
     
-    public convenience init(db: DB) throws{
+    public convenience init(db: DB) throws {
         print("──────────────────────────────────────────────────")
         print("🚀 Initializing Bloom Filter...")
         
@@ -38,12 +38,12 @@ public class BloomFilter {
         for row in rows {
             batch.append(Data(hex: row.publicKeyHash)!)
             if batch.count >= batchSize {
-                self.insert(batch)
+                try self.insert(batch)
                 batch.removeAll(keepingCapacity: true)
             }
         }
         if !batch.isEmpty {
-            self.insert(batch)
+            try self.insert(batch)
         }
         
         print("\n✅ Bloom filter initialized with \(cnt) addresses from database")
@@ -109,7 +109,7 @@ public class BloomFilter {
         }
     }
     
-    public func insert(_ items: [Data]) {
+    public func insert(_ items: [Data]) throws {
         guard !items.isEmpty else { return }
         let count = items.count
         let itemBytes = itemU32Length * 4
@@ -132,7 +132,7 @@ public class BloomFilter {
               let encoder = cmdBuffer.makeComputeCommandEncoder() else { return }
         var countU = UInt32(count)
         var itemLenU = UInt32(itemU32Length)
-        var mBits = UInt32(bitCount)
+        var mBits = UInt64(bitCount)
         var kHashes = UInt32(hashCount)
         
         encoder.setComputePipelineState(insertPipeline)
@@ -140,7 +140,7 @@ public class BloomFilter {
         encoder.setBytes(&countU, length: 4, index: 1)
         encoder.setBytes(&itemLenU, length: 4, index: 2)
         encoder.setBuffer(bitsBuffer, offset: 0, index: 3)
-        encoder.setBytes(&mBits, length: 4, index: 4)
+        encoder.setBytes(&mBits, length: 8, index: 4)
         encoder.setBytes(&kHashes, length: 4, index: 5)
         
         let w = insertPipeline.threadExecutionWidth
@@ -173,7 +173,7 @@ public class BloomFilter {
         
         var countU = UInt32(batchSize)
         var itemLenU = UInt32(itemU32Length)
-        var mBits = UInt32(bitCount)
+        var mBits = UInt64(bitCount)
         var kHashes = UInt32(hashCount)
         
         encoder.setComputePipelineState(queryPipeline)
@@ -181,7 +181,7 @@ public class BloomFilter {
         encoder.setBytes(&countU, length: 4, index: 1)
         encoder.setBytes(&itemLenU, length: 4, index: 2)
         encoder.setBuffer(bitsBuffer, offset: 0, index: 3)
-        encoder.setBytes(&mBits, length: 4, index: 4)
+        encoder.setBytes(&mBits, length: 8, index: 4)
         encoder.setBytes(&kHashes, length: 4, index: 5)
         encoder.setBuffer(resultsBuffer, offset: 0, index: 6)
         

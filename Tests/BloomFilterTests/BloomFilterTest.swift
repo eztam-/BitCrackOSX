@@ -33,7 +33,7 @@ class BloomFilterTest : TestBase {
             testItems.append(data)
             testItems2.append(data)
         }
-        metalFilter.insert(testItems)
+        try! metalFilter.insert(testItems)
         print("✅ Insertion complete\n")
         
         // Test positive queries
