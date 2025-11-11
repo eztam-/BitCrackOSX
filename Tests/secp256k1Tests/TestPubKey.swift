@@ -87,7 +87,6 @@ class TestPubKey: TestBase {
         print("\(result) \(numFailedTests) of \(numTests) tests have failed")
         assert(numFailedTests==0)
     }
- 
     
     @Test func testPubKey(){
         

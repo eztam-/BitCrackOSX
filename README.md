@@ -81,6 +81,10 @@ keysearch run -s 000000000000000000000000000000000000000000000000000000000000000
     _If both points are in Jacobian form, addition is slower because both have Z ≠ 1._<br>
    _But in most scalar multiplication algorithms (like the precomputed-table method we're using), one point is fixed — e.g. (i+1)*G — and can be stored in affine form (x, y) with Z = 1._
 
+- What should bring measurable performance improvement:
+    - Replacing the current field_inv with Fermat's Little Theorem with an optimized addition chain as. e.g. done in bitcoin-core lib
+
+
 ## Architecture
 The GPU is used for:
 * Heavy elliptic curve (secp256k1) computations
@@ -95,14 +99,15 @@ The CPU handles:
 
 
 ### Address Types
-|Type|Address Type|Starts With|Address Format|Public Key Format|Supported|
-|----|------------|-----------|--------------|-----------------|---------|
-|Legacy|P2PKH — Pay-to-PubKey-Hash|1|Base58Check|Compresses or Uncompressed|Yes|
-|Legacy|P2SH — Pay-to-Script-Hash|3|Base58Check|Compresses or Uncompressed|TBD|
-|SegWit|P2WPKH — Pay-to-Witness-PubKey-Hash|bc1q|Bech32|Compressed|TBD|
-|SegWit|P2WSH — Pay-to-Witness-Script-Hash|bc1q|Bech32|Compressed|TBD|
-|SegWit|P2SH-P2WPKH — Nested SegWit (Compatibility address)|3|Base58Check|Compressed|TBD|
-|Taproot|P2TR — Pay-to-Taproot|bc1p|Bech32m|TBC|No|
+|Type|Address Type|Starts With|Address Format|Public Key Format|Supported|Hash Function|
+|----|------------|-----------|--------------|-----------------|---------|-------------|
+|Legacy|P2PKH — Pay-to-PubKey-Hash|1|Base58Check|Compresses or Uncompressed|Yes|RIPEMD160(SHA256(pubkey))|
+|Legacy|P2SH — Pay-to-Script-Hash|3|Base58Check|Compresses or Uncompressed|TBD|RIPEMD160(SHA256(redeem_script))|
+|SegWit|P2WPKH — Pay-to-Witness-PubKey-Hash|bc1q|Bech32|Compressed|Yes|RIPEMD160(SHA256(pubkey))|
+|SegWit|P2WSH — Pay-to-Witness-Script-Hash|bc1q|Bech32|Compressed|TBD|SHA256(script)|
+|SegWit|P2SH-P2WPKH — Nested SegWit (Compatibility address)|3|Base58Check|Compressed|TBD||
+|Taproot|P2TR — Pay-to-Taproot|bc1p|Bech32m|TBC|No|SHA256(xonly_pubkey) → then tweak: `tweaked_pubkey = internal_pubkey + H_tapTweak(internal_pubkey|
+|Wrapped SegWit|P2WPKH-P2SH|3||TBC|No|RIPEMD160(SHA256(witness_program))|
 
 ### Address Calculation from Private Key
 The following diagram shows the individual stepps to calculate a bitcoin address from a private key

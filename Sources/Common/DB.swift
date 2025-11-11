@@ -3,7 +3,7 @@ import SQLite
 
 public class DB {
     
-    let dbPath = "CryptKeySearch.sqlite3"
+    let dbPath: String
     let db: Connection
     
     let addressesTbl = Table("addresses")
@@ -15,7 +15,8 @@ public class DB {
         var publicKeyHash: String
     }
     
-    public init(deleteAndReCreateDB: Bool = false) throws{
+    public init(deleteAndReCreateDB: Bool = false, dbPath: String = "CryptKeySearch.sqlite3") throws{
+        self.dbPath = dbPath
         
         var dbFileExists = FileManager.default.fileExists(atPath: dbPath)
         
@@ -34,6 +35,16 @@ public class DB {
     
     
     public func initializeDB() throws {
+        
+        // TODO only do this during insert and reverse / remove again after insert is done
+        try db.run("PRAGMA journal_mode = WAL;")
+        try db.run("PRAGMA synchronous = OFF;")
+        try db.run("PRAGMA temp_store = MEMORY;")
+        try db.run("PRAGMA cache_size = 100000;")
+        try db.run("PRAGMA locking_mode = EXCLUSIVE;")
+        
+        try db.transaction{
+            
         // Create table
         try db.run(
             addressesTbl.create(ifNotExists: true) { t in
@@ -41,13 +52,15 @@ public class DB {
                 t.column(publicKeyHashCol)                 // TEXT
             }
         )
-        
+        }
+    }
+    
+    public func createIndex() throws {
         // Create index on public_key_hash
         try db.run(
             addressesTbl.createIndex(publicKeyHashCol,unique: false, ifNotExists: true)
         )
     }
-    
     
     public func insert(address: String, publicKeyHash: String) throws {
         let insertStmt = addressesTbl.insert(

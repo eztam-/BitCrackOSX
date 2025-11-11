@@ -28,9 +28,14 @@ _________                        __     ____  __.               _________       
         @Argument(help: "A file containing bitcoin addresses (one address per row) to be included in the key search.")
         var filePath: String
         
+        
+        @Option( name: [.short, .customShort("d"), .customLong("database-file")],
+                 help: "Path to the database file with .sqlite3 extension.")
+        var dbFile: String = "CryptKeySearch.sqlite3"
+        
         mutating func run() throws {
             print(banner)
-            let db = try DB(deleteAndReCreateDB: true)
+            let db = try DB(deleteAndReCreateDB: true, dbPath: dbFile)
             let loader = AddressFileLoader(db:db)
             try loader.loadAddressesFromFile(path: filePath)
         }
@@ -51,9 +56,16 @@ _________                        __     ____  __.               _________       
                               ))
         var startKey: String
         
+        
         @Option( name: .shortAndLong,
                  help: "Path to the output file. The file will contain the found private keys and their corresponding addresses. If not provided, then the output will be written into 'result.txt'.")
         var outputFile: String = "result.txt"
+
+        
+        @Option( name: [.short, .customShort("d"), .customLong("database-file")],
+                 help: "Path to the database file with .sqlite3 extension.")
+        var dbFile: String = "CryptKeySearch.sqlite3"
+
         
         mutating func run() throws {
             print(banner)
@@ -61,7 +73,7 @@ _________                        __     ____  __.               _________       
                 print("\n✨ Using random start key")
                 startKey = Helpers.generateRandom256BitHex()
             }
-            let db = try DB()
+            let db = try DB(dbPath: dbFile)
             let bloomFilter = try BloomFilter(db: db)
             if startKey == "RANDOM" {
                 KeySearch(bloomFilter: bloomFilter, database: db, outputFile: outputFile).run(startKey: startKey)
