@@ -29,15 +29,21 @@ _________                        __     ____  __.               _________       
         var filePath: String
         
         
-        @Option( name: [.short, .customShort("d"), .customLong("database-file")],
+        @Option( name: [.customShort("d"), .customLong("database-file")],
                  help: "Path to the database file with .sqlite3 extension.")
         var dbFile: String = "CryptKeySearch.sqlite3"
         
-        mutating func run() throws {
-            print(banner)
-            let db = try DB(deleteAndReCreateDB: true, dbPath: dbFile)
-            let loader = AddressFileLoader(db:db)
-            try loader.loadAddressesFromFile(path: filePath)
+        mutating func run() {
+            do {
+                print(banner)
+                let db = try DB(deleteAndReCreateDB: true, dbPath: dbFile)
+                let loader = AddressFileLoader(db:db)
+                try loader.loadAddressesFromFile(path: filePath)
+            } catch {
+                print("Caught error: \(error)")
+                print("Type: \(type(of: error))")
+                print("Error: \(error.localizedDescription)")
+            }
         }
     }
     
@@ -50,7 +56,7 @@ _________                        __     ____  __.               _________       
         )
         
         @Option(
-            name: [.short, .customShort("s"), .customLong("start-key")],
+            name: [.customShort("s"), .customLong("start-key")],
             help: ArgumentHelp("Either a private key from which the search will start like: 0000000000000000000000000000000000000000000000000000000000000001. Or 'RANDOM' to start with a random private key.",
                                valueName: "start-key|RANDOM",
                               ))
@@ -62,26 +68,32 @@ _________                        __     ____  __.               _________       
         var outputFile: String = "result.txt"
 
         
-        @Option( name: [.short, .customShort("d"), .customLong("database-file")],
+        @Option( name: [.customShort("d"), .customLong("database-file")],
                  help: "Path to the database file with .sqlite3 extension.")
         var dbFile: String = "CryptKeySearch.sqlite3"
 
         
-        mutating func run() throws {
-            print(banner)
-            if startKey == "RANDOM" {
-                print("\n✨ Using random start key")
-                startKey = Helpers.generateRandom256BitHex()
+        mutating func run() {
+            do {
+                print(banner)
+                if startKey == "RANDOM" {
+                    print("\n✨ Using random start key")
+                    startKey = Helpers.generateRandom256BitHex()
+                }
+                let db = try DB(dbPath: dbFile)
+                let bloomFilter = try BloomFilter(db: db)
+                if startKey == "RANDOM" {
+                    KeySearch(bloomFilter: bloomFilter, database: db, outputFile: outputFile).run(startKey: startKey)
+                }
+                else if startKey.count == 64 && startKey.allSatisfy(\.isHexDigit) {
+                    KeySearch(bloomFilter: bloomFilter, database: db, outputFile: outputFile).run(startKey: startKey)
+                }
+                print("Invalid start key provided. Please provide a valid 32 byte hex string.")
+            } catch {
+                print("Caught error: \(error)")
+                print("Type: \(type(of: error))")
+                print("Error: \(error.localizedDescription)")
             }
-            let db = try DB(dbPath: dbFile)
-            let bloomFilter = try BloomFilter(db: db)
-            if startKey == "RANDOM" {
-                KeySearch(bloomFilter: bloomFilter, database: db, outputFile: outputFile).run(startKey: startKey)
-            }
-            else if startKey.count == 64 && startKey.allSatisfy(\.isHexDigit) {
-                KeySearch(bloomFilter: bloomFilter, database: db, outputFile: outputFile).run(startKey: startKey)
-            }
-            print("Invalid start key provided. Please provide a valid 32 byte hex string.")
         }
     }
     
@@ -90,7 +102,7 @@ _________                        __     ____  __.               _________       
         commandName: Constants.APP_COMMAND_NAME,
         abstract: "Before starting the key search, please import your address file by using the '\(FileLoadCommand.configuration.commandName!)' command. This is only required once before the first start. After that you can use the '\(RunCommand.configuration.commandName!)' command to search for the private keys.",
         subcommands: [FileLoadCommand.self, RunCommand.self],
-        defaultSubcommand: RunCommand.self
+        //defaultSubcommand: RunCommand.self
     )
     
     
