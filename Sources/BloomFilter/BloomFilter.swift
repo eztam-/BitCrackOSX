@@ -18,6 +18,7 @@ public class BloomFilter {
     
     enum BloomFilterError: Error {
         case initializationFailed
+        case bitSizeExceededMax
     }
     
     public convenience init(db: DB) throws {
@@ -76,7 +77,9 @@ public class BloomFilter {
         
         if Int(m) > UInt32.max {
             bitCount = Int(UInt32.max)
-            print("⚠️  WARNING! Bloom filter size exceeds maximum. Clamped bit count to UInt32.max. This might cause an exessive rate in false positives.")
+            print("❌  WARNING! Bloom filter size exceeds maximum.")
+            //print("⚠️  WARNING! Bloom filter size exceeds maximum. Clamped bit count to UInt32.max. This might cause an exessive rate in false positives.")
+            throw BloomFilterError.bitSizeExceededMax
         } else{
             self.bitCount = Int(m)
         }
