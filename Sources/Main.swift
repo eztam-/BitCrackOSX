@@ -77,7 +77,7 @@ _________                        __     ____  __.               _________       
             do {
                 print(banner)
                 if startKey == "RANDOM" {
-                    print("\n✨ Using random start key")
+                    //print("\n✨ Using random start key")
                     startKey = Helpers.generateRandom256BitHex()
                 }
                 let db = try DB(dbPath: dbFile)

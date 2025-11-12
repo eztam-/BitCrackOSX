@@ -29,9 +29,10 @@ public class BloomFilter {
             print("❌ No records found in the database. Please load some addresses first.")
             exit(1)
         }
-        try self.init(expectedInsertions: cnt*10, itemBytes: 20) // TODO: *10 seems to be working well, but this should actuylly be solved by the falsPositiveRate
+        try self.init(expectedInsertions: cnt*2, itemBytes: 20, falsePositiveRate:0.0001) // TODO: *2 seems to be working well with 0.0001 FPR
         print("\n🌀 Start loading \(cnt) public key hashes from database into the bloom filter.")
-        
+        let startTime = CFAbsoluteTimeGetCurrent()
+
         var batch = [Data]()
         let batchSize = 50_000
         let rows = try db.getAllAddresses() // keeping this outside of the loop iterates only over the cursers instead of loading all into the memory?
@@ -45,12 +46,12 @@ public class BloomFilter {
         if !batch.isEmpty {
             try self.insert(batch)
         }
-        
-        print("\n✅ Bloom filter initialized with \(cnt) addresses from database")
+        let endTime = CFAbsoluteTimeGetCurrent()
+        print("\n✅ Bloom filter initialized with \(cnt) addresses. Took \(Int(endTime-startTime)) seconds.")
         
     }
     
-    public init(expectedInsertions: Int, itemBytes: Int, falsePositiveRate: Double = 0.001) throws {
+    public init(expectedInsertions: Int, itemBytes: Int, falsePositiveRate: Double = 0.0001) throws {
         
         guard itemBytes % 4 == 0 else {
             print("❌ itemBytes must be multiple of 4 for UInt32 alignment")
@@ -72,7 +73,15 @@ public class BloomFilter {
         let m = ceil(-(Double(expectedInsertions) * log(falsePositiveRate)) / pow(log(2.0), 2.0))
         let k = max(1, Int(round((m / Double(expectedInsertions)) * log(2.0))))
         
-        self.bitCount = Int(m)
+        
+        if Int(m) > UInt32.max {
+            bitCount = Int(UInt32.max)
+            print("⚠️  WARNING! Bloom filter size exceeds maximum. Clamped bit count to UInt32.max. This might cause an exessive rate in false positives.")
+        } else{
+            self.bitCount = Int(m)
+        }
+        
+        
         self.hashCount = k
         
         let wordCount = (bitCount + 31) / 32
@@ -132,7 +141,7 @@ public class BloomFilter {
               let encoder = cmdBuffer.makeComputeCommandEncoder() else { return }
         var countU = UInt32(count)
         var itemLenU = UInt32(itemU32Length)
-        var mBits = UInt64(bitCount)
+        var mBits = UInt32(bitCount)
         var kHashes = UInt32(hashCount)
         
         encoder.setComputePipelineState(insertPipeline)
@@ -140,7 +149,7 @@ public class BloomFilter {
         encoder.setBytes(&countU, length: 4, index: 1)
         encoder.setBytes(&itemLenU, length: 4, index: 2)
         encoder.setBuffer(bitsBuffer, offset: 0, index: 3)
-        encoder.setBytes(&mBits, length: 8, index: 4)
+        encoder.setBytes(&mBits, length: 4, index: 4)
         encoder.setBytes(&kHashes, length: 4, index: 5)
         
         let w = insertPipeline.threadExecutionWidth
@@ -173,7 +182,7 @@ public class BloomFilter {
         
         var countU = UInt32(batchSize)
         var itemLenU = UInt32(itemU32Length)
-        var mBits = UInt64(bitCount)
+        var mBits = UInt32(bitCount)
         var kHashes = UInt32(hashCount)
         
         encoder.setComputePipelineState(queryPipeline)
@@ -181,7 +190,7 @@ public class BloomFilter {
         encoder.setBytes(&countU, length: 4, index: 1)
         encoder.setBytes(&itemLenU, length: 4, index: 2)
         encoder.setBuffer(bitsBuffer, offset: 0, index: 3)
-        encoder.setBytes(&mBits, length: 8, index: 4)
+        encoder.setBytes(&mBits, length: 4, index: 4)
         encoder.setBytes(&kHashes, length: 4, index: 5)
         encoder.setBuffer(resultsBuffer, offset: 0, index: 6)
         
