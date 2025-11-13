@@ -13,10 +13,13 @@ class TimeMeasurement {
     
     nonisolated(unsafe) static let instance = TimeMeasurement()
     
+    
     private init(){
         
         timer.schedule(deadline: .now()+DispatchTimeInterval.seconds(3), repeating: 1.0)
         timer.setEventHandler {
+            // TODO: Add bloom filter false positiver per batch; Batch time in ms
+            // TODO: hide the details about the individual steps and make them available by compiler flag or preporeccor? if pperformance is dramatic. Otherwise make them available by comln param
             print("Key gen    :\(String(format: "%8.3f", self.keyGen)) ms")
             print("secp256k1  :\(String(format: "%8.3f", self.secp256k1)) ms")
             print("SHA256     :\(String(format: "%8.3f", self.sha256)) ms")

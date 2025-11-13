@@ -30,7 +30,7 @@ public class BloomFilter {
             print("❌ No records found in the database. Please load some addresses first.")
             exit(1)
         }
-        try self.init(expectedInsertions: cnt*2, itemBytes: 20, falsePositiveRate:0.0001) // TODO: *2 seems to be working well with 0.0001 FPR
+        try self.init(expectedInsertions: cnt, itemBytes: 20, falsePositiveRate:0.000001)
         print("\n🌀 Start loading \(cnt) public key hashes from database into the bloom filter.")
         let startTime = CFAbsoluteTimeGetCurrent()
 
@@ -70,9 +70,12 @@ public class BloomFilter {
         self.itemU32Length = itemBytes / 4
         self.itemLengthBytes = itemBytes
         
+        // This is a dirty fix, for the issue, that the bloomfilter causes too many false positifes, but only for small datasets
+        let numInsertions = expectedInsertions < 100000 ? expectedInsertions * 2 : expectedInsertions
+        
         // Match Swift implementation exactly
-        let m = ceil(-(Double(expectedInsertions) * log(falsePositiveRate)) / pow(log(2.0), 2.0))
-        let k = max(1, Int(round((m / Double(expectedInsertions)) * log(2.0))))
+        let m = ceil(-(Double(numInsertions) * log(falsePositiveRate)) / pow(log(2.0), 2.0))
+        let k = max(1, Int(round((m / Double(numInsertions)) * log(2.0))))
         
         
         if Int(m) > UInt32.max {
@@ -91,7 +94,7 @@ public class BloomFilter {
         let bufferSize = wordCount * MemoryLayout<UInt32>.stride
         
         print("\n📊 Metal Bloom Filter Configuration:")
-        print("    Expected insertions: \(expectedInsertions)")
+        print("    Expected insertions: \(numInsertions)")
         print("    Bit count: \(bitCount) bits (\(bufferSize / 1024) KB)")
         print("    Hash functions: \(hashCount)")
         print("    Target FPR: \(falsePositiveRate)")

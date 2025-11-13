@@ -11,9 +11,9 @@ using namespace metal;
 inline uint load32(const device uchar *p, uint idx) {
     return ((const device uint*)p)[idx];
 }
-
-// Hash pair generation matching Swift FNV-1a implementation
-inline void hash_pair_fnv(const device uchar *data, 
+/*
+// Hash pair generation using FNV-1a 
+inline void hash_pair_fnv(const device uchar *data,
                           uint len_u32,
                           thread uint &h1, 
                           thread uint &h2) {
@@ -29,7 +29,47 @@ inline void hash_pair_fnv(const device uchar *data,
         // Custom mix for h2
         h2 = (h2 + (val * 0x9E3779B1u)) ^ (h2 >> 13);
     }
+}*/
+
+
+// Murmur3 finalizer for better avalanche and uniformity
+inline uint fmix32(uint x) {
+    x ^= x >> 16;
+    x *= 0x85EBCA6Bu;
+    x ^= x >> 13;
+    x *= 0xC2B2AE35u;
+    x ^= x >> 16;
+    return x;
 }
+
+// Improved FNV-1a hash pair with proper mixing
+inline void hash_pair_fnv(const device uchar *data,
+                          uint len_u32,
+                          thread uint &h1,
+                          thread uint &h2)
+{
+    // Initialize differently to reduce correlation
+    uint x1 = 0x811C9DC5u;  // standard FNV offset
+    uint x2 = 0xABC98388u;  // arbitrary distinct seed
+
+    const device uint *p = (const device uint*)data;
+
+    // process data 32-bit word-wise
+    for (uint i = 0; i < len_u32; i++) {
+        uint val = p[i];
+        // FNV-1a mix for x1
+        x1 = (x1 ^ val) * 0x01000193u;
+        // A different nonlinear mix for x2
+        x2 ^= val + 0x9E3779B9u + (x2 << 6) + (x2 >> 2);
+    }
+
+    // Finalize with strong avalanche
+    h1 = fmix32(x1);
+    h2 = fmix32(x2) | 1u;   // ensure h2 is odd to cover full bit range
+}
+
+
+
 
 // INSERT KERNEL
 kernel void bloom_insert(
