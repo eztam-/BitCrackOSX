@@ -23,7 +23,7 @@ public class BloomFilter {
     
     public convenience init(db: DB) throws {
         print("──────────────────────────────────────────────────")
-        print("🚀 Initializing Bloom Filter...")
+        print("🚀 Initializing Bloom Filter")
         
         let cnt = try db.getAddressCount()
         if cnt == 0 {
@@ -93,7 +93,7 @@ public class BloomFilter {
         let wordCount = (bitCount + 31) / 32
         let bufferSize = wordCount * MemoryLayout<UInt32>.stride
         
-        print("\n📊 Metal Bloom Filter Configuration:")
+       
         print("    Expected insertions: \(numInsertions)")
         print("    Bit count: \(bitCount) bits (\(bufferSize / 1024) KB)")
         print("    Hash functions: \(hashCount)")
