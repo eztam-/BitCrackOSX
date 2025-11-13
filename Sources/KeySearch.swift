@@ -31,10 +31,11 @@ class KeySearch {
         let secp256k1obj = Secp256k1_GPU(on:  device, bufferSize: Constants.BATCH_SIZE)
         let SHA256 = SHA256gpu(on: device, batchSize: Constants.BATCH_SIZE)
         let RIPEMD160 = RIPEMD160(on: device, batchSize: Constants.BATCH_SIZE)
-        let t = TimeMeasurement.instance
+        let t = UI.instance
         
         Helpers.printGPUInfo(device: device)
         print("🚀 Starting key search from: \(startKey)\n")
+       
         
         while true {  // TODO: Shall we introduce an end key, if reached then the application stops?
             
@@ -75,7 +76,7 @@ class KeySearch {
             start = DispatchTime.now()
             let result = bloomFilter.query(ripemd160Buffer, batchSize: Constants.BATCH_SIZE)   //contains(pointer: ripemd160_result, length: 5, offset: i*5)
             
-            checkBloomFilterResults(
+            let falsePositiveCnt = checkBloomFilterResults(
                 result: result,
                 privateKeyBuffer: privateKeyBuffer,
                 ripemd160Buffer: ripemd160Buffer)
@@ -84,15 +85,15 @@ class KeySearch {
             
             
             let endTime = CFAbsoluteTimeGetCurrent()
-            let elapsed = endTime - startTime
-            let hashesPerSec = Double(Constants.BATCH_SIZE) / elapsed
-            t.keysPerSec = String(format: "----[ %.0f keys/s ]----", hashesPerSec)
+            t.updateStats(totalStartTime: startTime, totalEndTime: endTime, bfFalsePositiveCnt: falsePositiveCnt)
+           
             
         }
     }
     
     
-    func checkBloomFilterResults(result: [Bool], privateKeyBuffer: MTLBuffer, ripemd160Buffer: MTLBuffer){
+    func checkBloomFilterResults(result: [Bool], privateKeyBuffer: MTLBuffer, ripemd160Buffer: MTLBuffer) -> Int {
+        var falsePositiveCnt = 0
         for i in 0..<Constants.BATCH_SIZE {
             if result[i] {
                 var privKey = [UInt8](repeating: 0, count: 32)
@@ -105,23 +106,25 @@ class KeySearch {
                 let addresses = try! db.getAddresses(for: pubKeyHashHex)
                 
                 if addresses.isEmpty {
-                    print("False positive bloom filter result")
+                    falsePositiveCnt+=1
+                    //print("False positive bloom filter result")
                 }
                 else {
-                    print("---------------------------------------------------------------------")
-                    print("💰 Private key found: \(privKeyHex)")
-                    print("For addresses:")
-                    for addr in addresses{
-                        print("   \(addr.address)")
-                    }
-                    //print("Use any tool like btc_address_dump to get the address for the private key")
-                    print("---------------------------------------------------------------------\n")
-                    
+                    UI.instance.printMessage(
+                    """
+                    --------------------------------------------------------------------------------------
+                    💰 Private key found: \(privKeyHex)
+                       For addresses:
+                        \(addresses.map { $0.address }.joined(separator: "\n    "))
+                    --------------------------------------------------------------------------------------
+                    """)
+                   
                     try! appendToResultFile(text: "Found private key: \(privKeyHex) for addresses: \(addresses.map(\.address).joined(separator: ", ")) \n")
                     // exit(0) // TODO: do we want to exit? Make this configurable
                 }
             }
         }
+        return falsePositiveCnt
     }
     
     

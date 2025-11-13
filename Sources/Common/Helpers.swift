@@ -132,7 +132,7 @@ public class Helpers{
         let memoryMB = recommendedMaxWorkingSetSize / (1024 * 1024)
 
         print("""
-        ──────────────────────────────────────────────────
+        
         ⚡ GPU Information
             Name:               \(name)
             Registry ID:        \(registryID)
@@ -140,9 +140,26 @@ public class Helpers{
             Unified Memory:     \(hasUnifiedMemory ? "Yes" : "No")
             Max Threads:        \(maxThreadsPerThreadgroup.width) x \(maxThreadsPerThreadgroup.height) x \(maxThreadsPerThreadgroup.depth)
             Recommended Memory: \(memoryMB) MB
-        ──────────────────────────────────────────────────
+        
         """)
     }
+    
+    
+    actor SafeQueue<T: Sendable> {
+        private var items: [T] = []
+
+        func enqueue(_ item: T) { items.append(item) }
+
+        func dequeue() -> T? {
+            guard !items.isEmpty else { return nil }
+            return items.removeFirst()
+        }
+
+        var count: Int { items.count }
+    }
+
+    
+
     
 }
 
