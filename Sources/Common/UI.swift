@@ -18,7 +18,7 @@ class UI {
     var isFirstRun = true
     private let lock = NSLock()
     nonisolated(unsafe) static let instance = UI()
-    private static let STATS_LINES = 7
+    private static let STATS_LINES = 8
     
     private init(){
         
@@ -84,7 +84,7 @@ class UI {
         let totalTimeElapsed = self.totalEndTime - self.totalStartTime
         let mHashesPerSec = Double(Constants.BATCH_SIZE) / totalTimeElapsed / 1000000
         let falsePositiveRate = 100.0 / Double(Constants.BATCH_SIZE) * Double(self.bfFalePositiveCnt)
-        var statusStr = String(format: "[ %.2f MKey/s ]", mHashesPerSec)
+        var statusStr = String(format: "  %.3f MKey/s ", mHashesPerSec)
      
         
         if self.bfFalePositiveCnt > 10 {
@@ -99,8 +99,9 @@ class UI {
         print(String(format: "    secp256k1   : %8.3f ms", self.secp256k1))
         print(String(format: "    SHA256      : %8.3f ms", self.sha256))
         print(String(format: "    RIPEMD160   : %8.3f ms", self.ripemd160))
-        print(String(format: "    Bloom Filter: %8.3f ms | FPR %.4f%%(%d)", self.bloomFilter, falsePositiveRate, self.bfFalePositiveCnt))
-        print("    \(statusStr)")
+        print(String(format: "    Bloom Filter: %8.3f ms | FPR %.4f%% (%d)", self.bloomFilter, falsePositiveRate, self.bfFalePositiveCnt))
+        print("    ─────────────────────────────")
+        print("    Throughput  :  \(statusStr)")
         fflush(stdout)
         
     }
