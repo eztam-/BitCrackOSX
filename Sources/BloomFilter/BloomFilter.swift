@@ -36,14 +36,31 @@ public class BloomFilter {
 
         var batch = [Data]()
         let batchSize = 50_000
+        
+        
+       
+        
+        try  db.dbQueue.read { db in
+            let cursor = try DB.AddressRow.fetchCursor(db)
+                while let row = try cursor.next() {
+                    batch.append(Data(hex: row.pubKeyHash)!)
+                    if batch.count >= batchSize {
+                        try self.insert(batch)
+                        batch.removeAll(keepingCapacity: true)
+                    }
+                }
+            }
+        
+        
+        /*
         let rows = try db.getAllAddresses() // keeping this outside of the loop iterates only over the cursers instead of loading all into the memory?
         for row in rows {
-            batch.append(Data(hex: row.publicKeyHash)!)
+            batch.append(Data(hex: row.pubKeyHash)!)
             if batch.count >= batchSize {
                 try self.insert(batch)
                 batch.removeAll(keepingCapacity: true)
             }
-        }
+        }*/
         if !batch.isEmpty {
             try self.insert(batch)
         }

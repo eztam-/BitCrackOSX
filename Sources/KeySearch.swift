@@ -115,11 +115,11 @@ class KeySearch {
                     --------------------------------------------------------------------------------------
                     💰 Private key found: \(privKeyHex)
                        For addresses:
-                        \(addresses.map { $0.address }.joined(separator: "\n    "))
+                        \(addresses.map { $0.id }.joined(separator: "\n    "))
                     --------------------------------------------------------------------------------------
                     """)
                    
-                    try! appendToResultFile(text: "Found private key: \(privKeyHex) for addresses: \(addresses.map(\.address).joined(separator: ", ")) \n")
+                    try! appendToResultFile(text: "Found private key: \(privKeyHex) for addresses: \(addresses.map(\.id).joined(separator: ", ")) \n")
                     // exit(0) // TODO: do we want to exit? Make this configurable
                 }
             }

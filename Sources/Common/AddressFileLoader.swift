@@ -46,7 +46,7 @@ class AddressFileLoader {
               
             let hash160 = addressTohash160(line)
             if hash160 != nil {
-                batch.append(DB.AddressRow(address: line, publicKeyHash: hash160!.hexString))
+                batch.append(DB.AddressRow(id: line, pubKeyHash: hash160!.hexString))
             }
             
             // if batch is full, process it and reset
@@ -76,7 +76,7 @@ class AddressFileLoader {
         try db.createIndex() // We create the index after insertion for better performance of b-tree index -> log(n)
         let endTime2 = CFAbsoluteTimeGetCurrent()
         
-        print("Data load took: \((endTime-startTime)/60.0))min, indexing took: \((endTime2-startTime)/60)min)")
+        print("Data load took: \((endTime-startTime)/60.0))min, indexing took: \((endTime2-endTime)/60)min)")
 
     }
     
