@@ -53,8 +53,21 @@ public class Secp256k1_GPU {
         
         
         
-        (threadgroupsPerGrid, threadsPerThreadgroup) = Helpers.getThreadConf(pipelineState: pipelineState, threadsPerThreadgroupDivisor: 4)
-        print("secp \(threadgroupsPerGrid) \(threadsPerThreadgroup)")
+       // (threadgroupsPerGrid, threadsPerThreadgroup) = Helpers.getThreadConf(pipelineState: pipelineState, threadsPerThreadgroupDivisor: 4)
+        
+        // Calculate thread execution width
+             self.threadsPerThreadgroup = MTLSize(
+                 width: min(pipelineState.threadExecutionWidth, bufferSize),
+                 height: 1,
+                 depth: 1
+             )
+             self.threadgroupsPerGrid = MTLSize(
+                width: Constants.BATCH_SIZE/512,
+                 height: 1,
+                 depth: 1
+             )
+        
+        print("######### secp \(threadgroupsPerGrid) \(threadsPerThreadgroup)")
 
     }
     
