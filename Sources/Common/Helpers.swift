@@ -144,22 +144,17 @@ public class Helpers{
         """)
     }
     
-    
-    actor SafeQueue<T: Sendable> {
-        private var items: [T] = []
-
-        func enqueue(_ item: T) { items.append(item) }
-
-        func dequeue() -> T? {
-            guard !items.isEmpty else { return nil }
-            return items.removeFirst()
-        }
-
-        var count: Int { items.count }
+    // This method calculates (hopefully) a thread configuration that fits the best for the used GPU
+    // Always keep threadgroupsPerGrid as provided by this function. This is optimal for any case!
+    // Feel free to adjust the threadsPerThreadgroup by using threadsPerThreadgroupDivisor. Use lower values (divide by 2, 4, 8) for cumpute heavy stuff and keep high for less compute like hashing functions
+    public static func getThreadConf(pipelineState: MTLComputePipelineState, threadsPerThreadgroupDivisor: Int = 1) -> (MTLSize, MTLSize){
+        let w = pipelineState.threadExecutionWidth
+        let maxTG = pipelineState.maxTotalThreadsPerThreadgroup
+        let tgWidth = maxTG - (maxTG % w)
+        let threadsPerThreadgroup = MTLSize(width: tgWidth/threadsPerThreadgroupDivisor, height: 1, depth: 1)
+        let threadgroupsPerGrid = MTLSize(width: Constants.BATCH_SIZE, height: 1, depth: 1)
+        return (threadgroupsPerGrid,threadsPerThreadgroup)
     }
-
-    
-
     
 }
 

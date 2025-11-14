@@ -51,21 +51,11 @@ public class Secp256k1_GPU {
         self.publicKeyBufferComp = publicKeyBufferComp
         self.publicKeyBufferUncomp = publicKeyBufferUncomp
         
-    
         
-        // Calculate thread execution width
-        self.threadsPerThreadgroup = MTLSize(
-            width: min(pipelineState.threadExecutionWidth, bufferSize),
-            height: 1,
-            depth: 1
-        )
-        self.threadgroupsPerGrid = MTLSize(
-            width: (bufferSize + threadsPerThreadgroup.width - 1) / threadsPerThreadgroup.width,
-            height: 1,
-            depth: 1
-        )
-     
         
+        (threadgroupsPerGrid, threadsPerThreadgroup) = Helpers.getThreadConf(pipelineState: pipelineState, threadsPerThreadgroupDivisor: 4)
+        print("secp \(threadgroupsPerGrid) \(threadsPerThreadgroup)")
+
     }
     
     
@@ -80,7 +70,8 @@ public class Secp256k1_GPU {
         commandEncoder.setBuffer(privateKeyBuffer, offset: 0, index: 0)
         commandEncoder.setBuffer(publicKeyBufferComp, offset: 0, index: 1)
         commandEncoder.setBuffer(publicKeyBufferUncomp, offset: 0, index: 2)
-        
+        var n = UInt32(Constants.BATCH_SIZE)
+        commandEncoder.setBytes(&n, length: MemoryLayout<UInt32>.stride, index: 3)
         
         // Dispatch compute threads
         commandEncoder.dispatchThreadgroups(threadgroupsPerGrid, threadsPerThreadgroup: threadsPerThreadgroup)

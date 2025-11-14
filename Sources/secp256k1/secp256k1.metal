@@ -1015,6 +1015,7 @@ kernel void private_to_public_keys(
     device const uint* private_keys [[buffer(0)]],
     device uchar*      public_keys_comp [[buffer(1)]],
     device uchar*      public_keys_uncomp [[buffer(2)]],
+    constant uint&     batchSize [[buffer(3)]],
     uint id  [[thread_position_in_grid]],
     uint lid [[thread_position_in_threadgroup]],
     uint tpg [[threads_per_threadgroup]])
@@ -1023,6 +1024,9 @@ kernel void private_to_public_keys(
    // threadgroup Point TG_TABLE256[256];
     //preload_G_table_to_threadgroup(TG_TABLE256, G_TABLE256, lid, tpg);
 
+    if (id >= batchSize) return;
+
+    
     // --- load private key for this thread ---
     uint256 priv = load_private_key(private_keys, id);
 

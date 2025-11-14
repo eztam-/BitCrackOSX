@@ -95,15 +95,20 @@ class UI {
         print("\u{1B}[\(UI.STATS_LINES)A", terminator: "")
         // TODO: hide the details about the individual steps and make them available by compiler flag or preporeccor? if pperformance is dramatic. Otherwise make them available by comln param
         print("📊 Live Stats")
-        print(String(format: "    Key gen     : %8.3f ms", self.keyGen))
-        print(String(format: "    secp256k1   : %8.3f ms", self.secp256k1))
-        print(String(format: "    SHA256      : %8.3f ms", self.sha256))
-        print(String(format: "    RIPEMD160   : %8.3f ms", self.ripemd160))
-        print(String(format: "    Bloom Filter: %8.3f ms | FPR %.4f%% (%d)", self.bloomFilter, falsePositiveRate, self.bfFalePositiveCnt))
-        print("    ─────────────────────────────")
-        print("    Throughput  :  \(statusStr)")
+        print(String(format: "\(clearLine())    Key gen     : %8.3f ms", self.keyGen))
+        print(String(format: "\(clearLine())    secp256k1   : %8.3f ms", self.secp256k1))
+        print(String(format: "\(clearLine())    SHA256      : %8.3f ms", self.sha256))
+        print(String(format: "\(clearLine())    RIPEMD160   : %8.3f ms", self.ripemd160))
+        print(String(format: "\(clearLine())    Bloom Filter: %8.3f ms | FPR %.4f%% (%d)", self.bloomFilter, falsePositiveRate, self.bfFalePositiveCnt))
+        print("\(clearLine())    ─────────────────────────────")
+        print("\(clearLine())    Throughput  :  \(statusStr)")
         fflush(stdout)
         
+    }
+    
+    func clearLine() -> String {
+        // Clear the current line and move cursor to beginning
+        return "\u{001B}[2K\u{001B}[0G"
     }
 }
 
