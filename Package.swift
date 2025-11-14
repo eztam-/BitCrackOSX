@@ -12,8 +12,7 @@ let package = Package(
         .package(url: "https://github.com/21-DOT-DEV/swift-secp256k1",exact: "0.21.1"),
         .package(url: "https://github.com/mkrd/Swift-BigInt", exact: "2.3.0"),
         .package(url: "https://github.com/apple/swift-argument-parser", from: "1.6.2"),
-        .package(url: "https://github.com/stephencelis/SQLite.swift.git", from: "0.15.4"),
-        .package(url: "https://github.com/groue/GRDB.swift.git", from: "7.8.0")
+        .package(url: "https://github.com/stephencelis/SQLite.swift.git", from: "0.15.4")
     ],
     targets: [
         .executableTarget(
@@ -21,7 +20,6 @@ let package = Package(
             dependencies: [
                 .product(name: "ArgumentParser", package: "swift-argument-parser"),
                 .product(name: "SQLite", package: "SQLite.swift"),
-                .product(name: "GRDB", package: "GRDB.swift"),
             ],
             path: "Sources",
             resources: [

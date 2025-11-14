@@ -1,7 +1,7 @@
 import Foundation
 import SQLite
 
-public class DB_old {
+public class DB {
     
     let dbPath: String
     let db: Connection
