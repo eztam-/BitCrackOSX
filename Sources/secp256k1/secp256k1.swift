@@ -62,7 +62,7 @@ public class Secp256k1_GPU {
                  depth: 1
              )
              self.threadgroupsPerGrid = MTLSize(
-                width: Constants.BATCH_SIZE/512,
+                width: 1024, // TODO  FIXME: it only works correctly with BATCH_SIZE/512 or divided by even larger numbers. But this is not optimal. Fix this
                  height: 1,
                  depth: 1
              )
