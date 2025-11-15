@@ -44,6 +44,8 @@ class RIPEMD160 {
         encoder.setComputePipelineState(pipelineState)
         encoder.setBuffer(messagesBuffer, offset: 0, index: 0)
         encoder.setBuffer(outBuffer, offset: 0, index: 1)
+        var n = UInt32(self.batchSize)
+        encoder.setBytes(&n, length: MemoryLayout<UInt32>.stride, index: 2)
         encoder.dispatchThreads(threadsPerGrid, threadsPerThreadgroup: threadsPerThreadgroup)
         encoder.endEncoding()
         

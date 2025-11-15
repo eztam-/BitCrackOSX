@@ -80,11 +80,13 @@ constant uint K_RIGHT[5] = { 0x50A28BE6u, 0x5C4DD124u, 0x6D703EF3u, 0x7A6D76E9u,
 kernel void ripemd160_fixed32_kernel(
     const device uint *        messages        [[ buffer(0) ]],
     device uint *              outWords        [[ buffer(1) ]],
+    constant uint&             numMessages     [[ buffer(2) ]],
     uint                       gid             [[ thread_position_in_grid ]],
     uint                       tid_in_tg       [[ thread_index_in_threadgroup ]],
     uint                       tg_size         [[ threads_per_threadgroup ]])
 {
-
+    if (gid >= numMessages) return;
+    
     // Copy constant arrays into threadgroup memory once per threadgroup
     threadgroup uint tgLeftRot[80];
     threadgroup uint tgRightRot[80];
