@@ -144,7 +144,7 @@ public class Helpers{
     
 
     /**
-        threadsPerThreadgroupMultiplier: Use a power of 2 (2,4,8,16 etc.) to fine tune per kernel. If the maximum is exceeded, the number is automatically capped to the max (16 on M1 or 32 on M3,...)
+        threadsPerThreadgroupMultiplier: Use to fine tune per kernel. If the maximum is exceeded, the number is automatically capped to the max (16 on M1 or 32 on M3,...)
      */
     public static func getThreadsPerThreadgroup(pipelineState: MTLComputePipelineState, batchSize: Int, threadsPerThreadgroupMultiplier: Int = 1) -> (MTLSize, MTLSize) {
         let threadExecutionWidth = pipelineState.threadExecutionWidth // Might differ from kernel to kernal and also between GPUs but usually 32 on M1
