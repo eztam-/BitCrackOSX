@@ -144,7 +144,7 @@ public class Helpers{
     
 
     /**
-        threadsPerThreadgroupMultiplier: Use to fine tune per kernel. If the maximum is exceeded, the number is automatically capped to the max (16 on M1 or 32 on M3,...)
+        threadsPerThreadgroupMultiplier: Use to fine tune per kernel. If the maximum is exceeded, the number is automatically capped to the max (16 on M1 or 32 on M3,...) Use preferably number that are a power of 2 (2,4,8,16,..)
      */
     public static func getThreadsPerThreadgroup(pipelineState: MTLComputePipelineState, batchSize: Int, threadsPerThreadgroupMultiplier: Int = 1) -> (MTLSize, MTLSize) {
         let threadExecutionWidth = pipelineState.threadExecutionWidth // Might differ from kernel to kernal and also between GPUs but usually 32 on M1
@@ -161,6 +161,7 @@ public class Helpers{
         
         // classic integer rounding trick to ensure a sufficient number of TGs if the batchSize is not dividable by threadsPerThreadgroup to a integer
         let threadgroupsPerGrid = MTLSize(width: (batchSize + threadsPerThreadgroup - 1) / threadsPerThreadgroup, height: 1, depth: 1)
+       //let threadgroupsPerGrid = MTLSize(width: 1024, height: 1, depth: 1)
         
         return (threadsPerTGSize, threadgroupsPerGrid)
     }

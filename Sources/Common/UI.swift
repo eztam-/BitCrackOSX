@@ -14,14 +14,17 @@ class UI {
     var totalEndTime: CFAbsoluteTime = CFAbsoluteTimeGetCurrent()
     var bfFalePositiveCnt: Int = 0
     
+  
     let timer = DispatchSource.makeTimerSource()
     var isFirstRun = true
     private let lock = NSLock()
-    nonisolated(unsafe) static let instance = UI()
+    
     private static let STATS_LINES = 8
     
-    private init(){
-        
+    private let batchSize: Int
+    
+    public init(batchSize: Int){
+        self.batchSize = batchSize
         timer.schedule(deadline: .now()+DispatchTimeInterval.seconds(3), repeating: 1.0)
         timer.setEventHandler {
             if self.isFirstRun {
@@ -73,7 +76,6 @@ class UI {
         printFooterPadding()
         fflush(stdout)
 
-
     }
 
 
@@ -82,8 +84,8 @@ class UI {
          defer { lock.unlock() }
         
         let totalTimeElapsed = self.totalEndTime - self.totalStartTime
-        let mHashesPerSec = Double(Constants.BATCH_SIZE) / totalTimeElapsed / 1000000
-        let falsePositiveRate = 100.0 / Double(Constants.BATCH_SIZE) * Double(self.bfFalePositiveCnt)
+        let mHashesPerSec = Double(batchSize) / totalTimeElapsed / 1000000
+        let falsePositiveRate = 100.0 / Double(batchSize) * Double(self.bfFalePositiveCnt)
         var statusStr = String(format: "  %.3f MKey/s ", mHashesPerSec)
      
         

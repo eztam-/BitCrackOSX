@@ -13,6 +13,8 @@ class SHA256gpu {
     let threadsPerGrid: MTLSize
     let threadsPerThreadgroup: MTLSize
     
+    let batchSize: Int
+    
     // Helper: pack several messages into a single byte buffer and meta array
     struct MsgMeta {
         var offset: UInt32
@@ -21,6 +23,7 @@ class SHA256gpu {
     
     init(on device: MTLDevice, batchSize: Int){
         self.device = device
+        self.batchSize = batchSize
         let library: MTLLibrary! = try? device.makeDefaultLibrary(bundle: Bundle.module)
         
         
@@ -67,7 +70,7 @@ class SHA256gpu {
         
     }
     
-    func run(publicKeysBuffer: MTLBuffer, batchSize: Int) -> MTLBuffer {
+    func run(publicKeysBuffer: MTLBuffer) -> MTLBuffer {
 
         let commandBuffer = commandQueue.makeCommandBuffer()!
         let encoder = commandBuffer.makeComputeCommandEncoder()!

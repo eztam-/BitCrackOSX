@@ -11,9 +11,12 @@ class RIPEMD160 {
     let messagesBuffer : MTLBuffer
     let threadsPerGrid : MTLSize
     let threadsPerThreadgroup: MTLSize
+    let batchSize: Int
     
     init(on device: MTLDevice, batchSize: Int){
         self.device = device
+        self.batchSize = batchSize
+        
         let library: MTLLibrary! = try? device.makeDefaultLibrary(bundle: Bundle.module)
         
         // If you prefer to compile shader from source at runtime, you can use device.makeLibrary(source:options:).
@@ -44,7 +47,7 @@ class RIPEMD160 {
     }
     
     
-    func run(messagesBuffer: MTLBuffer, messageCount: Int) -> MTLBuffer {
+    func run(messagesBuffer: MTLBuffer) -> MTLBuffer {
 
         let cmdBuf = commandQueue.makeCommandBuffer()!
         let encoder = cmdBuf.makeComputeCommandEncoder()!

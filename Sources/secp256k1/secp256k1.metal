@@ -1020,12 +1020,8 @@ kernel void private_to_public_keys(
     uint lid [[thread_position_in_threadgroup]],
     uint tpg [[threads_per_threadgroup]])
 {
-    // --- preload affine table once per threadgroup ---
-   // threadgroup Point TG_TABLE256[256];
-    //preload_G_table_to_threadgroup(TG_TABLE256, G_TABLE256, lid, tpg);
 
     if (id >= batchSize) return;
-
     
     // --- load private key for this thread ---
     uint256 priv = load_private_key(private_keys, id);

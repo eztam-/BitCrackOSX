@@ -4,6 +4,15 @@ import Metal
 
 let device = MTLCreateSystemDefaultDevice()!
 
+
+// Shouldn't make a hige difference in performance, but having the batch size as a multiple of maxThreadsPerThreadgroup will utilize each thread group fully.
+// (otherwise the last one might be just partially used).
+// This might also be a nice way, to chose larger batch sized for faster GPUs (TBC)
+// Keep this private since each of the cimpute classes should get it per init(). This allows test cases to work with smaller batch sizes
+private let BATCH_SIZE = device.maxThreadsPerThreadgroup.width * 512 
+
+
+
 // TODO: FIXME: If the key range is smaller than the batch size it doesnt work
 // TODO: If the size is smaller, that we run into a memory leak since the garbage collector seem to slow, to free up the memory for the commandBuffers
 
@@ -13,6 +22,7 @@ class KeySearch {
     let bloomFilter: BloomFilter
     let db: DB
     let outputFile: String
+    let ui: UI = UI(batchSize: BATCH_SIZE)
     
     public init(bloomFilter: BloomFilter, database: DB, outputFile: String) {
         self.bloomFilter = bloomFilter
@@ -27,11 +37,11 @@ class KeySearch {
         //let startKey = "0000000000000000000000000000000000000000000000000001000000000000"
         
         
-        let keyGen = KeyGen(device: device, batchSize: Constants.BATCH_SIZE, startKeyHex: startKey)
-        let secp256k1obj = Secp256k1_GPU(on:  device, bufferSize: Constants.BATCH_SIZE)
-        let SHA256 = SHA256gpu(on: device, batchSize: Constants.BATCH_SIZE)
-        let RIPEMD160 = RIPEMD160(on: device, batchSize: Constants.BATCH_SIZE)
-        let t = UI.instance
+        let keyGen = KeyGen(device: device, batchSize: BATCH_SIZE, startKeyHex: startKey)
+        let secp256k1obj = Secp256k1_GPU(on:  device, batchSize: BATCH_SIZE)
+        let SHA256 = SHA256gpu(on: device, batchSize: BATCH_SIZE)
+        let RIPEMD160 = RIPEMD160(on: device, batchSize: BATCH_SIZE)
+        
         
         Helpers.printGPUInfo(device: device)
         print("🚀 Starting key search from: \(startKey)\n")
@@ -45,47 +55,47 @@ class KeySearch {
             // Generate batch of private keys
             var start = DispatchTime.now()
             let privateKeyBuffer = keyGen.run()
-            t.keyGen = Double(DispatchTime.now().uptimeNanoseconds - start.uptimeNanoseconds) / 1_000_000.0
+            ui.keyGen = Double(DispatchTime.now().uptimeNanoseconds - start.uptimeNanoseconds) / 1_000_000.0
             
             
             
             // Using secp256k1 EC to calculate public keys for the given private keys
             start = DispatchTime.now()
             let (pubKeysCompBuff, pubKeysUncompBuff) = secp256k1obj.generatePublicKeys(privateKeyBuffer: privateKeyBuffer)
-            t.secp256k1 = Double(DispatchTime.now().uptimeNanoseconds - start.uptimeNanoseconds) / 1_000_000.0
+            ui.secp256k1 = Double(DispatchTime.now().uptimeNanoseconds - start.uptimeNanoseconds) / 1_000_000.0
             
             
             
             // Calculate SHA256 for the batch of public keys
             start = DispatchTime.now()
-            let sha256Buff = SHA256.run(publicKeysBuffer: pubKeysCompBuff, batchSize: Constants.BATCH_SIZE)
+            let sha256Buff = SHA256.run(publicKeysBuffer: pubKeysCompBuff)
             //printSha256Output(BATCH_SIZE, outPtr)
-            t.sha256 = Double(DispatchTime.now().uptimeNanoseconds - start.uptimeNanoseconds) / 1_000_000.0
+            ui.sha256 = Double(DispatchTime.now().uptimeNanoseconds - start.uptimeNanoseconds) / 1_000_000.0
             
             
             
             // Calculate RIPEDM160
             start = DispatchTime.now()
-            let ripemd160Buffer = RIPEMD160.run(messagesBuffer: sha256Buff, messageCount: Constants.BATCH_SIZE)
-            t.ripemd160 = Double(DispatchTime.now().uptimeNanoseconds - start.uptimeNanoseconds) / 1_000_000.0
+            let ripemd160Buffer = RIPEMD160.run(messagesBuffer: sha256Buff)
+            ui.ripemd160 = Double(DispatchTime.now().uptimeNanoseconds - start.uptimeNanoseconds) / 1_000_000.0
             
             
             
             // Check RIPEMD160 hashes against the bloom filter
             // Note, we have reverse-calculated BASE58 before inserting addresses into the bloom filter, so we can check directly the RIPEMD160 hashes which is faster.
             start = DispatchTime.now()
-            let result = bloomFilter.query(ripemd160Buffer, batchSize: Constants.BATCH_SIZE)   //contains(pointer: ripemd160_result, length: 5, offset: i*5)
+            let result = bloomFilter.query(ripemd160Buffer, batchSize: BATCH_SIZE)   //contains(pointer: ripemd160_result, length: 5, offset: i*5)
             
             let falsePositiveCnt = checkBloomFilterResults(
                 result: result,
                 privateKeyBuffer: privateKeyBuffer,
                 ripemd160Buffer: ripemd160Buffer)
             
-            t.bloomFilter = Double(DispatchTime.now().uptimeNanoseconds - start.uptimeNanoseconds) / 1_000_000.0
+            ui.bloomFilter = Double(DispatchTime.now().uptimeNanoseconds - start.uptimeNanoseconds) / 1_000_000.0
             
             
             let endTime = CFAbsoluteTimeGetCurrent()
-            t.updateStats(totalStartTime: startTime, totalEndTime: endTime, bfFalsePositiveCnt: falsePositiveCnt)
+            ui.updateStats(totalStartTime: startTime, totalEndTime: endTime, bfFalsePositiveCnt: falsePositiveCnt)
            
             
         }
@@ -94,7 +104,7 @@ class KeySearch {
     
     func checkBloomFilterResults(result: [Bool], privateKeyBuffer: MTLBuffer, ripemd160Buffer: MTLBuffer) -> Int {
         var falsePositiveCnt = 0
-        for i in 0..<Constants.BATCH_SIZE {
+        for i in 0..<BATCH_SIZE {
             if result[i] {
                 var privKey = [UInt8](repeating: 0, count: 32)
                 memcpy(&privKey, privateKeyBuffer.contents().advanced(by: i*32), 32)
@@ -110,7 +120,7 @@ class KeySearch {
                     //print("False positive bloom filter result")
                 }
                 else {
-                    UI.instance.printMessage(
+                    ui.printMessage(
                     """
                     --------------------------------------------------------------------------------------
                     💰 Private key found: \(privKeyHex)
