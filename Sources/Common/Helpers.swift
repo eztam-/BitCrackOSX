@@ -1,6 +1,13 @@
 import Foundation
 import Metal
 
+
+enum KeySearchError: Error {
+    case wrongThreadPerGridMultiple
+    case wrongThreadNumber
+}
+
+
 // Extension for hex string conversion
 extension Data {
     public var hexString: String {
@@ -122,7 +129,7 @@ public class Helpers{
     }
     
     
-    public static func printGPUInfo(device: MTLDevice) {
+    public static func printGPUInfo(device: MTLDevice) throws {
         let name = device.name
         let maxThreadsPerThreadgroup = device.maxThreadsPerThreadgroup
         let isLowPower = device.isLowPower
@@ -146,7 +153,7 @@ public class Helpers{
     /**
         threadsPerThreadgroupMultiplier: Use to fine tune per kernel. If the maximum is exceeded, the number is automatically capped to the max (16 on M1 or 32 on M3,...) Use preferably number that are a power of 2 (2,4,8,16,..)
      */
-    public static func getThreadsPerThreadgroup(pipelineState: MTLComputePipelineState, batchSize: Int, threadsPerThreadgroupMultiplier: Int = 1) -> (MTLSize, MTLSize) {
+    public static func getThreadConfig(pipelineState: MTLComputePipelineState, batchSize: Int, threadsPerThreadgroupMultiplier: Int = 1) throws -> (MTLSize, MTLSize)  {
         let threadExecutionWidth = pipelineState.threadExecutionWidth // Might differ from kernel to kernal and also between GPUs but usually 32 on M1
         let maxTotalThreadsPerThreadgroup = pipelineState.maxTotalThreadsPerThreadgroup // Always the same but different on different GPUs (M1=512; M2,M3 = 1024)
 
@@ -155,13 +162,24 @@ public class Helpers{
         
         // The threadsPerThreadgroup must be a multiple of threadExecutionWidth for best performance!
         assert(threadsPerThreadgroup % threadExecutionWidth == 0)
-        
+        if threadsPerThreadgroup % threadExecutionWidth != 0 {
+            throw KeySearchError.wrongThreadPerGridMultiple
+        }
+            
         // For linear structured data like in our case, array processing, we create a 1D threadGroup
         let threadsPerTGSize = MTLSize(width: threadsPerThreadgroup, height: 1, depth: 1)
         
         // classic integer rounding trick to ensure a sufficient number of TGs if the batchSize is not dividable by threadsPerThreadgroup to a integer
         let threadgroupsPerGrid = MTLSize(width: (batchSize + threadsPerThreadgroup - 1) / threadsPerThreadgroup, height: 1, depth: 1)
        //let threadgroupsPerGrid = MTLSize(width: 1024, height: 1, depth: 1)
+        
+        // We could also say batchSize < threadgroupsPerGrid.width * threadsPerTGSize.width if we would allow arbitrary batch sizes that are not a multiple of device.maxThreadsPerThreadgroup.width
+        // But keeping it for now !=
+        if batchSize != threadgroupsPerGrid.width * threadsPerTGSize.width {
+            print("totalThreads isn't equal to (threadgroupsPerGrid.width * threadsPerThreadgroupSize.width)")
+            print("\(batchSize) != \(threadgroupsPerGrid.width) * \(threadsPerTGSize.width)")
+            throw KeySearchError.wrongThreadNumber
+        }
         
         return (threadsPerTGSize, threadgroupsPerGrid)
     }

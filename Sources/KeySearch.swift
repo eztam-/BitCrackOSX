@@ -39,11 +39,11 @@ class KeySearch {
         
         let keyGen = KeyGen(device: device, batchSize: BATCH_SIZE, startKeyHex: startKey)
         let secp256k1obj = try Secp256k1_GPU(on:  device, batchSize: BATCH_SIZE)
-        let SHA256 = SHA256gpu(on: device, batchSize: BATCH_SIZE)
+        let SHA256 = try SHA256(on: device, batchSize: BATCH_SIZE)
         let RIPEMD160 = RIPEMD160(on: device, batchSize: BATCH_SIZE)
         
         
-        Helpers.printGPUInfo(device: device)
+        try Helpers.printGPUInfo(device: device)
         print("🚀 Starting key search from: \(startKey)\n")
        
         

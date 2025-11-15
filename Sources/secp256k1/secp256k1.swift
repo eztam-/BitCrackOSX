@@ -20,7 +20,7 @@ public class Secp256k1_GPU {
         self.device = device
         self.pipelineState = try Helpers.buildPipelineState(kernelFunctionName: "private_to_public_keys")
         
-        (self.threadsPerThreadgroup,  self.threadgroupsPerGrid) = Helpers.getThreadsPerThreadgroup(
+        (self.threadsPerThreadgroup,  self.threadgroupsPerGrid) = try Helpers.getThreadConfig(
             pipelineState: pipelineState,
             batchSize: self.batchSize,
             threadsPerThreadgroupMultiplier: 16)
