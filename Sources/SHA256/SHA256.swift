@@ -2,41 +2,29 @@ import Foundation
 import Metal
 
 
-class SHA256gpu {
+class SHA256 {
     
-    let pipeline: MTLComputePipelineState
+    let pipelineState: MTLComputePipelineState
     let device: MTLDevice
     let commandQueue: MTLCommandQueue
     let outBuffer: MTLBuffer
     let numMessagesBuffer: MTLBuffer
     let messageSizeBuffer: MTLBuffer
-    let threadsPerGrid: MTLSize
+    let threadgroupsPerGrid: MTLSize
     let threadsPerThreadgroup: MTLSize
     
     let batchSize: Int
     
-    // Helper: pack several messages into a single byte buffer and meta array
-    struct MsgMeta {
-        var offset: UInt32
-        var length: UInt32
-    }
-    
-    init(on device: MTLDevice, batchSize: Int){
+    init(on device: MTLDevice, batchSize: Int) throws{
         self.device = device
         self.batchSize = batchSize
-        let library: MTLLibrary! = try? device.makeDefaultLibrary(bundle: Bundle.module)
+        self.pipelineState = try Helpers.buildPipelineState(kernelFunctionName: "sha256_batch_kernel")
         
+        (self.threadsPerThreadgroup,  self.threadgroupsPerGrid) = Helpers.getThreadsPerThreadgroup(
+            pipelineState: pipelineState,
+            batchSize: self.batchSize,
+            threadsPerThreadgroupMultiplier: 16)
         
-        // If you prefer to compile shader from source at runtime, you can use device.makeLibrary(source:options:).
-        // This example assumes SHA256.metal is compiled into app bundle (add file to Xcode target).
-        
-        let function = library.makeFunction(name: "sha256_batch_kernel")!
-        
-        do {
-            self.pipeline = try device.makeComputePipelineState(function: function)
-        } catch {
-            fatalError("Failed to create pipeline state: \(error)")
-        }
         commandQueue = device.makeCommandQueue()!
         
         // Output buffer: uint (32bit) * 8 words per message
@@ -51,23 +39,6 @@ class SHA256gpu {
         var messageSizeUInt32 = UInt32(33) // TODO: 33 = compressed 65 = uncompressed
         self.messageSizeBuffer = device.makeBuffer(bytes: &messageSizeUInt32, length: MemoryLayout<UInt32>.stride, options: [])!
         
-        
-        // dispatch: 1 thread per message
-    
-        /*
-         let threadsPerThreadgroup = MTLSize(width: pipeline.maxTotalThreadsPerThreadgroup, height: 1, depth: 1)
-        
-         let threadgroups = MTLSize(width: (metas.count + threadsPerThreadgroup.width - 1) / threadsPerThreadgroup.width,
-                                    height: 1,
-                                    depth: 1)
-         let threadsPerGrid = MTLSize(width: metas.count, height: 1, depth: 1)
-         */
-        
-        self.threadsPerGrid = MTLSize(width: batchSize, height: 1, depth: 1)
-        self.threadsPerThreadgroup = MTLSize(width: pipeline.threadExecutionWidth, height: 1, depth: 1)
-
-        //print("sha \(threadsPerGrid) \(threadsPerThreadgroup)")
-        
     }
     
     func run(publicKeysBuffer: MTLBuffer) -> MTLBuffer {
@@ -75,12 +46,12 @@ class SHA256gpu {
         let commandBuffer = commandQueue.makeCommandBuffer()!
         let encoder = commandBuffer.makeComputeCommandEncoder()!
         
-        encoder.setComputePipelineState(pipeline)
+        encoder.setComputePipelineState(pipelineState)
         encoder.setBuffer(publicKeysBuffer, offset: 0, index: 0)
         encoder.setBuffer(messageSizeBuffer, offset: 0, index: 1)
         encoder.setBuffer(outBuffer, offset: 0, index: 2)
         encoder.setBuffer(numMessagesBuffer, offset: 0, index: 3)
-        encoder.dispatchThreads(threadsPerGrid, threadsPerThreadgroup: threadsPerThreadgroup)
+        encoder.dispatchThreads(threadgroupsPerGrid, threadsPerThreadgroup: threadsPerThreadgroup)
         encoder.endEncoding()
         
         commandBuffer.commit()
