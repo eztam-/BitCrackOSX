@@ -3,28 +3,24 @@ import Metal
 
 public class KeyGen {
     
-    let device: MTLDevice
-    let library: MTLLibrary
-    var currentKeyBuf: MTLBuffer? = nil
+
     let queue: MTLCommandQueue
-    let pipeline: MTLComputePipelineState
+    let pipelineState: MTLComputePipelineState
     
+    var currentKeyBuf: MTLBuffer? = nil
     let outBuf : MTLBuffer
-    
-    // Constant buffer for numKeys
     let batchSizeBuff : MTLBuffer
     
     let threadsPerGrid : MTLSize
     let threadsPerThreadgroup : MTLSize
     
-    public init(device: MTLDevice, batchSize: Int, startKeyHex: String){
+    
+    public init(device: MTLDevice, batchSize: Int, startKeyHex: String) throws {
         
-        self.device = device
-        self.library = try! device.makeDefaultLibrary(bundle: Bundle.module)
+        
         self.queue = device.makeCommandQueue()!
-        let fn = library.makeFunction(name: "generate_keys")!
-        self.pipeline = try! device.makeComputePipelineState(function: fn)
-        
+        self.pipelineState = try Helpers.buildPipelineState(kernelFunctionName: "generate_keys")
+
         
         // Setting the start key only once. The Metal kernel will then store the current key + 1 in this buffer after the batch succeeded.
         // The next batch run will read its start key again from this buffer and will continue iterating from there.
@@ -46,7 +42,7 @@ public class KeyGen {
 
         // Thread sizing - choose based on device
         self.threadsPerGrid = MTLSize(width: batchSize, height: 1, depth: 1)
-        let w = pipeline.threadExecutionWidth
+        let w = pipelineState.threadExecutionWidth
         //let maxT = pipeline.maxTotalThreadsPerThreadgroup
         let tgWidth = min(w, batchSize)
         self.threadsPerThreadgroup = MTLSize(width: tgWidth, height: 1, depth: 1)
@@ -59,7 +55,7 @@ public class KeyGen {
         
         let cmdBuf = queue.makeCommandBuffer()!
         let encoder = cmdBuf.makeComputeCommandEncoder()!
-        encoder.setComputePipelineState(pipeline)
+        encoder.setComputePipelineState(pipelineState)
         encoder.setBuffer(currentKeyBuf, offset: 0, index: 0)
         encoder.setBuffer(outBuf, offset: 0, index: 1)
         encoder.setBuffer(batchSizeBuff, offset: 0, index: 2)

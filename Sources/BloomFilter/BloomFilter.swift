@@ -106,22 +106,11 @@ public class BloomFilter {
         memset(bits.contents(), 0, bufferSize)
         self.bitsBuffer = bits
         
-        do {
-            let library: MTLLibrary! = try? device.makeDefaultLibrary(bundle: Bundle.module)
-            
-            guard let insertFunc = library.makeFunction(name: "bloom_insert"),
-                  let queryFunc = library.makeFunction(name: "bloom_query") else {
-                print("Failed to create Metal functions")
-                throw BloomFilterError.initializationFailed
-            }
-            
-            self.insertPipeline = try dev.makeComputePipelineState(function: insertFunc)
-            self.queryPipeline = try dev.makeComputePipelineState(function: queryFunc)
-            
-        } catch {
-            print("Failed to compile shaders: \(error)")
-            throw BloomFilterError.initializationFailed
-        }
+        
+        self.insertPipeline = try Helpers.buildPipelineState(kernelFunctionName: "bloom_insert")
+        self.queryPipeline = try Helpers.buildPipelineState(kernelFunctionName: "bloom_query")
+
+        
     }
     
     public func insert(_ items: [Data]) throws {

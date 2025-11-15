@@ -12,13 +12,13 @@ class TestKeyGen: TestBase {
         super.init(kernelFunctionName: "generate_keys")!
     }
     
-    @Test func testKeyGen() {
+    @Test func testKeyGen() throws {
         
         var numFailedTests = 0
         let startKey = "11111111111111111111111111111111111111111111111111111111FFFFFFAA"; // High first limb to test carry
         var reference = BInt(startKey, radix: 16)
         
-        let keyGen = KeyGen(device: device, batchSize: 1000, startKeyHex: startKey)
+        let keyGen = try KeyGen(device: device, batchSize: 1000, startKeyHex: startKey)
        
         // Calculate a first batch of keys
         var outPtr = keyGen.run()
