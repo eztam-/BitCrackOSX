@@ -53,22 +53,28 @@ public class Secp256k1_GPU {
         
         
         
-       // (threadgroupsPerGrid, threadsPerThreadgroup) = Helpers.getThreadConf(pipelineState: pipelineState, threadsPerThreadgroupDivisor: 4)
         
-        // Calculate thread execution width
-             self.threadsPerThreadgroup = MTLSize(
-                 width: min(pipelineState.threadExecutionWidth, bufferSize),
-                 height: 1,
-                 depth: 1
-             )
-             self.threadgroupsPerGrid = MTLSize(
-                width: 1024, // TODO  FIXME: it only works correctly with BATCH_SIZE/512 or divided by even larger numbers. But this is not optimal. Fix this
-                 height: 1,
-                 depth: 1
-             )
+        (self.threadsPerThreadgroup,  self.threadgroupsPerGrid) = Helpers.getThreadsPerThreadgroup(
+            pipelineState: pipelineState,
+            batchSize: Constants.BATCH_SIZE,
+            threadsPerThreadgroupMultiplier: 4)
         
-        print("######### secp \(threadgroupsPerGrid) \(threadsPerThreadgroup)")
-
+        
+        print("    threads per TG; TGs per Grid; Thread Exec. Width")
+        print(String(format: "    Secp256k1: %6d %6d %6d",
+                      threadsPerThreadgroup.width,
+                      threadgroupsPerGrid.width,
+                      pipelineState.threadExecutionWidth))
+        
+        // TODO next:
+        // For all metal hosts:
+        //   - Pass the batch size per constructor, so that we can use this parameter also with tests!!!!! otherwise they will not relect reality
+        //   - Add the same Helpers.getThreadsPerThreadgroup in each host
+        //   - Add the same print statement in each host
+        //   - Ensure the print statements are printed under th GPU section in nice table
+        //   - Consider moving all this (print statement, and kernel config to a generic class that unifies all!!!! )
+        
+        
     }
     
     

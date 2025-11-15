@@ -125,7 +125,6 @@ public class Helpers{
     public static func printGPUInfo(device: MTLDevice) {
         let name = device.name
         let maxThreadsPerThreadgroup = device.maxThreadsPerThreadgroup
-        let registryID = device.registryID
         let isLowPower = device.isLowPower
         let hasUnifiedMemory = device.hasUnifiedMemory
         let recommendedMaxWorkingSetSize = device.recommendedMaxWorkingSetSize
@@ -135,25 +134,35 @@ public class Helpers{
         
         ⚡ GPU Information
             Name:               \(name)
-            Registry ID:        \(registryID)
             Low Power:          \(isLowPower ? "Yes" : "No")
             Unified Memory:     \(hasUnifiedMemory ? "Yes" : "No")
-            Max Threads:        \(maxThreadsPerThreadgroup.width) x \(maxThreadsPerThreadgroup.height) x \(maxThreadsPerThreadgroup.depth)
+            Max Threads per TG: \(maxThreadsPerThreadgroup.width)
             Recommended Memory: \(memoryMB) MB
         
         """)
     }
     
-    // This method calculates (hopefully) a thread configuration that fits the best for the used GPU
-    // Always keep threadgroupsPerGrid as provided by this function. This is optimal for any case!
-    // Feel free to adjust the threadsPerThreadgroup by using threadsPerThreadgroupDivisor. Use lower values (divide by 2, 4, 8) for cumpute heavy stuff and keep high for less compute like hashing functions
-    public static func getThreadConf(pipelineState: MTLComputePipelineState, threadsPerThreadgroupDivisor: Int = 1) -> (MTLSize, MTLSize){
-        let w = pipelineState.threadExecutionWidth
-        let maxTG = pipelineState.maxTotalThreadsPerThreadgroup
-        let tgWidth = maxTG - (maxTG % w)
-        let threadsPerThreadgroup = MTLSize(width: tgWidth/threadsPerThreadgroupDivisor, height: 1, depth: 1)
-        let threadgroupsPerGrid = MTLSize(width: Constants.BATCH_SIZE, height: 1, depth: 1)
-        return (threadgroupsPerGrid,threadsPerThreadgroup)
+
+    /**
+        threadsPerThreadgroupMultiplier: Use a power of 2 (2,4,8,16 etc.) to fine tune per kernel. If the maximum is exceeded, the number is automatically capped to the max (16 on M1 or 32 on M3,...)
+     */
+    public static func getThreadsPerThreadgroup(pipelineState: MTLComputePipelineState, batchSize: Int, threadsPerThreadgroupMultiplier: Int = 1) -> (MTLSize, MTLSize) {
+        let threadExecutionWidth = pipelineState.threadExecutionWidth // Might differ from kernel to kernal and also between GPUs but usually 32 on M1
+        let maxTotalThreadsPerThreadgroup = pipelineState.maxTotalThreadsPerThreadgroup // Always the same but different on different GPUs (M1=512; M2,M3 = 1024)
+
+        // The threadsPerThreadgroup must not exceed maxTotalThreadsPerThreadgroup
+        let threadsPerThreadgroup = min(threadExecutionWidth * threadsPerThreadgroupMultiplier, maxTotalThreadsPerThreadgroup)
+        
+        // The threadsPerThreadgroup must be a multiple of threadExecutionWidth for best performance!
+        assert(threadsPerThreadgroup % threadExecutionWidth == 0)
+        
+        // For linear structured data like in our case, array processing, we create a 1D threadGroup
+        let threadsPerTGSize = MTLSize(width: threadsPerThreadgroup, height: 1, depth: 1)
+        
+        // classic integer rounding trick to ensure a sufficient number of TGs if the batchSize is not dividable by threadsPerThreadgroup to a integer
+        let threadgroupsPerGrid = MTLSize(width: (batchSize + threadsPerThreadgroup - 1) / threadsPerThreadgroup, height: 1, depth: 1)
+        
+        return (threadsPerTGSize, threadgroupsPerGrid)
     }
     
 }

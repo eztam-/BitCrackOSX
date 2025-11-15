@@ -25,7 +25,7 @@ class TestPubKey: TestBase {
     }
     
     @Test func testRandomPubKeys(){
-        let numTests = 1000
+        let numTests = 4096 //*8*8*2
         print("Running \(numTests) random number tests. Only printing failed results.")
         
         var numFailedTests = 0
