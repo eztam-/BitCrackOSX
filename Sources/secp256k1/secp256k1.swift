@@ -14,23 +14,25 @@ public class Secp256k1_GPU {
     let threadsPerThreadgroup : MTLSize
     let threadgroupsPerGrid : MTLSize
     
-    public init(on device: MTLDevice, batchSize : Int) {
+    public init(on device: MTLDevice, batchSize : Int) throws {
         self.batchSize = batchSize
-        let commandQueue = device.makeCommandQueue()!
-        
+        self.commandQueue = device.makeCommandQueue()!
         self.device = device
-        self.commandQueue = commandQueue
+        self.pipelineState = try Helpers.buildPipelineState(kernelFunctionName: "private_to_public_keys")
+        
+        (self.threadsPerThreadgroup,  self.threadgroupsPerGrid) = Helpers.getThreadsPerThreadgroup(
+            pipelineState: pipelineState,
+            batchSize: self.batchSize,
+            threadsPerThreadgroupMultiplier: 16)
         
         
-        let library: MTLLibrary! = try? device.makeDefaultLibrary(bundle: Bundle.module)
-        guard let function = library.makeFunction(name: "private_to_public_keys") else {
-            fatalError("Failed to load function private_to_public_keys from library")
-        }
-        do {
-            self.pipelineState = try device.makeComputePipelineState(function: function)
-        } catch {
-            fatalError("Failed to create pipeline state: \(error)")
-        }
+        print("    threads per TG; TGs per Grid; Thread Exec. Width")
+        print(String(format: "    Secp256k1: %6d %6d %6d",
+                      threadsPerThreadgroup.width,
+                      threadgroupsPerGrid.width,
+                      pipelineState.threadExecutionWidth))
+        
+        
         
         
         // Create Metal buffers
@@ -54,17 +56,7 @@ public class Secp256k1_GPU {
         
         
         
-        (self.threadsPerThreadgroup,  self.threadgroupsPerGrid) = Helpers.getThreadsPerThreadgroup(
-            pipelineState: pipelineState,
-            batchSize: self.batchSize,
-            threadsPerThreadgroupMultiplier: 16)
-        
-        
-        print("    threads per TG; TGs per Grid; Thread Exec. Width")
-        print(String(format: "    Secp256k1: %6d %6d %6d",
-                      threadsPerThreadgroup.width,
-                      threadgroupsPerGrid.width,
-                      pipelineState.threadExecutionWidth))
+     
         
         // TODO next:
         // For all metal hosts:

@@ -166,5 +166,19 @@ public class Helpers{
         return (threadsPerTGSize, threadgroupsPerGrid)
     }
     
+    
+
+    public static func buildPipelineState(kernelFunctionName: String) throws -> MTLComputePipelineState {
+        let device = MTLCreateSystemDefaultDevice()!
+        let library: MTLLibrary! = try device.makeDefaultLibrary(bundle: Bundle.module)
+        guard let function = library.makeFunction(name: kernelFunctionName) else {
+            fatalError("Failed to load function \(kernelFunctionName) from library")
+        }
+        do {
+            return try device.makeComputePipelineState(function: function)
+        } catch {
+            fatalError("Failed to create pipeline state: \(error)")
+        }
+    }
 }
 

@@ -83,10 +83,10 @@ _________                        __     ____  __.               _________       
                 let db = try DB(dbPath: dbFile)
                 let bloomFilter = try BloomFilter(db: db)
                 if startKey == "RANDOM" {
-                    KeySearch(bloomFilter: bloomFilter, database: db, outputFile: outputFile).run(startKey: startKey)
+                    try KeySearch(bloomFilter: bloomFilter, database: db, outputFile: outputFile).run(startKey: startKey)
                 }
                 else if startKey.count == 64 && startKey.allSatisfy(\.isHexDigit) {
-                    KeySearch(bloomFilter: bloomFilter, database: db, outputFile: outputFile).run(startKey: startKey)
+                    try KeySearch(bloomFilter: bloomFilter, database: db, outputFile: outputFile).run(startKey: startKey)
                 }
                 print("Invalid start key provided. Please provide a valid 32 byte hex string.")
             } catch {

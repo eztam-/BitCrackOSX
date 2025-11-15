@@ -30,7 +30,7 @@ class KeySearch {
         self.outputFile = outputFile
     }
     
-    func run(startKey: String){
+    func run(startKey: String) throws {
 
         // TODO: check for maximum range wich is: 0xFFFF FFFF FFFF FFFF FFFF FFFF FFFF FFFE BAAE DCE6 AF48 A03B BFD2 5E8C D036 4140
         
@@ -38,7 +38,7 @@ class KeySearch {
         
         
         let keyGen = KeyGen(device: device, batchSize: BATCH_SIZE, startKeyHex: startKey)
-        let secp256k1obj = Secp256k1_GPU(on:  device, batchSize: BATCH_SIZE)
+        let secp256k1obj = try Secp256k1_GPU(on:  device, batchSize: BATCH_SIZE)
         let SHA256 = SHA256gpu(on: device, batchSize: BATCH_SIZE)
         let RIPEMD160 = RIPEMD160(on: device, batchSize: BATCH_SIZE)
         
