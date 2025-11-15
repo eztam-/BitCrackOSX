@@ -24,7 +24,7 @@ class TestPubKey: TestBase {
         return pubKeysData
     }
     
-    @Test func testRandomPubKeys() throws{
+    @Test func testRandomPubKeys(){
         let numTests = 4096 //*8*8*2
         print("Running \(numTests) random number tests. Only printing failed results.")
         
@@ -47,7 +47,7 @@ class TestPubKey: TestBase {
         )!;
         
         
-        let secp256k1obj = try Secp256k1_GPU(on:super.device, batchSize: numTests)
+        let secp256k1obj = Secp256k1_GPU(on:super.device, batchSize: numTests)
         let (pubKeysComp, pubKeysUncomp) = secp256k1obj.generatePublicKeys(privateKeyBuffer: privKeysBuffer)
         
         let resultPubKeysComp = bytePtrToData(bytePtr: pubKeysComp.contents(), keySizeBytes: 33, numKeys: numTests)
@@ -88,7 +88,7 @@ class TestPubKey: TestBase {
         assert(numFailedTests==0)
     }
     
-    @Test func testPubKey() throws {
+    @Test func testPubKey(){
         
         
         let testCases: [(String, String, Bool)] = [ // Private Key, Expected Pub Key, Compressed
@@ -143,7 +143,7 @@ class TestPubKey: TestBase {
                                            options: [])!
         
         
-        let secp256k1obj = try Secp256k1_GPU(on:super.device, batchSize: testCases.count)
+        let secp256k1obj = Secp256k1_GPU(on:super.device, batchSize: testCases.count)
         let (pubKeysComp, pubKeysUncomp) = secp256k1obj.generatePublicKeys(privateKeyBuffer: privKeysBuffer)
         
         let resultPubKeysComp = bytePtrToData(bytePtr: pubKeysComp.contents(), keySizeBytes: 33, numKeys: testCases.count)
