@@ -13,6 +13,9 @@ kernel void generate_keys(
                           constant uint& numKeys [[ buffer(2) ]],
                           uint               gid          [[ thread_position_in_grid ]])
 {
+    
+    if (gid >= numKeys) return;
+    
     // Load start key
     uint s0 = currentKey[0];
     uint s1 = currentKey[1];

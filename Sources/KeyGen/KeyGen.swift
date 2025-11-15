@@ -11,7 +11,7 @@ public class KeyGen {
     let outBuf : MTLBuffer
     let batchSizeBuff : MTLBuffer
     
-    let threadsPerGrid : MTLSize
+    let threadgroupsPerGrid : MTLSize
     let threadsPerThreadgroup : MTLSize
     
     
@@ -40,8 +40,10 @@ public class KeyGen {
         
         
 
+
+        
         // Thread sizing - choose based on device
-        self.threadsPerGrid = MTLSize(width: batchSize, height: 1, depth: 1)
+        self.threadgroupsPerGrid = MTLSize(width: batchSize, height: 1, depth: 1)
         let w = pipelineState.threadExecutionWidth
         //let maxT = pipeline.maxTotalThreadsPerThreadgroup
         let tgWidth = min(w, batchSize)
@@ -59,7 +61,7 @@ public class KeyGen {
         encoder.setBuffer(currentKeyBuf, offset: 0, index: 0)
         encoder.setBuffer(outBuf, offset: 0, index: 1)
         encoder.setBuffer(batchSizeBuff, offset: 0, index: 2)
-        encoder.dispatchThreads(threadsPerGrid, threadsPerThreadgroup: threadsPerThreadgroup)
+        encoder.dispatchThreads(threadgroupsPerGrid, threadsPerThreadgroup: threadsPerThreadgroup)
         encoder.endEncoding()
 
         //print("keyg \(threadsPerGrid) \(threadsPerThreadgroup)")
