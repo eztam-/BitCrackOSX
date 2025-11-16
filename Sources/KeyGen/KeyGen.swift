@@ -47,7 +47,7 @@ public class KeyGen {
     }
     
     
-    public func run() -> MTLBuffer{
+    public func run(incrementBy: UInt32 = 1) -> MTLBuffer{
         
         let cmdBuf = queue.makeCommandBuffer()!
         let encoder = cmdBuf.makeComputeCommandEncoder()!
@@ -55,6 +55,11 @@ public class KeyGen {
         encoder.setBuffer(currentKeyBuf, offset: 0, index: 0)
         encoder.setBuffer(outBuf, offset: 0, index: 1)
         encoder.setBuffer(batchSizeBuff, offset: 0, index: 2)
+        
+        var n = UInt32(incrementBy)
+        encoder.setBytes(&n, length: MemoryLayout<UInt32>.stride, index: 3)
+     
+        
         encoder.dispatchThreadgroups(threadgroupsPerGrid, threadsPerThreadgroup: threadsPerThreadgroup)
         // Alternatively let Metal find the best number of thread groups
         //encoder.dispatchThreads(MTLSize(width: batchSize, height: 1, depth: 1), threadsPerThreadgroup: threadsPerGroup)

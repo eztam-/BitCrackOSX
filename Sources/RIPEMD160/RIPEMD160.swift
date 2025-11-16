@@ -17,13 +17,10 @@ class RIPEMD160 {
         self.device = device
         self.batchSize = batchSize
         self.pipelineState = try Helpers.buildPipelineState(kernelFunctionName: "ripemd160_fixed32_kernel")
-        
-        commandQueue = device.makeCommandQueue()!
-        
+        self.commandQueue = device.makeCommandQueue()!
         
         self.messagesBuffer = device.makeBuffer(length: batchSize*8*MemoryLayout<UInt32>.stride, options: .storageModeShared)!
 
-        
         // output: 5 uints per message
         let outWordCount = batchSize * 5
         self.outBuffer = device.makeBuffer(length: outWordCount * MemoryLayout<UInt32>.stride, options: .storageModeShared)!

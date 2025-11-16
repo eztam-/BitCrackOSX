@@ -1,16 +1,15 @@
 #include <metal_stdlib>
 using namespace metal;
 
-
-
 /// currentKey: 8 uint limbs (little-endian).
 /// outKeys: destination array: (numThreads) * 8 uints
 ///
-/// Each thread writes outKeys[gid*8 + 0..7] = currentKey + offset256 + gid
+/// Each thread writes outKeys[gid*8 + 0..7] = currentKey + (offset256 + gid) * increment
 kernel void generate_keys(
                           device uint* currentKey     [[ buffer(0) ]], // 8 elements
                           device uint*       outKeys      [[ buffer(1) ]],
                           constant uint& numKeys [[ buffer(2) ]],
+                          constant uint& increment [[ buffer(3) ]],
                           uint               gid          [[ thread_position_in_grid ]])
 {
     
@@ -26,16 +25,18 @@ kernel void generate_keys(
     uint s6 = currentKey[6];
     uint s7 = currentKey[7];
     
+    // Calculate offset = gid * increment
+    ulong offset = (ulong)gid * (ulong)increment;
     
-    // Add start + offset + gid (gid fits in 32-bits).
+    // Add start + offset
     // Use 64-bit temporaries to capture carry.
-    // Limb 0: add s0 + o0 + gid
-    ulong t = (ulong)s0 + (ulong)gid;
+    // Limb 0: add s0 + (offset & 0xFFFFFFFF)
+    ulong t = (ulong)s0 + (offset & 0xFFFFFFFF);
     uint r0 = (uint)t;
     uint carry = (uint)(t >> 32);
     
-    // Limb 1: s1 + o1 + carry
-    t = (ulong)s1 + (ulong)carry;
+    // Limb 1: s1 + (offset >> 32) + carry
+    t = (ulong)s1 + (ulong)(offset >> 32) + (ulong)carry;
     uint r1 = (uint)t;
     carry = (uint)(t >> 32);
     
@@ -58,27 +59,33 @@ kernel void generate_keys(
     outKeys[outIndex + 6u] = r6;
     outKeys[outIndex + 7u] = r7;
     
-        
     // Only the LAST thread updates the persistent currentKey
-      if (gid == numKeys - 1) {
-          // Compute next batch start = currentKey + numThreads
-          ulong tt = (ulong)s0 + (ulong)numKeys;
-          uint n0 = (uint)tt; uint c = (uint)(tt >> 32);
-          tt = (ulong)s1 + (ulong)c; uint n1 = (uint)tt; c = (uint)(tt >> 32);
-          tt = (ulong)s2 + (ulong)c; uint n2 = (uint)tt; c = (uint)(tt >> 32);
-          tt = (ulong)s3 + (ulong)c; uint n3 = (uint)tt; c = (uint)(tt >> 32);
-          tt = (ulong)s4 + (ulong)c; uint n4 = (uint)tt; c = (uint)(tt >> 32);
-          tt = (ulong)s5 + (ulong)c; uint n5 = (uint)tt; c = (uint)(tt >> 32);
-          tt = (ulong)s6 + (ulong)c; uint n6 = (uint)tt; c = (uint)(tt >> 32);
-          tt = (ulong)s7 + (ulong)c; uint n7 = (uint)tt;
+    if (gid == numKeys - 1) {
+        // Compute next batch start = currentKey + (numKeys * increment)
+        ulong totalIncrement = (ulong)numKeys * (ulong)increment;
+        
+        ulong tt = (ulong)s0 + (totalIncrement & 0xFFFFFFFF);
+        uint n0 = (uint)tt;
+        uint c = (uint)(tt >> 32);
+        
+        tt = (ulong)s1 + (ulong)(totalIncrement >> 32) + (ulong)c;
+        uint n1 = (uint)tt;
+        c = (uint)(tt >> 32);
+        
+        tt = (ulong)s2 + (ulong)c; uint n2 = (uint)tt; c = (uint)(tt >> 32);
+        tt = (ulong)s3 + (ulong)c; uint n3 = (uint)tt; c = (uint)(tt >> 32);
+        tt = (ulong)s4 + (ulong)c; uint n4 = (uint)tt; c = (uint)(tt >> 32);
+        tt = (ulong)s5 + (ulong)c; uint n5 = (uint)tt; c = (uint)(tt >> 32);
+        tt = (ulong)s6 + (ulong)c; uint n6 = (uint)tt; c = (uint)(tt >> 32);
+        tt = (ulong)s7 + (ulong)c; uint n7 = (uint)tt;
 
-          currentKey[0] = n0;
-          currentKey[1] = n1;
-          currentKey[2] = n2;
-          currentKey[3] = n3;
-          currentKey[4] = n4;
-          currentKey[5] = n5;
-          currentKey[6] = n6;
-          currentKey[7] = n7;
-      }
+        currentKey[0] = n0;
+        currentKey[1] = n1;
+        currentKey[2] = n2;
+        currentKey[3] = n3;
+        currentKey[4] = n4;
+        currentKey[5] = n5;
+        currentKey[6] = n6;
+        currentKey[7] = n7;
+    }
 }
