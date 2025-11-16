@@ -170,6 +170,7 @@ public class Helpers{
         let threadsPerTGSize = MTLSize(width: threadsPerThreadgroup, height: 1, depth: 1)
         
         // classic integer rounding trick to ensure a sufficient number of TGs if the batchSize is not dividable by threadsPerThreadgroup to a integer
+        // This is actually not needed since we ensure that the batch size is always a multiple of device.maxThreadsPerThreadgroup.width  but we keep it here for now since it doesn't harm
         let threadgroupsPerGrid = MTLSize(width: (batchSize + threadsPerThreadgroup - 1) / threadsPerThreadgroup, height: 1, depth: 1)
        //let threadgroupsPerGrid = MTLSize(width: 1024, height: 1, depth: 1)
         

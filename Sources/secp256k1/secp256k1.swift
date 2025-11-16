@@ -26,14 +26,10 @@ public class Secp256k1_GPU {
             threadsPerThreadgroupMultiplier: 16)
         
         
-        print("    threads per TG; TGs per Grid; Thread Exec. Width")
-        print(String(format: "    Secp256k1: %6d %6d %6d",
-                      threadsPerThreadgroup.width,
-                      threadgroupsPerGrid.width,
-                      pipelineState.threadExecutionWidth))
+       
         
         
-        
+      
         
         // Create Metal buffers
         //let privateKeyBuffer = device.makeBuffer(
@@ -95,6 +91,13 @@ public class Secp256k1_GPU {
     
         
         return (publicKeyBufferComp, publicKeyBufferUncomp)
+    }
+    
+    public func printThreadConf(){
+        print(String(format: "    Secp256k1:    │         %6d │       %6d │             %6d │",
+                      threadsPerThreadgroup.width,
+                      threadgroupsPerGrid.width,
+                      pipelineState.threadExecutionWidth))
     }
 }
 

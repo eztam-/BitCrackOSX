@@ -52,9 +52,12 @@ class SHA256 {
        self.threadgroupsPerGrid = MTLSize(width: batchSize, height: 1, depth: 1)
         self.threadsPerThreadgroup = MTLSize(width: pipelineState.threadExecutionWidth, height: 1, depth: 1)
 // sha MTLSize(width: 524288, height: 1, depth: 1) MTLSize(width: 32, height: 1, depth: 1)
-        print("sha \(threadgroupsPerGrid) \(threadsPerThreadgroup)")
+        
+       
         
     }
+    
+
     
     func run(publicKeysBuffer: MTLBuffer) -> MTLBuffer {
 
@@ -75,5 +78,12 @@ class SHA256 {
         return outBuffer
     }
     
+    // TODO: this exists in each host class. Move to common super class
+    public func printThreadConf(){
+        print(String(format: "    SHA256:       │         %6d │       %6d │             %6d │",
+                      threadsPerThreadgroup.width,
+                      threadgroupsPerGrid.width,
+                      pipelineState.threadExecutionWidth))
+    }
     
 }

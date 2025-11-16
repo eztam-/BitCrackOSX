@@ -15,22 +15,29 @@ public class BloomFilter {
     private var itemsBuffer: MTLBuffer?
     private var resultsBuffer: MTLBuffer?
     let  itemLengthBytes: Int
+    let batchSize: Int
+    
+    let query_threadsPerThreadgroup: MTLSize
+    let query_threadgroupsPerGrid: MTLSize
+    
+    
     
     enum BloomFilterError: Error {
         case initializationFailed
         case bitSizeExceededMax
     }
     
-    public convenience init(db: DB) throws {
+    public convenience init(db: DB, batchSize: Int) throws {
         print("──────────────────────────────────────────────────")
         print("🚀 Initializing Bloom Filter")
         
+       
         let cnt = try db.getAddressCount()
         if cnt == 0 {
             print("❌ No records found in the database. Please load some addresses first.")
             exit(1)
         }
-        try self.init(expectedInsertions: cnt, itemBytes: 20, falsePositiveRate:0.000001)
+        try self.init(expectedInsertions: cnt, itemBytes: 20, falsePositiveRate:0.000001, batchSize: batchSize)
         print("\n🌀 Start loading \(cnt) public key hashes from database into the bloom filter.")
         let startTime = CFAbsoluteTimeGetCurrent()
 
@@ -52,8 +59,8 @@ public class BloomFilter {
         
     }
     
-    public init(expectedInsertions: Int, itemBytes: Int, falsePositiveRate: Double = 0.0001) throws {
-        
+    public init(expectedInsertions: Int, itemBytes: Int, falsePositiveRate: Double = 0.0001, batchSize: Int) throws {
+        self.batchSize = batchSize
         guard itemBytes % 4 == 0 else {
             print("❌ itemBytes must be multiple of 4 for UInt32 alignment")
             throw BloomFilterError.initializationFailed
@@ -110,6 +117,9 @@ public class BloomFilter {
         self.insertPipeline = try Helpers.buildPipelineState(kernelFunctionName: "bloom_insert")
         self.queryPipeline = try Helpers.buildPipelineState(kernelFunctionName: "bloom_query")
 
+        let w = queryPipeline.threadExecutionWidth
+        self.query_threadsPerThreadgroup = MTLSize(width: min(256, w), height: 1, depth: 1)
+        self.query_threadgroupsPerGrid = MTLSize(width: (batchSize + query_threadsPerThreadgroup.width - 1) / query_threadsPerThreadgroup.width, height: 1, depth: 1)
         
     }
     
@@ -161,16 +171,11 @@ public class BloomFilter {
     
     public func query(_ itemsBuffer: MTLBuffer, batchSize: Int) -> [Bool] {
         
-        
-        
         let resultsBufferSize = batchSize * MemoryLayout<UInt32>.stride // TODO why uint? it is bool??? FIXME
-        
         
         if resultsBuffer == nil || resultsBuffer!.length < resultsBufferSize {
             resultsBuffer = device.makeBuffer(length: resultsBufferSize, options: .storageModeShared)
         }
-        
-        
         
         guard let cmdBuffer = commandQueue.makeCommandBuffer(),
               let encoder = cmdBuffer.makeComputeCommandEncoder() else { return [] }
@@ -189,10 +194,8 @@ public class BloomFilter {
         encoder.setBytes(&kHashes, length: 4, index: 5)
         encoder.setBuffer(resultsBuffer, offset: 0, index: 6)
         
-        let w = queryPipeline.threadExecutionWidth
-        let threadsPerGroup = MTLSize(width: min(256, w), height: 1, depth: 1)
-        let threadgroups = MTLSize(width: (batchSize + threadsPerGroup.width - 1) / threadsPerGroup.width, height: 1, depth: 1)
-        encoder.dispatchThreadgroups(threadgroups, threadsPerThreadgroup: threadsPerGroup)
+        
+        encoder.dispatchThreadgroups(self.query_threadgroupsPerGrid, threadsPerThreadgroup: self.query_threadsPerThreadgroup)
         encoder.endEncoding()
         
         cmdBuffer.commit()
@@ -200,5 +203,13 @@ public class BloomFilter {
         
         let resultsPtr = resultsBuffer!.contents().bindMemory(to: UInt32.self, capacity: batchSize)
         return (0..<batchSize).map { resultsPtr[$0] != 0 }
+    }
+    
+    
+    public func printThreadConf(){
+        print(String(format: "    Bloom Filter: │         %6d │       %6d │             %6d │",
+                     query_threadsPerThreadgroup.width,
+                     query_threadgroupsPerGrid.width,
+                     queryPipeline.threadExecutionWidth))
     }
 }

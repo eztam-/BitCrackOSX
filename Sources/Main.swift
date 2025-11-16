@@ -72,8 +72,11 @@ _________                        __     ____  __.               _________       
                  help: "Path to the database file with .sqlite3 extension.")
         var dbFile: String = "CryptKeySearch.sqlite3"
 
+        @Flag(name: [.customShort("v"), .customLong("verbose")])
+        var verbose: Bool = false
         
         mutating func run() {
+            Properties.verbose = verbose
             do {
                 print(banner)
                 if startKey == "RANDOM" {
@@ -81,7 +84,7 @@ _________                        __     ____  __.               _________       
                     startKey = Helpers.generateRandom256BitHex()
                 }
                 let db = try DB(dbPath: dbFile)
-                let bloomFilter = try BloomFilter(db: db)
+                let bloomFilter = try BloomFilter(db: db, batchSize: BATCH_SIZE) // TODO: bad access of BATCH_SIZE in KeySearch
                 if startKey == "RANDOM" {
                     try KeySearch(bloomFilter: bloomFilter, database: db, outputFile: outputFile).run(startKey: startKey)
                 }
@@ -99,7 +102,7 @@ _________                        __     ____  __.               _________       
     
     
     static let configuration = CommandConfiguration(
-        commandName: Constants.APP_COMMAND_NAME,
+        commandName: Properties.APP_COMMAND_NAME,
         abstract: "Before starting the key search, please import your address file by using the '\(FileLoadCommand.configuration.commandName!)' command. This is only required once before the first start. After that you can use the '\(RunCommand.configuration.commandName!)' command to search for the private keys.",
         subcommands: [FileLoadCommand.self, RunCommand.self],
         //defaultSubcommand: RunCommand.self

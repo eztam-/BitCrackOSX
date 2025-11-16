@@ -9,7 +9,7 @@ class RIPEMD160 {
     let commandQueue: MTLCommandQueue
     let outBuffer : MTLBuffer
     let messagesBuffer : MTLBuffer
-    let threadsPerGrid : MTLSize
+    let threadgroupsPerGrid : MTLSize
     let threadsPerThreadgroup: MTLSize
     let batchSize: Int
     
@@ -30,11 +30,13 @@ class RIPEMD160 {
         
         // Dispatch configuration: choose a reasonable threadgroup size
         let preferredTgSize = min(64, pipelineState.maxTotalThreadsPerThreadgroup)
-        self.threadsPerGrid = MTLSize(width: batchSize, height: 1, depth: 1)
+        self.threadgroupsPerGrid = MTLSize(width: batchSize, height: 1, depth: 1)
         self.threadsPerThreadgroup = MTLSize(width: preferredTgSize, height: 1, depth: 1)
         
+
     }
     
+ 
     
     func run(messagesBuffer: MTLBuffer) -> MTLBuffer {
 
@@ -46,7 +48,7 @@ class RIPEMD160 {
         encoder.setBuffer(outBuffer, offset: 0, index: 1)
         var n = UInt32(self.batchSize)
         encoder.setBytes(&n, length: MemoryLayout<UInt32>.stride, index: 2)
-        encoder.dispatchThreads(threadsPerGrid, threadsPerThreadgroup: threadsPerThreadgroup)
+        encoder.dispatchThreads(threadgroupsPerGrid, threadsPerThreadgroup: threadsPerThreadgroup)
         encoder.endEncoding()
         
         cmdBuf.commit()
@@ -55,5 +57,11 @@ class RIPEMD160 {
         return outBuffer
     }
     
+    public func printThreadConf(){
+        print(String(format: "    RIPEMD160:    │         %6d │       %6d │             %6d │",
+                      threadsPerThreadgroup.width,
+                      threadgroupsPerGrid.width,
+                      pipelineState.threadExecutionWidth))
+    }
     
 }

@@ -49,8 +49,9 @@ public class KeyGen {
         let tgWidth = min(w, batchSize)
         self.threadsPerThreadgroup = MTLSize(width: tgWidth, height: 1, depth: 1)
         
+        
+       
     }
-    
     
     
     public func run() -> MTLBuffer{
@@ -70,5 +71,12 @@ public class KeyGen {
         cmdBuf.waitUntilCompleted()
         
         return outBuf
+    }
+    
+    public func printThreadConf(){
+        print(String(format: "    Key Gen:      │         %6d │       %6d │             %6d │",
+                      threadsPerThreadgroup.width,
+                      threadgroupsPerGrid.width,
+                      pipelineState.threadExecutionWidth))
     }
 }

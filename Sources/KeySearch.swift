@@ -9,7 +9,7 @@ let device = MTLCreateSystemDefaultDevice()!
 // (otherwise the last one might be just partially used).
 // This might also be a nice way, to chose larger batch sized for faster GPUs (TBC)
 // Keep this private since each of the cimpute classes should get it per init(). This allows test cases to work with smaller batch sizes
-private let BATCH_SIZE = device.maxThreadsPerThreadgroup.width * 512 
+public let BATCH_SIZE = device.maxThreadsPerThreadgroup.width * 512
 
 
 
@@ -44,6 +44,17 @@ class KeySearch {
         
         
         try Helpers.printGPUInfo(device: device)
+        
+        if Properties.verbose {
+            print("                  │ Threads per TG │ TGs per Grid │ Thread Exec. Width │")
+            keyGen.printThreadConf()
+            secp256k1obj.printThreadConf()
+            SHA256.printThreadConf()
+            RIPEMD160.printThreadConf()
+            bloomFilter.printThreadConf()
+            print("")
+        }
+        
         print("🚀 Starting key search from: \(startKey)\n")
        
         

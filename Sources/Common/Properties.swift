@@ -1,9 +1,10 @@
 
 import Metal
 
-struct Constants{
+struct Properties{
     
     public static let APP_COMMAND_NAME = "keysearch"
+    nonisolated(unsafe) public static var verbose: Bool = false
     
 
  
