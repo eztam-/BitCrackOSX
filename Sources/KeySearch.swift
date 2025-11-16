@@ -2,14 +2,11 @@ import Foundation
 import Metal
 
 
-let device = MTLCreateSystemDefaultDevice()!
-
-
 // Shouldn't make a hige difference in performance, but having the batch size as a multiple of maxThreadsPerThreadgroup will utilize each thread group fully.
 // (otherwise the last one might be just partially used).
 // This might also be a nice way, to chose larger batch sized for faster GPUs (TBC)
 // Keep this private since each of the cimpute classes should get it per init(). This allows test cases to work with smaller batch sizes
-public let BATCH_SIZE = device.maxThreadsPerThreadgroup.width * 512
+public let BATCH_SIZE = Helpers.getSharedDevice().maxThreadsPerThreadgroup.width * 512
 
 
 
@@ -23,6 +20,8 @@ class KeySearch {
     let db: DB
     let outputFile: String
     let ui: UI = UI(batchSize: BATCH_SIZE)
+    let device = Helpers.getSharedDevice()
+    
     
     public init(bloomFilter: BloomFilter, database: DB, outputFile: String) {
         self.bloomFilter = bloomFilter

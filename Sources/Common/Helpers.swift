@@ -8,6 +8,8 @@ enum KeySearchError: Error {
 }
 
 
+
+
 // Extension for hex string conversion
 extension Data {
     public var hexString: String {
@@ -40,10 +42,19 @@ extension Data {
 
 public class Helpers{
    
+
+    private static let device : MTLDevice = MTLCreateSystemDefaultDevice()!
+    
     public static func printLimbs(limbs: [UInt32]){
         print("Limbs: \(limbs.map { String(format: "0x%08X", $0) })")
     }
 
+    
+    // Only use this method to create a device. Only one device should be created and shared.
+    // Otherwise it would destroy cache locality and internal driver pooling and even prevent sharing of resources (e.g., buffers and pipelines)
+    public static func getSharedDevice() -> MTLDevice{
+        return self.device
+    }
 
     /// Converts a 256-bit hex string into 8 UInt32 limbs (little-endian, least-significant limb first).
     ///
@@ -188,7 +199,6 @@ public class Helpers{
     
 
     public static func buildPipelineState(kernelFunctionName: String) throws -> MTLComputePipelineState {
-        let device = MTLCreateSystemDefaultDevice()!
         let library: MTLLibrary! = try device.makeDefaultLibrary(bundle: Bundle.module)
         guard let function = library.makeFunction(name: kernelFunctionName) else {
             fatalError("Failed to load function \(kernelFunctionName) from library")

@@ -1,6 +1,9 @@
 import Foundation
 import Metal
 
+
+// TODO: Externalize the DB related stuff it doesn't belog here
+// TODO: Create two separate constuctors, opne for query the other for insert?
 public class BloomFilter {
     private let device: MTLDevice
     private let commandQueue: MTLCommandQueue
@@ -66,14 +69,10 @@ public class BloomFilter {
             throw BloomFilterError.initializationFailed
         }
         
-        guard let dev = MTLCreateSystemDefaultDevice(),
-              let queue = dev.makeCommandQueue() else {
-            print("❌ Failed to create Metal device/queue")
-            throw BloomFilterError.initializationFailed
-        }
+        self.device = Helpers.getSharedDevice()
+        self.commandQueue = device.makeCommandQueue()!
+     
         
-        self.device = dev
-        self.commandQueue = queue
         self.itemU32Length = itemBytes / 4
         self.itemLengthBytes = itemBytes
         
@@ -106,10 +105,7 @@ public class BloomFilter {
         print("    Hash functions: \(hashCount)")
         print("    Target FPR: \(falsePositiveRate)")
         
-        guard let bits = dev.makeBuffer(length: bufferSize, options: .storageModeShared) else {
-            print("Failed to allocate bits buffer")
-            throw BloomFilterError.initializationFailed
-        }
+        let bits = device.makeBuffer(length: bufferSize, options: .storageModeShared)!
         memset(bits.contents(), 0, bufferSize)
         self.bitsBuffer = bits
         

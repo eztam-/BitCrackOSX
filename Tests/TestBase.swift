@@ -1,4 +1,5 @@
 import Metal
+import keysearch
 import Foundation
 import Testing
 
@@ -16,7 +17,7 @@ extension String {
  */
 class TestBase {
     
-    let device: MTLDevice
+    let device: MTLDevice = Helpers.getSharedDevice()
     let commandQueue: MTLCommandQueue
     let pipelineState: MTLComputePipelineState
     
@@ -25,14 +26,8 @@ class TestBase {
     }
     
     init?(kernelFunctionName : String) {
-        guard let device = MTLCreateSystemDefaultDevice(),
-              let commandQueue = device.makeCommandQueue() else {
-            print("❌ Failed to initialize Metal device")
-            return nil
-        }
         
-        self.device = device
-        self.commandQueue = commandQueue
+        self.commandQueue = device.makeCommandQueue()!
 
         let library: MTLLibrary! = try? device.makeDefaultLibrary(bundle: Bundle.module)
 

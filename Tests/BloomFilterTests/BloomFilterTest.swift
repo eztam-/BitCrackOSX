@@ -13,14 +13,15 @@ class BloomFilterTest : TestBase {
     @Test func bloomTest() {
         print("🔬 Comparing Swift vs Metal Bloom Filter\n")
         
-        let capacity = 100_000
+        let capacity = 32*1024
         let fpr = 0.0001
         let itemBytes = 20
         
         let metalFilter = try! BloomFilter(
             expectedInsertions: capacity,
             itemBytes: itemBytes,
-            falsePositiveRate: fpr
+            falsePositiveRate: fpr,
+            batchSize: capacity
         )
         
         print("\n📝 Inserting \(capacity) items into bloom filter...")
