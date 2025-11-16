@@ -28,12 +28,10 @@ class RIPEMD160 {
         let outWordCount = batchSize * 5
         self.outBuffer = device.makeBuffer(length: outWordCount * MemoryLayout<UInt32>.stride, options: .storageModeShared)!
         
-        // Dispatch configuration: choose a reasonable threadgroup size
-        let preferredTgSize = min(64, pipelineState.maxTotalThreadsPerThreadgroup)
-        self.threadgroupsPerGrid = MTLSize(width: batchSize, height: 1, depth: 1)
-        self.threadsPerThreadgroup = MTLSize(width: preferredTgSize, height: 1, depth: 1)
-        
-
+        (self.threadsPerThreadgroup,  self.threadgroupsPerGrid) = try Helpers.getThreadConfig(
+            pipelineState: pipelineState,
+            batchSize: batchSize,
+            threadsPerThreadgroupMultiplier: 16)
     }
     
  
@@ -48,7 +46,9 @@ class RIPEMD160 {
         encoder.setBuffer(outBuffer, offset: 0, index: 1)
         var n = UInt32(self.batchSize)
         encoder.setBytes(&n, length: MemoryLayout<UInt32>.stride, index: 2)
-        encoder.dispatchThreads(threadgroupsPerGrid, threadsPerThreadgroup: threadsPerThreadgroup)
+        encoder.dispatchThreadgroups(threadgroupsPerGrid, threadsPerThreadgroup: threadsPerThreadgroup)
+        // Alternatively let Metal find the best number of thread groups
+        //encoder.dispatchThreads(MTLSize(width: batchSize, height: 1, depth: 1), threadsPerThreadgroup: threadsPerGroup)
         encoder.endEncoding()
         
         cmdBuf.commit()

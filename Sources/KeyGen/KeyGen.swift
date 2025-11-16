@@ -39,18 +39,11 @@ public class KeyGen {
                                               options: .storageModeShared)!
         
         
-
-
-        
-        // Thread sizing - choose based on device
-        self.threadgroupsPerGrid = MTLSize(width: batchSize, height: 1, depth: 1)
-        let w = pipelineState.threadExecutionWidth
-        //let maxT = pipeline.maxTotalThreadsPerThreadgroup
-        let tgWidth = min(w, batchSize)
-        self.threadsPerThreadgroup = MTLSize(width: tgWidth, height: 1, depth: 1)
-        
-        
-       
+        (self.threadsPerThreadgroup,  self.threadgroupsPerGrid) = try Helpers.getThreadConfig(
+            pipelineState: pipelineState,
+            batchSize: batchSize,
+            threadsPerThreadgroupMultiplier: 16)
+  
     }
     
     
@@ -62,10 +55,10 @@ public class KeyGen {
         encoder.setBuffer(currentKeyBuf, offset: 0, index: 0)
         encoder.setBuffer(outBuf, offset: 0, index: 1)
         encoder.setBuffer(batchSizeBuff, offset: 0, index: 2)
-        encoder.dispatchThreads(threadgroupsPerGrid, threadsPerThreadgroup: threadsPerThreadgroup)
+        encoder.dispatchThreadgroups(threadgroupsPerGrid, threadsPerThreadgroup: threadsPerThreadgroup)
+        // Alternatively let Metal find the best number of thread groups
+        //encoder.dispatchThreads(MTLSize(width: batchSize, height: 1, depth: 1), threadsPerThreadgroup: threadsPerGroup)
         encoder.endEncoding()
-
-        //print("keyg \(threadsPerGrid) \(threadsPerThreadgroup)")
         
         cmdBuf.commit()
         cmdBuf.waitUntilCompleted()

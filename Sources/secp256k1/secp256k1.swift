@@ -82,6 +82,8 @@ public class Secp256k1_GPU {
         
         // Dispatch compute threads
         commandEncoder.dispatchThreadgroups(threadgroupsPerGrid, threadsPerThreadgroup: threadsPerThreadgroup)
+        // Alternatively let Metal find the best number of thread groups
+        //encoder.dispatchThreads(MTLSize(width: batchSize, height: 1, depth: 1), threadsPerThreadgroup: threadsPerGroup)
         commandEncoder.endEncoding()
         
 

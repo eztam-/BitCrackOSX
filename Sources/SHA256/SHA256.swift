@@ -42,18 +42,10 @@ class SHA256 {
         var messageSizeUInt32 = UInt32(33) // TODO: 33 = compressed 65 = uncompressed
         self.messageSizeBuffer = device.makeBuffer(bytes: &messageSizeUInt32, length: MemoryLayout<UInt32>.stride, options: [])!
         
-        /*
-        (self.threadsPerThreadgroup,  self.threadgroupsPerGrid) = try Helpers.getThreadsPerThreadgroup(
+        (self.threadsPerThreadgroup,  self.threadgroupsPerGrid) = try Helpers.getThreadConfig(
             pipelineState: pipelineState,
-            batchSize: self.batchSize,
-            threadsPerThreadgroupMultiplier: 1)
-        */
-        
-       self.threadgroupsPerGrid = MTLSize(width: batchSize, height: 1, depth: 1)
-        self.threadsPerThreadgroup = MTLSize(width: pipelineState.threadExecutionWidth, height: 1, depth: 1)
-// sha MTLSize(width: 524288, height: 1, depth: 1) MTLSize(width: 32, height: 1, depth: 1)
-        
-       
+            batchSize: batchSize,
+            threadsPerThreadgroupMultiplier: 16)
         
     }
     
@@ -69,7 +61,9 @@ class SHA256 {
         encoder.setBuffer(messageSizeBuffer, offset: 0, index: 1)
         encoder.setBuffer(outBuffer, offset: 0, index: 2)
         encoder.setBuffer(numMessagesBuffer, offset: 0, index: 3)
-        encoder.dispatchThreads(threadgroupsPerGrid, threadsPerThreadgroup: threadsPerThreadgroup)
+        encoder.dispatchThreadgroups(threadgroupsPerGrid, threadsPerThreadgroup: threadsPerThreadgroup)
+        // Alternatively let Metal find the best number of thread groups
+        //encoder.dispatchThreads(MTLSize(width: batchSize, height: 1, depth: 1), threadsPerThreadgroup: threadsPerGroup)
         encoder.endEncoding()
         
         commandBuffer.commit()

@@ -117,9 +117,10 @@ public class BloomFilter {
         self.insertPipeline = try Helpers.buildPipelineState(kernelFunctionName: "bloom_insert")
         self.queryPipeline = try Helpers.buildPipelineState(kernelFunctionName: "bloom_query")
 
-        let w = queryPipeline.threadExecutionWidth
-        self.query_threadsPerThreadgroup = MTLSize(width: min(256, w), height: 1, depth: 1)
-        self.query_threadgroupsPerGrid = MTLSize(width: (batchSize + query_threadsPerThreadgroup.width - 1) / query_threadsPerThreadgroup.width, height: 1, depth: 1)
+        (self.query_threadsPerThreadgroup,  self.query_threadgroupsPerGrid) = try Helpers.getThreadConfig(
+            pipelineState: queryPipeline,
+            batchSize: batchSize,
+            threadsPerThreadgroupMultiplier: 16)
         
     }
     
@@ -161,6 +162,8 @@ public class BloomFilter {
         let threadsPerGroup = MTLSize(width: min(256, w), height: 1, depth: 1)
         let threadgroups = MTLSize(width: (count + threadsPerGroup.width - 1) / threadsPerGroup.width, height: 1, depth: 1)
         encoder.dispatchThreadgroups(threadgroups, threadsPerThreadgroup: threadsPerGroup)
+        // Alternatively let Metal find the best number of thread groups
+        //encoder.dispatchThreads(MTLSize(width: batchSize, height: 1, depth: 1), threadsPerThreadgroup: threadsPerGroup)
         encoder.endEncoding()
         
         cmdBuffer.commit()
