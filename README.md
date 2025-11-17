@@ -55,20 +55,19 @@ Once the database was popuated we can start the key search from a given start ad
 keysearch run -s 0000000000000000000000000000000000000000000000000000000000000001
 ```
 
-## Current State
-- Only supporting compressed legacy keys at the moment (uncompressed and SegWit will be added later)
-- Loading large address files (more than a GB) takes very long. (This will be improved)
-- Performance depends on various factors like start address (one with many leading zeors perform 10x faster) -> will be improved by optimizing secp256k1 calc
-- Maximum observed performance is 1M keys/s on M1 Pro and about 2M keys/s on a M4 Pro. This will be imprufed later by optimizing secp256k1 calc
+## Fine Tuning
+Major parameters to fine tune for a specific GPU:
+- **Batch Size** The batch Size should be slowly increased until the live stats shown on the teminal start to update less frequently and then switched back one step. Also monitor the MKey/s while doing that. The batch size should be changed in Helpers.swift by only modifying the multiplicator `public static let PRIV_KEY_BATCH_SIZE = Helpers.getSharedDevice().maxThreadsPerThreadgroup.width * 128`
+- **Keys per Thread** This should be choosen as high as possible. Slowly increase until the app crashes because the GPU runs out of memory. Then go one step back.Unfortunately this cannot be made dynamically configurable. And also unfortunately, there are two places where this needs to be updated and maintaned at the same number. One is the MAX_KEYS_PER_THREAD constant in secp256k1.metal nd the other is KEYS_PER_THREAD in Properties.swift
+
 
 
 ## Roadmap
-- Add better comand line iterface (replacing the command structure)
 - Improve performance
     - secp256k1 EC claculations are the main bottleneck and need o be improved. This will significantly improve the general performance
     - Put all the different pipeline steps into one commandBuffer to avoid back and forth between CPU and GPU between the different steps.
     - Switch to metal 4 classes which promise better performance
-    - Improve tthe bloomfilter query performance
+    - Improve tthe bloomfilter query performance and DB queries
 - The loading of addresses from file into the DB and Bloomfilter is very slow, when loading large files >1GB. This needs to be improved
     - possible solutions
         - Disk-backed key/value store (LMDB / RocksDB / LevelDB)

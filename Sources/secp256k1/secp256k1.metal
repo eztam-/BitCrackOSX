@@ -8,9 +8,10 @@ using namespace metal;
 
 
 // Tune for your device: 128/256/512 are good starting points.
-// Must be <= keys_per_thread, but kernel will clip the last block anyway.
+// Must be >= keys_per_thread in properties, but kernel will clip the last block anyway.
+// BEst would be to align this to the same value as in properties, but that doesnt seem to be possible in metal.
 #ifndef MAX_KEYS_PER_THREAD
-#define MAX_KEYS_PER_THREAD 128
+#define MAX_KEYS_PER_THREAD 256
 #endif
 
 
@@ -1233,6 +1234,7 @@ kernel void private_to_public_keys(
 
  
 // ================ Test Kernels ================
+#ifdef DEBUG
 
 kernel void test_field_mul(
     device const uint* input_a [[buffer(0)]],
@@ -1291,3 +1293,5 @@ kernel void test_field_sub(
         output[id * 8 + i] = result.limbs[i];
     }
 }
+#endif
+
