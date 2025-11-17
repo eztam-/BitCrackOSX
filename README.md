@@ -128,6 +128,7 @@ Instead we run several pub to private key calculation per thread. Each thead the
 For all consecutive private keys in the same thread we just do a point addition of G to the vreviously calculated point. This is about 30x faster.
 
 |Pipeline Step|input batch size|output batch size|input|output|
+|-------------|----------------|-----------------|-----|------|
 |Key Generator|N|N|start key|Base keys with an increment of KEYS_PER_THREAD between each|
 |secp256k1|N|N\*KEYS_PER_THREAD||public keys|
 |SHA256|N\*KEYS_PER_THREAD|N\*KEYS_PER_THREAD||SHA256 hashed private keys|
