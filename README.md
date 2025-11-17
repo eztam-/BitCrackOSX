@@ -113,13 +113,27 @@ The CPU handles:
 The following diagram shows the individual stepps to calculate a bitcoin address from a private key
 <img src="https://raw.githubusercontent.com/eztam-/BitCrackOSX/refs/heads/main/img/calc_by_address_types.drawio.svg">
 
-To make the cracking loop as efficient as possible, we only want the non-reversible calculations within the loop.
+To make the key search loop as efficient as possible, we only want the non-reversible calculations within the loop.
 The reversible calculations will be reversed before inserting the addresses from the file into the bloomfilter. 
 This leads us to the following application architecture:
 
 <img src="https://raw.githubusercontent.com/eztam-/BitCrackOSX/refs/heads/main/img/architecture.drawio.svg">
 
 The bloom filter ingestion only happens once during application start.
+
+### Key Search Pipeline
+In general, the main bottleneck are the secp256k1 EC calculations which are very compute heavy compared to the rest of the pipeline steps.
+In order to make the secp256k1 EC calculations as efficient as possible we need to avoid calculating for each private key a point multiplication to get the corresponding private key.
+Instead we run several pub to private key calculation per thread. Each thead then calculates just for the very first private key a costy point pultiplication.
+For all consecutive private keys in the same thread we just do a point addition of G to the vreviously calculated point. This is about 30x faster.
+
+|Pipeline Step|input batch size|output batch size|input|output|
+|Key Generator|N|N|start key|Base keys with an increment of KEYS_PER_THREAD between each|
+|secp256k1|N|N\*KEYS_PER_THREAD||public keys|
+|SHA256|N\*KEYS_PER_THREAD|N\*KEYS_PER_THREAD||SHA256 hashed private keys|
+|RIPEMD160|N\*KEYS_PER_THREAD|N\*KEYS_PER_THREAD||RIPEMD160 hashed private keys (hash160)|
+|Bloom Filter|N\*KEYS_PER_THREAD|N\*KEYS_PER_THREAD|hash160|indexes of matched hash160 hashes|
+|Database|-|-|Results from bloom filter|For all existing entries the list of corresponding addresses|
 
 ### Endians
 host-endian == little-endian on Apple Silicon GPUs/CPUs<br>

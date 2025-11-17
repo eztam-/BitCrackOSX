@@ -9,8 +9,8 @@ using namespace metal;
 
 // Tune for your device: 128/256/512 are good starting points.
 // Must be <= keys_per_thread, but kernel will clip the last block anyway.
-#ifndef SUBBATCH
-#define SUBBATCH 128
+#ifndef MAX_KEYS_PER_THREAD
+#define MAX_KEYS_PER_THREAD 128
 #endif
 
 
@@ -828,7 +828,7 @@ inline void batch_inverse(thread const uint256* Z,
                           int n)
 {
     // Fixed-size array instead of alloca
-    thread uint256 prefix[SUBBATCH];
+    thread uint256 prefix[MAX_KEYS_PER_THREAD];
 
     // prefix[i] = Z[0]*...*Z[i]
     uint256 acc = Z[0];
@@ -1170,17 +1170,17 @@ kernel void private_to_public_keys(
     uint produced = 0;
 
     // Thread-local scratch for one sub-batch (lives in registers + stack)
-    thread PointJacobian bufJ[SUBBATCH];
-    thread uint256       Zs[SUBBATCH];
-    thread uint256       invZ[SUBBATCH];
-    thread Point         bufA[SUBBATCH];
+    thread PointJacobian bufJ[MAX_KEYS_PER_THREAD];
+    thread uint256       Zs[MAX_KEYS_PER_THREAD];
+    thread uint256       invZ[MAX_KEYS_PER_THREAD];
+    thread Point         bufA[MAX_KEYS_PER_THREAD];
 
     // Affine generator G (for mixed additions)
     const Point G = G_POINT; // same as G_TABLE256 base point (affine)
 
     while (produced < total) {
         // Number of outputs in this sub-batch
-        int n = (int)min((uint)SUBBATCH, total - produced);
+        int n = (int)min((uint)MAX_KEYS_PER_THREAD, total - produced);
 
         // Save first element of the block
         bufJ[0] = J;

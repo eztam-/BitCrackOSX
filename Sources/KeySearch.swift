@@ -69,7 +69,7 @@ class KeySearch {
             
             // Using secp256k1 EC to calculate public keys for the given private keys
             start = DispatchTime.now()
-            let (pubKeysCompBuff, pubKeysUncompBuff) = secp256k1obj.generatePublicKeys(privateKeyBuffer: privateKeyBuffer)
+            let (pubKeysCompBuff, pubKeysUncompBuff) = secp256k1obj.generatePublicKeys(basePrivateKeyBuffer: privateKeyBuffer)
             ui.secp256k1 = Double(DispatchTime.now().uptimeNanoseconds - start.uptimeNanoseconds) / 1_000_000.0
             
             

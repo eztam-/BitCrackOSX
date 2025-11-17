@@ -9,8 +9,6 @@ public class Secp256k1_GPU {
     private let inputBatchSize: Int // Number of base private keys per batch (number of total threads in grid)
     private let outputBatchSize: Int // Number of public keys generated per batch (batchSize * Properties.KEYS_PER_THREAD)
     
-    
-    //private let privateKeyBuffer: MTLBuffer
     private let publicKeyBufferComp: MTLBuffer
     private let publicKeyBufferUncomp: MTLBuffer
     
@@ -31,11 +29,6 @@ public class Secp256k1_GPU {
             threadsPerThreadgroupMultiplier: 16)
         
         
-        // Create Metal buffers
-        //let privateKeyBuffer = device.makeBuffer(
-        //    length: MemoryLayout<UInt32>.stride * bufferSize * 8,
-        //    options: .storageModeShared
-        //)!;
         let publicKeyBufferComp = device.makeBuffer(
                 length: MemoryLayout<UInt8>.stride * outputBatchSize * 33, // Compressed public key is 256 bits + 8 bits = 33 bytes
                 options: .storageModeShared // TODO: we should mae this private for better performance. And only switch it to shared for unit tests who need that
@@ -45,28 +38,12 @@ public class Secp256k1_GPU {
                 options: .storageModeShared // TODO: we should mae this private for better performance. And only switch it to shared for unit tests who need that
         )!;
         
-       // self.privateKeyBuffer = privateKeyBuffer
         self.publicKeyBufferComp = publicKeyBufferComp
         self.publicKeyBufferUncomp = publicKeyBufferUncomp
-        
-        
-        
-        
-     
-        
-        // TODO next:
-        // For all metal hosts:
-        //   - Pass the batch size per constructor, so that we can use this parameter also with tests!!!!! otherwise they will not relect reality
-        //   - Add the same Helpers.getThreadsPerThreadgroup in each host
-        //   - Add the same print statement in each host
-        //   - Ensure the print statements are printed under th GPU section in nice table
-        //   - Consider moving all this (print statement, and kernel config to a generic class that unifies all!!!! )
-        
-        
     }
     
     
-    public func generatePublicKeys(privateKeyBuffer: MTLBuffer) -> (MTLBuffer, MTLBuffer) {
+    public func generatePublicKeys(basePrivateKeyBuffer: MTLBuffer) -> (MTLBuffer, MTLBuffer) {
 
         // Create command buffer and encoder
         let commandBuffer = commandQueue.makeCommandBuffer()!
@@ -74,7 +51,7 @@ public class Secp256k1_GPU {
         
         // Configure the compute pipeline
         commandEncoder.setComputePipelineState(pipelineState)
-        commandEncoder.setBuffer(privateKeyBuffer, offset: 0, index: 0)
+        commandEncoder.setBuffer(basePrivateKeyBuffer, offset: 0, index: 0)
         commandEncoder.setBuffer(publicKeyBufferComp, offset: 0, index: 1)
         commandEncoder.setBuffer(publicKeyBufferUncomp, offset: 0, index: 2)
         var batchSizeU32 = UInt32(self.inputBatchSize)

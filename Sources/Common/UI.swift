@@ -81,7 +81,7 @@ class UI {
 
     func printStats(){
         lock.lock()
-         defer { lock.unlock() }
+        defer { lock.unlock() }
         
         let totalTimeElapsed = self.totalEndTime - self.totalStartTime
         let mHashesPerSec = Double(batchSize) / totalTimeElapsed / 1000000
@@ -90,7 +90,7 @@ class UI {
      
         
         if self.bfFalePositiveCnt > 10 {
-            statusStr.append(" ⚠️ Bloom filter FPR is too high and impacts performance! Adjust your settings.")
+            statusStr.append(" ⚠️  Bloom filter FPR is too high and impacts performance! Adjust your settings.")
         }
         
         
