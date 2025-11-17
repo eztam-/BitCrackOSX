@@ -52,7 +52,8 @@ class KeySearch {
             print("")
         }
         
-        print("🚀 Starting key search from: \(startKey)\n")
+        let compUncomp = Properties.compressedKeySearch ? "compressed" : "uncompressed"
+        print("🚀 Starting \(compUncomp) key search from: \(startKey)\n")
        
         
         while true {  // TODO: Shall we introduce an end key, if reached then the application stops?
@@ -76,7 +77,12 @@ class KeySearch {
             
             // Calculate SHA256 for the batch of public keys
             start = DispatchTime.now()
-            let sha256Buff = SHA256.run(publicKeysBuffer: pubKeysCompBuff)
+            let sha256Buff: MTLBuffer
+            if Properties.compressedKeySearch {
+                sha256Buff = SHA256.run(publicKeysBuffer: pubKeysCompBuff, keyLength: 33) //   keyLength:  33 = compressed;  65 = uncompressed
+            } else{
+                sha256Buff = SHA256.run(publicKeysBuffer: pubKeysUncompBuff, keyLength: 65) //   keyLength:  33 = compressed;  65 = uncompressed
+            }
             //printSha256Output(BATCH_SIZE, outPtr)
             ui.sha256 = Double(DispatchTime.now().uptimeNanoseconds - start.uptimeNanoseconds) / 1_000_000.0
             

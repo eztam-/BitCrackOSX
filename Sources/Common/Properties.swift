@@ -12,9 +12,11 @@ struct Properties{
     public static let KEYS_PER_THREAD: Int = 128
     
     public static let APP_COMMAND_NAME = "keysearch"
+    
     nonisolated(unsafe) public static var verbose: Bool = false
     
-
+    nonisolated(unsafe) public static var compressedKeySearch: Bool = true
+    nonisolated(unsafe) public static var uncompressedKeySearch: Bool = false
  
     // TODO: See if 'mathMode.fast' brings any performance boost. Unfortunately this only works when compiling metal files at runtime
     // public static func metalOptions()-> MTLCompileOptions {

@@ -72,12 +72,31 @@ _________                        __     ____  __.               _________       
                  help: "Path to the database file with .sqlite3 extension.")
         var dbFile: String = "CryptKeySearch.sqlite3"
 
+
+        
+        @Flag(name: [.customShort("c")], help: "Search for compressed key types (Legacy and SegWit P2WPKH). This is the default. If combined with uncompressed key search then there will be a small impact to performance.")
+        var compressedKeySearch: Bool = false
+
+        @Flag(name: [.customShort("u")], help: "Search for uncompressed key types (legacy). If combined with compressed key search then there will be a small impact to performance")
+        var uncompressedKeySearch: Bool = false
+        
+        
         @Flag(name: [.customShort("v"), .customLong("verbose")])
         var verbose: Bool = false
         
         mutating func run() {
             Properties.verbose = verbose
             do {
+                if uncompressedKeySearch && compressedKeySearch {
+                    print("Combined search for compressed and uncompressed keys is not yet supported. Please use one of the two options separately.")
+                    return
+                } else if !uncompressedKeySearch && !compressedKeySearch{
+                    Properties.compressedKeySearch = true
+                } else {
+                    Properties.compressedKeySearch = compressedKeySearch
+                    Properties.uncompressedKeySearch = uncompressedKeySearch
+                }
+                
                 print(banner)
                 if startKey == "RANDOM" {
                     //print("\n✨ Using random start key")

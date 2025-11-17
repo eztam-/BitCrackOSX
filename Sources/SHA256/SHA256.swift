@@ -39,8 +39,12 @@ class SHA256 {
         self.numMessagesBuffer = device.makeBuffer(bytes: &numMessagesUInt32, length: MemoryLayout<UInt32>.stride, options: [])!
         
         // Message size in bytes (we pass it as a small uniform buffer)
-        var messageSizeUInt32 = UInt32(33) // TODO: 33 = compressed 65 = uncompressed
-        self.messageSizeBuffer = device.makeBuffer(bytes: &messageSizeUInt32, length: MemoryLayout<UInt32>.stride, options: [])!
+       // var messageSizeUInt32 = UInt32(33) // TODO: 33 = compressed 65 = uncompressed
+        //self.messageSizeBuffer = device.makeBuffer(bytes: &messageSizeUInt32, length: MemoryLayout<UInt32>.stride, options: [])!
+        self.messageSizeBuffer = device.makeBuffer(length: MemoryLayout<UInt32>.stride,options: .storageModeShared)!
+          
+        
+        
         
         (self.threadsPerThreadgroup,  self.threadgroupsPerGrid) = try Helpers.getThreadConfig(
             pipelineState: pipelineState,
@@ -50,11 +54,16 @@ class SHA256 {
     }
     
 
-    
-    func run(publicKeysBuffer: MTLBuffer) -> MTLBuffer {
+    /**
+        keyLength:  33 = compressed;  65 = uncompressed
+     */
+    func run(publicKeysBuffer: MTLBuffer, keyLength: UInt32) -> MTLBuffer {
 
         let commandBuffer = commandQueue.makeCommandBuffer()!
         let encoder = commandBuffer.makeComputeCommandEncoder()!
+        
+        let ptr = messageSizeBuffer.contents().bindMemory(to: UInt32.self, capacity: 1)
+        ptr.pointee = keyLength
         
         encoder.setComputePipelineState(pipelineState)
         encoder.setBuffer(publicKeysBuffer, offset: 0, index: 0)

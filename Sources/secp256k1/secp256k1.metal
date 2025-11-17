@@ -11,7 +11,7 @@ using namespace metal;
 // Must be >= keys_per_thread in properties, but kernel will clip the last block anyway.
 // BEst would be to align this to the same value as in properties, but that doesnt seem to be possible in metal.
 #ifndef MAX_KEYS_PER_THREAD
-#define MAX_KEYS_PER_THREAD 256
+#define MAX_KEYS_PER_THREAD 128
 #endif
 
 
@@ -1074,67 +1074,7 @@ inline void affine_from_jacobian_batch(
 
 
 // ================ Kernel ================
-/*
 
-kernel void private_to_public_keys(
-    device const uint* base_private_keys [[buffer(0)]], // The base private keys for each thead with an increment of keys_per_thread between each
-    device uchar*      public_keys_comp [[buffer(1)]], // output buffer
-    device uchar*      public_keys_uncomp [[buffer(2)]], // output buffer
-    constant uint&     batchSize [[buffer(3)]], // Equals the number of base_private_keys and thereby also the number of threads
-    constant uint&     keys_per_thread [[buffer(4)]], // The number of keys to be calculated within one thread.
-    uint thread_id  [[thread_position_in_grid]],
-    uint lid [[thread_position_in_threadgroup]],
-    uint tpg [[threads_per_threadgroup]])
-{
-
-    if (thread_id >= batchSize) return;
-    
-    // --- load base private key for this thread ---
-    uint256 base_priv_key = load_private_key(base_private_keys, thread_id);
-
-    
-    // Computing the public key for the the first key only (using expensive scalar mul)
-    // Point pub = point_mul(base_key, G_TABLE_16);
-    Point pub = point_mul(base_priv_key, G_TABLE256);
-    
-
-    // Process keys_per_thread sequential keys
-    for (uint i = 0; i < keys_per_thread; i++) {
-        uint output_index = thread_id * keys_per_thread + i;
-        
-        if (pub.infinity) {
-            #pragma unroll
-            for (int j = 0; j < 33; j++) public_keys_comp[output_index * 33 + j] = 0;
-            #pragma unroll
-            for (int j = 0; j < 65; j++) public_keys_uncomp[output_index * 65 + j] = 0;
-        } else {
-            store_public_key_compressed(public_keys_comp, output_index, pub.x, pub.y);
-            store_public_key_uncompressed(public_keys_uncomp, output_index, pub.x, pub.y);
-        }
-        
-        // For next iteration: add G (cheap!)
-        if (i < keys_per_thread - 1) {
-            pub.x = field_add(pub.x, G_POINT.x);
-            pub.y = field_add(pub.y, G_POINT.y);
-        }
-    }
-    
-    
-    
-    
-    // --- store outputs ---
-    if (pub.infinity) {
-        #pragma unroll
-        for (int i = 0; i < 33; i++)  public_keys_comp  [thread_id*33 + i] = 0;
-        #pragma unroll
-        for (int i = 0; i < 65; i++)  public_keys_uncomp[thread_id*65 + i] = 0;
-    } else {
-        store_public_key_compressed  (public_keys_comp,   thread_id, pub.x, pub.y);
-        store_public_key_uncompressed(public_keys_uncomp, thread_id, pub.x, pub.y);
-    }
-}
-*/
- 
 
 
 kernel void private_to_public_keys(
