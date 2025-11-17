@@ -3,7 +3,7 @@ result.txt
 *.sqlite3
 .swiftpm/
 default.profraw
-test_files
+test_files/*
 .DS_Store
 .build/
 build/

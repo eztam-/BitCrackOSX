@@ -157,8 +157,7 @@ public class Helpers{
         let maxThreadsPerThreadgroup = device.maxThreadsPerThreadgroup
         let isLowPower = device.isLowPower
         let hasUnifiedMemory = device.hasUnifiedMemory
-        let recommendedMaxWorkingSetSize = device.recommendedMaxWorkingSetSize
-        let memoryMB = recommendedMaxWorkingSetSize / (1024 * 1024)
+        let memoryMB = device.recommendedMaxWorkingSetSize / (1024 * 1024)
 
         print("""
         
