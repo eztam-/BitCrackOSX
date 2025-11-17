@@ -5,7 +5,10 @@ public class Secp256k1_GPU {
     private let device: MTLDevice
     private let commandQueue: MTLCommandQueue
     private let pipelineState: MTLComputePipelineState
-    private let batchSize: Int // Number of private keys per batch
+    
+    private let inputBatchSize: Int // Number of base private keys per batch (number of total threads in grid)
+    private let outputBatchSize: Int // Number of public keys generated per batch (batchSize * Properties.KEYS_PER_THREAD)
+    
     
     //private let privateKeyBuffer: MTLBuffer
     private let publicKeyBufferComp: MTLBuffer
@@ -14,22 +17,19 @@ public class Secp256k1_GPU {
     let threadsPerThreadgroup : MTLSize
     let threadgroupsPerGrid : MTLSize
     
-    public init(on device: MTLDevice, batchSize : Int) throws {
-        self.batchSize = batchSize
+    public init(on device: MTLDevice, inputBatchSize : Int, outputBatchSize : Int) throws {
+        self.inputBatchSize = inputBatchSize
+        self.outputBatchSize = outputBatchSize
+        
         self.commandQueue = device.makeCommandQueue()!
         self.device = device
         self.pipelineState = try Helpers.buildPipelineState(kernelFunctionName: "private_to_public_keys")
         
         (self.threadsPerThreadgroup,  self.threadgroupsPerGrid) = try Helpers.getThreadConfig(
             pipelineState: pipelineState,
-            batchSize: self.batchSize,
+            batchSize: self.inputBatchSize,
             threadsPerThreadgroupMultiplier: 16)
         
-        
-       
-        
-        
-      
         
         // Create Metal buffers
         //let privateKeyBuffer = device.makeBuffer(
@@ -37,11 +37,11 @@ public class Secp256k1_GPU {
         //    options: .storageModeShared
         //)!;
         let publicKeyBufferComp = device.makeBuffer(
-                length: MemoryLayout<UInt8>.stride * batchSize * 33, // Compressed public key is 256 bits + 8 bits = 33 bytes
+                length: MemoryLayout<UInt8>.stride * outputBatchSize * 33, // Compressed public key is 256 bits + 8 bits = 33 bytes
                 options: .storageModeShared // TODO: we should mae this private for better performance. And only switch it to shared for unit tests who need that
         )!;
         let publicKeyBufferUncomp = device.makeBuffer(
-                length: MemoryLayout<UInt8>.stride * batchSize * 65, // Uncompressed public key is 512 bits + 8 bits = 65 bytes
+                length: MemoryLayout<UInt8>.stride * outputBatchSize * 65, // Uncompressed public key is 512 bits + 8 bits = 65 bytes
                 options: .storageModeShared // TODO: we should mae this private for better performance. And only switch it to shared for unit tests who need that
         )!;
         
@@ -77,7 +77,7 @@ public class Secp256k1_GPU {
         commandEncoder.setBuffer(privateKeyBuffer, offset: 0, index: 0)
         commandEncoder.setBuffer(publicKeyBufferComp, offset: 0, index: 1)
         commandEncoder.setBuffer(publicKeyBufferUncomp, offset: 0, index: 2)
-        var batchSizeU32 = UInt32(self.batchSize)
+        var batchSizeU32 = UInt32(self.inputBatchSize)
         commandEncoder.setBytes(&batchSizeU32, length: MemoryLayout<UInt32>.stride, index: 3)
         var keysPerThread = UInt32(Properties.KEYS_PER_THREAD)
         commandEncoder.setBytes(&keysPerThread, length: MemoryLayout<UInt32>.stride, index: 4)

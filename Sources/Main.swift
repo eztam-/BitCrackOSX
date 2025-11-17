@@ -84,7 +84,7 @@ _________                        __     ____  __.               _________       
                     startKey = Helpers.generateRandom256BitHex()
                 }
                 let db = try DB(dbPath: dbFile)
-                let bloomFilter = try BloomFilter(db: db, batchSize: BATCH_SIZE) // TODO: bad access of BATCH_SIZE in KeySearch
+                let bloomFilter = try BloomFilter(db: db, batchSize: Helpers.PUB_KEY_BATCH_SIZE) // TODO: bad access of BATCH_SIZE in KeySearch
                 if startKey == "RANDOM" {
                     try KeySearch(bloomFilter: bloomFilter, database: db, outputFile: outputFile).run(startKey: startKey)
                 }

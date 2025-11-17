@@ -14,13 +14,9 @@ public class KeyGen {
     let threadsPerThreadgroup : MTLSize
     
     
-    public init(device: MTLDevice, globalBatchSize: Int, startKeyHex: String) throws {
+    public init(device: MTLDevice, batchSize: Int, startKeyHex: String) throws {
         
-        if globalBatchSize % Properties.KEYS_PER_THREAD != 0 {
-            print("Can't calculate an appropriate batch size for the key generator.")
-            throw KeySearchError.invaliedKeyGenBatchSize
-        }
-        var keyGenBatchSize = globalBatchSize / Properties.KEYS_PER_THREAD
+        var keyGenBatchSize = batchSize
         
         self.queue = device.makeCommandQueue()!
         self.pipelineState = try Helpers.buildPipelineState(kernelFunctionName: "generate_keys")

@@ -2,11 +2,7 @@ import Foundation
 import Metal
 
 
-// Shouldn't make a hige difference in performance, but having the batch size as a multiple of maxThreadsPerThreadgroup will utilize each thread group fully.
-// (otherwise the last one might be just partially used).
-// This might also be a nice way, to chose larger batch sized for faster GPUs (TBC)
-// Keep this private since each of the cimpute classes should get it per init(). This allows test cases to work with smaller batch sizes
-public let BATCH_SIZE = Helpers.getSharedDevice().maxThreadsPerThreadgroup.width * 512
+
 
 
 
@@ -15,18 +11,20 @@ public let BATCH_SIZE = Helpers.getSharedDevice().maxThreadsPerThreadgroup.width
 
 
 class KeySearch {
-    
+
     let bloomFilter: BloomFilter
     let db: DB
     let outputFile: String
-    let ui: UI = UI(batchSize: BATCH_SIZE)
     let device = Helpers.getSharedDevice()
-    
+    let privKeyBatchSize = Helpers.PRIV_KEY_BATCH_SIZE // Number of base private keys per batch (number of total threads in grid)
+    let pubKeyBatchSize =  Helpers.PUB_KEY_BATCH_SIZE // Number of public keys generated per batch
+    let ui: UI
     
     public init(bloomFilter: BloomFilter, database: DB, outputFile: String) {
         self.bloomFilter = bloomFilter
         self.db = database
         self.outputFile = outputFile
+        self.ui = UI(batchSize: self.pubKeyBatchSize)
     }
     
     func run(startKey: String) throws {
@@ -36,10 +34,10 @@ class KeySearch {
         //let startKey = "0000000000000000000000000000000000000000000000000001000000000000"
         
         
-        let keyGen = try KeyGen(device: device, batchSize: BATCH_SIZE, startKeyHex: startKey)
-        let secp256k1obj = try Secp256k1_GPU(on:  device, batchSize: BATCH_SIZE)
-        let SHA256 = try SHA256(on: device, batchSize: BATCH_SIZE)
-        let RIPEMD160 = try RIPEMD160(on: device, batchSize: BATCH_SIZE)
+        let keyGen = try KeyGen(device: device, batchSize: privKeyBatchSize, startKeyHex: startKey)
+        let secp256k1obj = try Secp256k1_GPU(on:  device, inputBatchSize: privKeyBatchSize, outputBatchSize: pubKeyBatchSize)
+        let SHA256 = try SHA256(on: device, batchSize: pubKeyBatchSize)
+        let RIPEMD160 = try RIPEMD160(on: device, batchSize: pubKeyBatchSize)
         
         
         try Helpers.printGPUInfo(device: device)
@@ -94,7 +92,7 @@ class KeySearch {
             // Check RIPEMD160 hashes against the bloom filter
             // Note, we have reverse-calculated BASE58 before inserting addresses into the bloom filter, so we can check directly the RIPEMD160 hashes which is faster.
             start = DispatchTime.now()
-            let result = bloomFilter.query(ripemd160Buffer, batchSize: BATCH_SIZE)   //contains(pointer: ripemd160_result, length: 5, offset: i*5)
+            let result = bloomFilter.query(ripemd160Buffer, batchSize: pubKeyBatchSize)   //contains(pointer: ripemd160_result, length: 5, offset: i*5)
             
             let falsePositiveCnt = checkBloomFilterResults(
                 result: result,
@@ -114,36 +112,43 @@ class KeySearch {
     
     func checkBloomFilterResults(result: [Bool], privateKeyBuffer: MTLBuffer, ripemd160Buffer: MTLBuffer) -> Int {
         var falsePositiveCnt = 0
-        for i in 0..<BATCH_SIZE {
-            if result[i] {
-                var privKey = [UInt8](repeating: 0, count: 32)
-                memcpy(&privKey, privateKeyBuffer.contents().advanced(by: i*32), 32)
-                let privKeyHex = Data(privKey.reversed()).hexString
+      
+        for privKeyIndex in 0..<privKeyBatchSize {
+            for i in 0..<Properties.KEYS_PER_THREAD {
+                let pubKeyIndex = privKeyIndex*Properties.KEYS_PER_THREAD + i
                 
-                var pubKeyHash = [UInt8](repeating: 0, count: 20)
-                memcpy(&pubKeyHash, ripemd160Buffer.contents().advanced(by: i*20), 20)
-                let pubKeyHashHex = Data(pubKeyHash).hexString
-                let addresses = try! db.getAddresses(for: pubKeyHashHex)
-                
-                if addresses.isEmpty {
-                    falsePositiveCnt+=1
-                    //print("False positive bloom filter result")
-                }
-                else {
-                    ui.printMessage(
-                    """
-                    --------------------------------------------------------------------------------------
-                    💰 Private key found: \(privKeyHex)
-                       For addresses:
-                        \(addresses.map { $0.address }.joined(separator: "\n    "))
-                    --------------------------------------------------------------------------------------
-                    """)
-                   
-                    try! appendToResultFile(text: "Found private key: \(privKeyHex) for addresses: \(addresses.map(\.address).joined(separator: ", ")) \n")
-                    // exit(0) // TODO: do we want to exit? Make this configurable
+                if result[pubKeyIndex] {
+                    var privKey = [UInt8](repeating: 0, count: 32)
+                    memcpy(&privKey, privateKeyBuffer.contents().advanced(by: privKeyIndex*32), 32)
+                    let privKeyHex = Data(privKey.reversed()).hexString
+                    
+                    var pubKeyHash = [UInt8](repeating: 0, count: 20)
+                    memcpy(&pubKeyHash, ripemd160Buffer.contents().advanced(by: pubKeyIndex*20), 20)
+                    let pubKeyHashHex = Data(pubKeyHash).hexString
+                    let addresses = try! db.getAddresses(for: pubKeyHashHex)
+                    
+                    if addresses.isEmpty {
+                        falsePositiveCnt+=1
+                        //print("False positive bloom filter result")
+                    }
+                    else {
+                        ui.printMessage(
+                        """
+                        --------------------------------------------------------------------------------------
+                        💰 Private key found: \(privKeyHex)
+                           For addresses:
+                            \(addresses.map { $0.address }.joined(separator: "\n    "))
+                        --------------------------------------------------------------------------------------
+                        """)
+                       
+                        try! appendToResultFile(text: "Found private key: \(privKeyHex) for addresses: \(addresses.map(\.address).joined(separator: ", ")) \n")
+                        // exit(0) // TODO: do we want to exit? Make this configurable
+                    }
                 }
             }
+            
         }
+       
         return falsePositiveCnt
     }
     

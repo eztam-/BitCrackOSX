@@ -7,7 +7,11 @@ using namespace metal;
 
 
 
-
+// Tune for your device: 128/256/512 are good starting points.
+// Must be <= keys_per_thread, but kernel will clip the last block anyway.
+#ifndef SUBBATCH
+#define SUBBATCH 128
+#endif
 
 
 // ---- SECP256k1 constants (little-endian limb order) ----
@@ -16,6 +20,8 @@ using namespace metal;
 constant uint P[8] = {
     0xFFFFFC2F, 0xFFFFFFFE, 0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF  // little endian limbs ordered from LS to MS
 };
+
+
 
 
 // Exponent p-2 for inversion: stored as MSW-first for MSB->LSB scanning
@@ -51,6 +57,13 @@ struct Point {
     bool infinity;
 };
 
+
+// G = secp256k1 generator (affine)
+constant Point G_POINT = {
+    { 0x16f81798, 0x59f2815b, 0x2dce28d9, 0x029bfcdb, 0xce870b07, 0x55a06295, 0xf9dcbbac, 0x79be667e },
+    { 0xfb10d4b8, 0x9c47d08f, 0xa6855419, 0xfd17b448, 0x0e1108a8, 0x5da4fbfc, 0x26a3c465, 0x483ada77 },
+    false
+};
 
 
 
@@ -809,6 +822,37 @@ uint256 field_inv(uint256 a) {
 }
 
 
+// Replace the whole helper with this version
+inline void batch_inverse(thread const uint256* Z,
+                          thread uint256* invZ,
+                          int n)
+{
+    // Fixed-size array instead of alloca
+    thread uint256 prefix[SUBBATCH];
+
+    // prefix[i] = Z[0]*...*Z[i]
+    uint256 acc = Z[0];
+    prefix[0] = acc;
+    for (int i = 1; i < n; i++) {
+        acc = field_mul(acc, Z[i]);
+        prefix[i] = acc;
+    }
+
+    // One inversion
+    uint256 invAll = field_inv(prefix[n - 1]);
+
+    // Backward sweep
+    uint256 temp = invAll;
+    for (int i = n - 1; i >= 1; i--) {
+        invZ[i] = field_mul(temp, prefix[i - 1]);
+        temp    = field_mul(temp, Z[i]);
+    }
+    invZ[0] = temp;
+}
+
+
+
+
 // ================ Point operations ================
 
 
@@ -1004,28 +1048,48 @@ inline Point point_mul(uint256 k, constant Point* tg_table)
 
 
 
+inline void affine_from_jacobian_batch(
+    thread const PointJacobian* J,   // len n
+    thread const uint256* invZ,      // len n, = 1/Z[i]
+    thread Point* A,                 // out affine, len n
+    int n)
+{
+    for (int i = 0; i < n; i++) {
+        if (J[i].infinity) {
+            A[i].infinity = true;
+            continue;
+        }
+        uint256 z1 = invZ[i];             // Z^{-1}
+        uint256 z2 = field_sqr(z1);       // Z^{-2}
+        uint256 z3 = field_mul(z2, z1);   // Z^{-3}
+        A[i].x = field_mul(J[i].X, z2);
+        A[i].y = field_mul(J[i].Y, z3);
+        A[i].infinity = false;
+    }
+}
+
 
 
 
 
 // ================ Kernel ================
-
+/*
 
 kernel void private_to_public_keys(
-    device const uint* base_private_keys [[buffer(0)]],
-    device uchar*      public_keys_comp [[buffer(1)]],
-    device uchar*      public_keys_uncomp [[buffer(2)]],
-    constant uint&     batchSize [[buffer(3)]],
-    constant uint&     keysPerThread [[buffer(4)]],
-    uint id  [[thread_position_in_grid]],
+    device const uint* base_private_keys [[buffer(0)]], // The base private keys for each thead with an increment of keys_per_thread between each
+    device uchar*      public_keys_comp [[buffer(1)]], // output buffer
+    device uchar*      public_keys_uncomp [[buffer(2)]], // output buffer
+    constant uint&     batchSize [[buffer(3)]], // Equals the number of base_private_keys and thereby also the number of threads
+    constant uint&     keys_per_thread [[buffer(4)]], // The number of keys to be calculated within one thread.
+    uint thread_id  [[thread_position_in_grid]],
     uint lid [[thread_position_in_threadgroup]],
     uint tpg [[threads_per_threadgroup]])
 {
 
-    if (id >= batchSize) return;
+    if (thread_id >= batchSize) return;
     
     // --- load base private key for this thread ---
-    uint256 base_priv_key = load_private_key(base_private_keys, id);
+    uint256 base_priv_key = load_private_key(base_private_keys, thread_id);
 
     
     // Computing the public key for the the first key only (using expensive scalar mul)
@@ -1033,19 +1097,141 @@ kernel void private_to_public_keys(
     Point pub = point_mul(base_priv_key, G_TABLE256);
     
 
-
+    // Process keys_per_thread sequential keys
+    for (uint i = 0; i < keys_per_thread; i++) {
+        uint output_index = thread_id * keys_per_thread + i;
+        
+        if (pub.infinity) {
+            #pragma unroll
+            for (int j = 0; j < 33; j++) public_keys_comp[output_index * 33 + j] = 0;
+            #pragma unroll
+            for (int j = 0; j < 65; j++) public_keys_uncomp[output_index * 65 + j] = 0;
+        } else {
+            store_public_key_compressed(public_keys_comp, output_index, pub.x, pub.y);
+            store_public_key_uncompressed(public_keys_uncomp, output_index, pub.x, pub.y);
+        }
+        
+        // For next iteration: add G (cheap!)
+        if (i < keys_per_thread - 1) {
+            pub.x = field_add(pub.x, G_POINT.x);
+            pub.y = field_add(pub.y, G_POINT.y);
+        }
+    }
+    
+    
+    
+    
     // --- store outputs ---
     if (pub.infinity) {
         #pragma unroll
-        for (int i = 0; i < 33; i++)  public_keys_comp  [id*33 + i] = 0;
+        for (int i = 0; i < 33; i++)  public_keys_comp  [thread_id*33 + i] = 0;
         #pragma unroll
-        for (int i = 0; i < 65; i++)  public_keys_uncomp[id*65 + i] = 0;
+        for (int i = 0; i < 65; i++)  public_keys_uncomp[thread_id*65 + i] = 0;
     } else {
-        store_public_key_compressed  (public_keys_comp,   id, pub.x, pub.y);
-        store_public_key_uncompressed(public_keys_uncomp, id, pub.x, pub.y);
+        store_public_key_compressed  (public_keys_comp,   thread_id, pub.x, pub.y);
+        store_public_key_uncompressed(public_keys_uncomp, thread_id, pub.x, pub.y);
     }
 }
+*/
+ 
 
+
+kernel void private_to_public_keys(
+    device const uint* base_private_keys     [[buffer(0)]],
+    device uchar*      public_keys_comp      [[buffer(1)]],
+    device uchar*      public_keys_uncomp    [[buffer(2)]],
+    constant uint&     batchSize             [[buffer(3)]],
+    constant uint&     keys_per_thread       [[buffer(4)]],
+    uint thread_id                           [[thread_position_in_grid]],
+    uint lid                                  [[thread_position_in_threadgroup]],
+    uint tpg                                  [[threads_per_threadgroup]]
+)
+{
+    if (thread_id >= batchSize) return;
+
+    // --- 1) Load base private key for this thread (start key k0) ---
+    uint256 k0 = load_private_key(base_private_keys, thread_id);
+
+    // --- 2) First public key via scalar multiply (affine) ---
+    Point A0 = point_mul(k0, G_TABLE256);
+
+    // --- 3) Lift to Jacobian (Z=1) to allow cheap +G steps ---
+    PointJacobian J;
+    J.infinity = A0.infinity;
+    J.X = A0.x;
+    J.Y = A0.y;
+    // Z = 1
+    #pragma unroll
+    for (int i = 0; i < 8; i++) J.Z.limbs[i] = 0;
+    J.Z.limbs[0] = 1;
+
+    // --- 4) Process the thread's key range in sub-batches ---
+    const uint total = keys_per_thread;
+    uint produced = 0;
+
+    // Thread-local scratch for one sub-batch (lives in registers + stack)
+    thread PointJacobian bufJ[SUBBATCH];
+    thread uint256       Zs[SUBBATCH];
+    thread uint256       invZ[SUBBATCH];
+    thread Point         bufA[SUBBATCH];
+
+    // Affine generator G (for mixed additions)
+    const Point G = G_POINT; // same as G_TABLE256 base point (affine)
+
+    while (produced < total) {
+        // Number of outputs in this sub-batch
+        int n = (int)min((uint)SUBBATCH, total - produced);
+
+        // Save first element of the block
+        bufJ[0] = J;
+        Zs[0]   = J.Z;
+
+        // Build the rest with cheap mixed additions: J = J + G
+        // After this loop, J points to the LAST element in the block.
+        for (int i = 1; i < n; i++) {
+            J = point_add_mixed_jacobian(J, G);
+            bufJ[i] = J;
+            Zs[i]   = J.Z;
+        }
+
+        // Single inversion for the entire block
+        batch_inverse(Zs, invZ, n);
+
+        // Convert to affine (to serialize keys)
+        affine_from_jacobian_batch(bufJ, invZ, bufA, n);
+
+        // Store outputs (compressed + uncompressed)
+        for (int i = 0; i < n; i++) {
+            uint out_idx = thread_id * keys_per_thread + (produced + (uint)i);
+            if (bufA[i].infinity) {
+                #pragma unroll
+                for (int b = 0; b < 33; b++) public_keys_comp[out_idx * 33 + b] = 0;
+                #pragma unroll
+                for (int b = 0; b < 65; b++) public_keys_uncomp[out_idx * 65 + b] = 0;
+            } else {
+                store_public_key_compressed  (public_keys_comp,   out_idx, bufA[i].x, bufA[i].y);
+                store_public_key_uncompressed(public_keys_uncomp, out_idx, bufA[i].x, bufA[i].y);
+            }
+        }
+
+        produced += (uint)n;
+
+        // If more to do, advance J by exactly one more +G so the next
+        // sub-batch starts at the *next* key. If we just finished exactly n
+        // adds inside the block, J already sits at the last produced key.
+        // The next loop will save it as first element, so we must NOT add here.
+        // => Do nothing here. The next loop will start from current J and
+        //    its first saved element will be that current J (which is correct).
+        //
+        // If you want each block to be independent you could add a single
+        // extra J=J+G here and reduce the inner loop by one, but current
+        // arrangement already produces contiguous keys without gaps.
+    }
+
+    // No trailing store: everything already written in the loop above.
+}
+
+ 
 // ================ Test Kernels ================
 
 kernel void test_field_mul(
