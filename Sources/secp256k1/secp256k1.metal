@@ -335,11 +335,11 @@ constant Point G_TABLE256[256] = {
 // ================ Utility functions ================
 
 
-inline uint256 load_private_key(device const uint* private_keys, uint index) {
+inline uint256 load_private_key(device const uint* base_private_keys, uint index) {
     uint256 result;
     #pragma unroll
     for (int i = 0; i < 8; i++) {
-        result.limbs[i] = private_keys[index * 8 + i];
+        result.limbs[i] = base_private_keys[index * 8 + i];
     }
     return result;
 }
@@ -1012,10 +1012,11 @@ inline Point point_mul(uint256 k, constant Point* tg_table)
 
 
 kernel void private_to_public_keys(
-    device const uint* private_keys [[buffer(0)]],
+    device const uint* base_private_keys [[buffer(0)]],
     device uchar*      public_keys_comp [[buffer(1)]],
     device uchar*      public_keys_uncomp [[buffer(2)]],
     constant uint&     batchSize [[buffer(3)]],
+    constant uint&     keysPerThread [[buffer(4)]],
     uint id  [[thread_position_in_grid]],
     uint lid [[thread_position_in_threadgroup]],
     uint tpg [[threads_per_threadgroup]])
@@ -1023,11 +1024,15 @@ kernel void private_to_public_keys(
 
     if (id >= batchSize) return;
     
-    // --- load private key for this thread ---
-    uint256 priv = load_private_key(private_keys, id);
+    // --- load base private key for this thread ---
+    uint256 base_priv_key = load_private_key(base_private_keys, id);
 
-    // --- scalar multiply ---
-    Point pub = point_mul(priv, G_TABLE256);
+    
+    // Computing the public key for the the first key only (using expensive scalar mul)
+    // Point pub = point_mul(base_key, G_TABLE_16);
+    Point pub = point_mul(base_priv_key, G_TABLE256);
+    
+
 
     // --- store outputs ---
     if (pub.infinity) {

@@ -3,6 +3,12 @@ import Metal
 
 struct Properties{
     
+    // How many keys each thread calculates per batch.
+    // Tune: 256, 512, 1024, ... depending on registers/occupancy.
+    // Each thread will process KEYS_PER_THREAD keys at a time
+    // The key generator will only generate the start key used by each thread and therefore increments by KEYS_PER_THREAD
+    public static let KEYS_PER_THREAD: Int = 1
+    
     public static let APP_COMMAND_NAME = "keysearch"
     nonisolated(unsafe) public static var verbose: Bool = false
     

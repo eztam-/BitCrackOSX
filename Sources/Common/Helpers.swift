@@ -5,6 +5,7 @@ import Metal
 enum KeySearchError: Error {
     case wrongThreadPerGridMultiple
     case wrongThreadNumber
+    case invaliedKeyGenBatchSize
 }
 
 

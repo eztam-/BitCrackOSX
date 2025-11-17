@@ -3,7 +3,6 @@ import Metal
 
 public class KeyGen {
     
-
     let queue: MTLCommandQueue
     let pipelineState: MTLComputePipelineState
     
@@ -15,8 +14,13 @@ public class KeyGen {
     let threadsPerThreadgroup : MTLSize
     
     
-    public init(device: MTLDevice, batchSize: Int, startKeyHex: String) throws {
+    public init(device: MTLDevice, globalBatchSize: Int, startKeyHex: String) throws {
         
+        if globalBatchSize % Properties.KEYS_PER_THREAD != 0 {
+            print("Can't calculate an appropriate batch size for the key generator.")
+            throw KeySearchError.invaliedKeyGenBatchSize
+        }
+        var keyGenBatchSize = globalBatchSize / Properties.KEYS_PER_THREAD
         
         self.queue = device.makeCommandQueue()!
         self.pipelineState = try Helpers.buildPipelineState(kernelFunctionName: "generate_keys")
@@ -30,18 +34,18 @@ public class KeyGen {
         memcpy(self.currentKeyBuf!.contents(), &startLimbs, 8 * MemoryLayout<UInt32>.stride)
         
         // Output buffer: numKeys * 8 limbs * 4 bytes
-        let outLen = batchSize * 8 * MemoryLayout<UInt32>.stride
+        let outLen = keyGenBatchSize * 8 * MemoryLayout<UInt32>.stride
         self.outBuf = device.makeBuffer(length: outLen, options: .storageModeShared)! // GPU-only, fastest if you keep on GPU
         
         // Constant buffer for numKeys
-        self.batchSizeBuff = device.makeBuffer(bytes: [batchSize],
+        self.batchSizeBuff = device.makeBuffer(bytes: [keyGenBatchSize],
                                               length: MemoryLayout<UInt32>.stride,
                                               options: .storageModeShared)!
         
         
         (self.threadsPerThreadgroup,  self.threadgroupsPerGrid) = try Helpers.getThreadConfig(
             pipelineState: pipelineState,
-            batchSize: batchSize,
+            batchSize: keyGenBatchSize,
             threadsPerThreadgroupMultiplier: 16)
   
     }
@@ -56,13 +60,13 @@ public class KeyGen {
         encoder.setBuffer(outBuf, offset: 0, index: 1)
         encoder.setBuffer(batchSizeBuff, offset: 0, index: 2)
         
-        var n = UInt32(incrementBy)
-        encoder.setBytes(&n, length: MemoryLayout<UInt32>.stride, index: 3)
+        var incrementByN = UInt32(Properties.KEYS_PER_THREAD) // FIXME: Adds unneccessary CPU overhead (same in some other hosts)
+        encoder.setBytes(&incrementByN, length: MemoryLayout<UInt32>.stride, index: 3)
      
         
         encoder.dispatchThreadgroups(threadgroupsPerGrid, threadsPerThreadgroup: threadsPerThreadgroup)
         // Alternatively let Metal find the best number of thread groups
-        //encoder.dispatchThreads(MTLSize(width: batchSize, height: 1, depth: 1), threadsPerThreadgroup: threadsPerGroup)
+        //encoder.dispatchThreads(MTLSize(width: keyGenBatchSize, height: 1, depth: 1), threadsPerThreadgroup: threadsPerGroup)
         encoder.endEncoding()
         
         cmdBuf.commit()

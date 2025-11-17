@@ -77,8 +77,10 @@ public class Secp256k1_GPU {
         commandEncoder.setBuffer(privateKeyBuffer, offset: 0, index: 0)
         commandEncoder.setBuffer(publicKeyBufferComp, offset: 0, index: 1)
         commandEncoder.setBuffer(publicKeyBufferUncomp, offset: 0, index: 2)
-        var n = UInt32(self.batchSize)
-        commandEncoder.setBytes(&n, length: MemoryLayout<UInt32>.stride, index: 3)
+        var batchSizeU32 = UInt32(self.batchSize)
+        commandEncoder.setBytes(&batchSizeU32, length: MemoryLayout<UInt32>.stride, index: 3)
+        var keysPerThread = UInt32(Properties.KEYS_PER_THREAD)
+        commandEncoder.setBytes(&keysPerThread, length: MemoryLayout<UInt32>.stride, index: 4)
         
         // Dispatch compute threads
         commandEncoder.dispatchThreadgroups(threadgroupsPerGrid, threadsPerThreadgroup: threadsPerThreadgroup)
