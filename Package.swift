@@ -20,6 +20,7 @@ let package = Package(
             dependencies: [
                 .product(name: "ArgumentParser", package: "swift-argument-parser"),
                 .product(name: "SQLite", package: "SQLite.swift"),
+                .product(name: "BigNumber", package: "Swift-BigInt"),
             ],
             path: "Sources",
             resources: [

@@ -1,6 +1,6 @@
 import Foundation
 import Metal
-
+import BigNumber
 
 
 
@@ -118,10 +118,17 @@ class KeySearch {
                 let pubKeyIndex = privKeyIndex*Properties.KEYS_PER_THREAD + i
                 
                 if result[pubKeyIndex] {
+                    // Get the base private key
                     var privKey = [UInt8](repeating: 0, count: 32)
                     memcpy(&privKey, privateKeyBuffer.contents().advanced(by: privKeyIndex*32), 32)
-                    let privKeyHex = Data(privKey.reversed()).hexString
                     
+                    // We only have the base key. We need to add the offset i (key position in secp256k1 thread) to get the real private key
+                    let basePrivKeyHex = Data(privKey.reversed()).hexString
+                    let privateKey = BInt(basePrivKeyHex, radix: 16)! + BInt(i)
+                    var privateKeyStr = privateKey.asString(radix: 16)
+                    privateKeyStr = String(repeating: "0", count: max(0, 64 - privateKeyStr.count)) + privateKeyStr
+                    
+                    // Get the hash160
                     var pubKeyHash = [UInt8](repeating: 0, count: 20)
                     memcpy(&pubKeyHash, ripemd160Buffer.contents().advanced(by: pubKeyIndex*20), 20)
                     let pubKeyHashHex = Data(pubKeyHash).hexString
@@ -135,13 +142,13 @@ class KeySearch {
                         ui.printMessage(
                         """
                         --------------------------------------------------------------------------------------
-                        💰 Private key found: \(privKeyHex)
+                        💰 Private key found: \(privateKeyStr)
                            For addresses:
                             \(addresses.map { $0.address }.joined(separator: "\n    "))
                         --------------------------------------------------------------------------------------
                         """)
                        
-                        try! appendToResultFile(text: "Found private key: \(privKeyHex) for addresses: \(addresses.map(\.address).joined(separator: ", ")) \n")
+                        try! appendToResultFile(text: "Found private key: \(privateKeyStr) for addresses: \(addresses.map(\.address).joined(separator: ", ")) \n")
                         // exit(0) // TODO: do we want to exit? Make this configurable
                     }
                 }

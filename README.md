@@ -130,11 +130,11 @@ For all consecutive private keys in the same thread we just do a point addition 
 |Pipeline Step|input batch size|output batch size|input|output|
 |-------------|----------------|-----------------|-----|------|
 |Key Generator|N|N|start key|Base keys with an increment of KEYS_PER_THREAD between each|
-|secp256k1|N|N\*KEYS_PER_THREAD||public keys|
-|SHA256|N\*KEYS_PER_THREAD|N\*KEYS_PER_THREAD||SHA256 hashed private keys|
-|RIPEMD160|N\*KEYS_PER_THREAD|N\*KEYS_PER_THREAD||RIPEMD160 hashed private keys (hash160)|
-|Bloom Filter|N\*KEYS_PER_THREAD|N\*KEYS_PER_THREAD|hash160|indexes of matched hash160 hashes|
-|Database|-|-|Results from bloom filter|For all existing entries the list of corresponding addresses|
+|secp256k1|N|N\*KEYS_PER_THREAD|previous output|public keys|
+|SHA256|N\*KEYS_PER_THREAD|N\*KEYS_PER_THREAD|previous output|SHA256 hashed private keys|
+|RIPEMD160|N\*KEYS_PER_THREAD|N\*KEYS_PER_THREAD|previous output|RIPEMD160 hashed private keys (hash160)|
+|Bloom Filter|N\*KEYS_PER_THREAD|N\*KEYS_PER_THREAD|previous output|indexes of matched hash160 hashes|
+|Database|-|-|previous output|For all existing entries the list of corresponding addresses|
 
 ### Endians
 host-endian == little-endian on Apple Silicon GPUs/CPUs<br>
