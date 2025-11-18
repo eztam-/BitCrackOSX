@@ -70,7 +70,6 @@ public class Secp256k1_GPU {
         commandBuffer.commit()
         commandBuffer.waitUntilCompleted()
     
-        
         return (publicKeyBufferComp, publicKeyBufferUncomp)
     }
     
@@ -80,6 +79,11 @@ public class Secp256k1_GPU {
                       threadgroupsPerGrid.width,
                       pipelineState.threadExecutionWidth))
     }
+    
+    func getOutputBuffer() -> MTLBuffer {
+        return publicKeyBufferComp // publicKeyBufferUncomp
+    }
+    
 }
 
 

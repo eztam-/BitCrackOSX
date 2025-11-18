@@ -30,7 +30,7 @@ class RIPEMD160 {
     }
     
     
-    func appendRipemd160Encoder(commandBuffer: MTLCommandBuffer){
+    func appendCommandEncoder(commandBuffer: MTLCommandBuffer){
         let commandEncoder = commandBuffer.makeComputeCommandEncoder()!
         commandEncoder.setComputePipelineState(pipelineState)
         commandEncoder.setBuffer(inputBuffer, offset: 0, index: 0)

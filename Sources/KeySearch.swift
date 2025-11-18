@@ -36,7 +36,7 @@ class KeySearch {
         
         let keyGen = try KeyGen(device: device, batchSize: privKeyBatchSize, startKeyHex: startKey)
         let secp256k1obj = try Secp256k1_GPU(on:  device, inputBatchSize: privKeyBatchSize, outputBatchSize: pubKeyBatchSize)
-        let SHA256 = try SHA256(on: device, batchSize: pubKeyBatchSize)
+        let hashing = try Hashing(on: device, batchSize: pubKeyBatchSize, inputBuffer: secp256k1obj.getOutputBuffer())
         
         
         
@@ -46,7 +46,7 @@ class KeySearch {
             print("                  │ Threads per TG │ TGs per Grid │ Thread Exec. Width │")
             keyGen.printThreadConf()
             secp256k1obj.printThreadConf()
-            SHA256.printThreadConf()
+            //SHA256.printThreadConf()
             bloomFilter.printThreadConf()
             print("")
         }
@@ -76,12 +76,16 @@ class KeySearch {
             
             // Calculate SHA256 for the batch of public keys
             start = DispatchTime.now()
+            let ripemd160Buffer = hashing.run(keyLength: 33) //   keyLength:  33 = compressed;  65 = uncompressed
+            
+            /*
             let ripemd160Buffer: MTLBuffer
             if Properties.compressedKeySearch {
-                ripemd160Buffer = SHA256.run(publicKeysBuffer: pubKeysCompBuff, keyLength: 33) //   keyLength:  33 = compressed;  65 = uncompressed
+                ripemd160Buffer = hashing.run(publicKeysBuffer: pubKeysCompBuff, keyLength: 33) //   keyLength:  33 = compressed;  65 = uncompressed
             } else{
-                ripemd160Buffer = SHA256.run(publicKeysBuffer: pubKeysUncompBuff, keyLength: 65) //   keyLength:  33 = compressed;  65 = uncompressed
+                ripemd160Buffer = hashing.run(publicKeysBuffer: pubKeysUncompBuff, keyLength: 65) //   keyLength:  33 = compressed;  65 = uncompressed
             }
+            */
             //printSha256Output(BATCH_SIZE, outPtr)
             ui.hashing = Double(DispatchTime.now().uptimeNanoseconds - start.uptimeNanoseconds) / 1_000_000.0
             
