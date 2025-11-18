@@ -71,6 +71,10 @@ public class KeyGen {
         return outBuf
     }
     
+    func getOutputBuffer() -> MTLBuffer {
+        return outBuf
+    }
+    
     public func printThreadConf(){
         print(String(format: "    Key Gen:      │         %6d │       %6d │             %6d │",
                       threadsPerThreadgroup.width,

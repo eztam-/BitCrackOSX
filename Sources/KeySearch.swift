@@ -35,8 +35,8 @@ class KeySearch {
         
         
         let keyGen = try KeyGen(device: device, batchSize: privKeyBatchSize, startKeyHex: startKey)
-        let secp256k1obj = try Secp256k1_GPU(on:  device, inputBatchSize: privKeyBatchSize, outputBatchSize: pubKeyBatchSize)
-        let hashing = try Hashing(on: device, batchSize: pubKeyBatchSize, inputBuffer: secp256k1obj.getOutputBuffer())
+        //let secp256k1obj = try Secp256k1_GPU(on:  device, inputBatchSize: privKeyBatchSize, outputBatchSize: pubKeyBatchSize, inputBuffer: keyGen.getOutputBuffer())
+        let hashing = try Hashing(on: device, batchSize: pubKeyBatchSize, inputBuffer: keyGen.getOutputBuffer())
         
         
         
@@ -45,7 +45,7 @@ class KeySearch {
         if Properties.verbose {
             print("                  │ Threads per TG │ TGs per Grid │ Thread Exec. Width │")
             keyGen.printThreadConf()
-            secp256k1obj.printThreadConf()
+            //secp256k1obj.printThreadConf()
             //SHA256.printThreadConf()
             bloomFilter.printThreadConf()
             print("")
@@ -68,10 +68,11 @@ class KeySearch {
             
             
             // Using secp256k1 EC to calculate public keys for the given private keys
+            /*
             start = DispatchTime.now()
             let (pubKeysCompBuff, pubKeysUncompBuff) = secp256k1obj.generatePublicKeys(basePrivateKeyBuffer: privateKeyBuffer)
             ui.secp256k1 = Double(DispatchTime.now().uptimeNanoseconds - start.uptimeNanoseconds) / 1_000_000.0
-            
+            */
             
             
             // Calculate SHA256 for the batch of public keys

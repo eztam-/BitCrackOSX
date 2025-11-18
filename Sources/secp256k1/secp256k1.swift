@@ -11,13 +11,15 @@ public class Secp256k1_GPU {
     
     private let publicKeyBufferComp: MTLBuffer
     private let publicKeyBufferUncomp: MTLBuffer
+    private let inputBuffer: MTLBuffer
     
     let threadsPerThreadgroup : MTLSize
     let threadgroupsPerGrid : MTLSize
     
-    public init(on device: MTLDevice, inputBatchSize : Int, outputBatchSize : Int) throws {
+    public init(on device: MTLDevice, inputBatchSize : Int, outputBatchSize : Int, inputBuffer: MTLBuffer) throws {
         self.inputBatchSize = inputBatchSize
         self.outputBatchSize = outputBatchSize
+        self.inputBuffer = inputBuffer
         
         self.commandQueue = device.makeCommandQueue()!
         self.device = device
@@ -43,15 +45,13 @@ public class Secp256k1_GPU {
     }
     
     
-    public func generatePublicKeys(basePrivateKeyBuffer: MTLBuffer) -> (MTLBuffer, MTLBuffer) {
-
-        // Create command buffer and encoder
-        let commandBuffer = commandQueue.makeCommandBuffer()!
+    
+    func appendCommandEncoder(commandBuffer: MTLCommandBuffer){
         let commandEncoder = commandBuffer.makeComputeCommandEncoder()!
-        
+       
         // Configure the compute pipeline
         commandEncoder.setComputePipelineState(pipelineState)
-        commandEncoder.setBuffer(basePrivateKeyBuffer, offset: 0, index: 0)
+        commandEncoder.setBuffer(inputBuffer, offset: 0, index: 0)
         commandEncoder.setBuffer(publicKeyBufferComp, offset: 0, index: 1)
         commandEncoder.setBuffer(publicKeyBufferUncomp, offset: 0, index: 2)
         var batchSizeU32 = UInt32(self.inputBatchSize)
@@ -64,14 +64,8 @@ public class Secp256k1_GPU {
         // Alternatively let Metal find the best number of thread groups
         //commandEncoder.dispatchThreads(MTLSize(width: batchSize, height: 1, depth: 1), threadsPerThreadgroup: threadsPerThreadgroup)
         commandEncoder.endEncoding()
-        
-
-        // Execute and wait for completion
-        commandBuffer.commit()
-        commandBuffer.waitUntilCompleted()
-    
-        return (publicKeyBufferComp, publicKeyBufferUncomp)
     }
+    
     
     public func printThreadConf(){
         print(String(format: "    Secp256k1:    │         %6d │       %6d │             %6d │",
