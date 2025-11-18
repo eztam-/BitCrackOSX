@@ -10,14 +10,16 @@ public class KeyGen {
     let outBuf : MTLBuffer
     let batchSizeBuff : MTLBuffer
     
+
+    
     let threadgroupsPerGrid : MTLSize
     let threadsPerThreadgroup : MTLSize
     
     
     public init(device: MTLDevice, batchSize: Int, startKeyHex: String) throws {
         
-        var keyGenBatchSize = batchSize
-        
+        let keyGenBatchSize = batchSize
+      
         self.queue = device.makeCommandQueue()!
         self.pipelineState = try Helpers.buildPipelineState(kernelFunctionName: "generate_keys")
 
@@ -46,11 +48,9 @@ public class KeyGen {
   
     }
     
-    
-    public func run(incrementBy: UInt32 = 1) -> MTLBuffer{
+    func appendCommandEncoder(commandBuffer: MTLCommandBuffer){
         
-        let cmdBuf = queue.makeCommandBuffer()!
-        let encoder = cmdBuf.makeComputeCommandEncoder()!
+        let encoder = commandBuffer.makeComputeCommandEncoder()!
         encoder.setComputePipelineState(pipelineState)
         encoder.setBuffer(currentKeyBuf, offset: 0, index: 0)
         encoder.setBuffer(outBuf, offset: 0, index: 1)
@@ -58,17 +58,11 @@ public class KeyGen {
         
         var incrementByN = UInt32(Properties.KEYS_PER_THREAD) // FIXME: Adds unneccessary CPU overhead (same in some other hosts)
         encoder.setBytes(&incrementByN, length: MemoryLayout<UInt32>.stride, index: 3)
-     
-        
         encoder.dispatchThreadgroups(threadgroupsPerGrid, threadsPerThreadgroup: threadsPerThreadgroup)
         // Alternatively let Metal find the best number of thread groups
         //encoder.dispatchThreads(MTLSize(width: keyGenBatchSize, height: 1, depth: 1), threadsPerThreadgroup: threadsPerGroup)
         encoder.endEncoding()
-        
-        cmdBuf.commit()
-        cmdBuf.waitUntilCompleted()
-        
-        return outBuf
+
     }
     
     func getOutputBuffer() -> MTLBuffer {

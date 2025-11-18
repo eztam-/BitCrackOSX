@@ -34,9 +34,9 @@ class KeySearch {
         //let startKey = "0000000000000000000000000000000000000000000000000001000000000000"
         
         
-        let keyGen = try KeyGen(device: device, batchSize: privKeyBatchSize, startKeyHex: startKey)
+        
         //let secp256k1obj = try Secp256k1_GPU(on:  device, inputBatchSize: privKeyBatchSize, outputBatchSize: pubKeyBatchSize, inputBuffer: keyGen.getOutputBuffer())
-        let hashing = try Hashing(on: device, batchSize: pubKeyBatchSize, inputBuffer: keyGen.getOutputBuffer())
+        let hashing = try Hashing(on: device, batchSize: pubKeyBatchSize, startHexKey: startKey)
         
         
         
@@ -44,7 +44,7 @@ class KeySearch {
         
         if Properties.verbose {
             print("                  │ Threads per TG │ TGs per Grid │ Thread Exec. Width │")
-            keyGen.printThreadConf()
+            //keyGen.printThreadConf()
             //secp256k1obj.printThreadConf()
             //SHA256.printThreadConf()
             bloomFilter.printThreadConf()
@@ -59,12 +59,13 @@ class KeySearch {
             
             let startTime = CFAbsoluteTimeGetCurrent()
             
-            
+            var start = DispatchTime.now()
             // Generate batch of private keys
+            /*
             var start = DispatchTime.now()
             let privateKeyBuffer = keyGen.run()
             ui.keyGen = Double(DispatchTime.now().uptimeNanoseconds - start.uptimeNanoseconds) / 1_000_000.0
-            
+            */
             
             
             // Using secp256k1 EC to calculate public keys for the given private keys
@@ -76,7 +77,7 @@ class KeySearch {
             
             
             // Calculate SHA256 for the batch of public keys
-            start = DispatchTime.now()
+           // start = DispatchTime.now()
             let ripemd160Buffer = hashing.run(keyLength: 33) //   keyLength:  33 = compressed;  65 = uncompressed
             
             /*
@@ -88,7 +89,7 @@ class KeySearch {
             }
             */
             //printSha256Output(BATCH_SIZE, outPtr)
-            ui.hashing = Double(DispatchTime.now().uptimeNanoseconds - start.uptimeNanoseconds) / 1_000_000.0
+            //ui.hashing = Double(DispatchTime.now().uptimeNanoseconds - start.uptimeNanoseconds) / 1_000_000.0
             
             
             
@@ -99,7 +100,7 @@ class KeySearch {
             
             let falsePositiveCnt = checkBloomFilterResults(
                 result: result,
-                privateKeyBuffer: privateKeyBuffer,
+                privateKeyBuffer: hashing.getBasePrivKeyBuffer(),
                 ripemd160Buffer: ripemd160Buffer)
             
             ui.bloomFilter = Double(DispatchTime.now().uptimeNanoseconds - start.uptimeNanoseconds) / 1_000_000.0
