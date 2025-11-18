@@ -1,12 +1,10 @@
 import Foundation
 import Metal
 
-// Calculates SHA256 followed by RIPEMD160 for a batch of public keys
 class SHA256 {
     
     let device: MTLDevice
  
-    
     let pipelineState: MTLComputePipelineState
     let inputBuffer: MTLBuffer
     let outputBuffer: MTLBuffer
@@ -18,13 +16,8 @@ class SHA256 {
 
     let batchSize: Int
     
-    // Helper: pack several messages into a single byte buffer and meta array
-    struct MsgMeta {
-        var offset: UInt32
-        var length: UInt32
-    }
-    
-    init(on device: MTLDevice, batchSize: Int, inputBuffer: MTLBuffer) throws {
+    //   keyLength:  33 = compressed;  65 = uncompressed
+    init(on device: MTLDevice, batchSize: Int, inputBuffer: MTLBuffer, keyLength: UInt32) throws {
         
         self.device = device
         self.batchSize = batchSize
@@ -39,12 +32,10 @@ class SHA256 {
         var numMessagesUInt32 = UInt32(batchSize)
         self.numMessagesBuffer = device.makeBuffer(bytes: &numMessagesUInt32, length: MemoryLayout<UInt32>.stride, options: .storageModeShared)!
         
-        // Message size in bytes (we pass it as a small uniform buffer)
-       // var messageSizeUInt32 = UInt32(33) // TODO: 33 = compressed 65 = uncompressed
-        //self.messageSizeBuffer = device.makeBuffer(bytes: &messageSizeUInt32, length: MemoryLayout<UInt32>.stride, options: [])!
-        
         self.messageSizeBuffer = device.makeBuffer(length: MemoryLayout<UInt32>.stride,options: .storageModeShared)!
-          
+        let ptr = messageSizeBuffer.contents().bindMemory(to: UInt32.self, capacity: 1)
+        ptr.pointee = keyLength
+        
         (self.threadsPerThreadgroup,  self.threadgroupsPerGrid) = try Helpers.getThreadConfig(
             pipelineState: pipelineState,
             batchSize: batchSize,
@@ -53,11 +44,8 @@ class SHA256 {
     }
     
 
-    func appendCommandEncoder(commandBuffer: MTLCommandBuffer, keyLength: UInt32){
+    func appendCommandEncoder(commandBuffer: MTLCommandBuffer){
         let encoderSha256 = commandBuffer.makeComputeCommandEncoder()!
-        
-        let ptr = messageSizeBuffer.contents().bindMemory(to: UInt32.self, capacity: 1)
-        ptr.pointee = keyLength
         
         encoderSha256.setComputePipelineState(pipelineState)
         encoderSha256.setBuffer(inputBuffer, offset: 0, index: 0)
@@ -77,7 +65,7 @@ class SHA256 {
     
     // TODO: this exists in each host class. Move to common super class
     public func printThreadConf(){
-        print(String(format: "   Hashing:       │         %6d │       %6d │             %6d │",
+        print(String(format: "    SHA256:       │         %6d │       %6d │             %6d │",
                       threadsPerThreadgroup.width,
                       threadgroupsPerGrid.width,
                       pipelineState.threadExecutionWidth))

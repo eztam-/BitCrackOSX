@@ -18,13 +18,16 @@ class UI {
     var isFirstRun = true
     private let lock = NSLock()
     
-    private static let STATS_LINES = 7
+    private static let STATS_LINES = 3
     
     private let batchSize: Int
     
     public init(batchSize: Int){
         self.batchSize = batchSize
-        timer.schedule(deadline: .now()+DispatchTimeInterval.seconds(3), repeating: 1.0)
+    }
+    
+    public func startLiveStats(){
+        timer.schedule(deadline: .now(), repeating: 1.0)
         timer.setEventHandler {
             if self.isFirstRun {
                 self.printFooterPadding()
@@ -96,12 +99,8 @@ class UI {
         print("\u{1B}[\(UI.STATS_LINES)A", terminator: "")
         // TODO: hide the details about the individual steps and make them available by compiler flag or preporeccor? if pperformance is dramatic. Otherwise make them available by comln param
         print("📊 Live Stats")
-        print(String(format: "\(clearLine())    Key gen     : %8.3f ms", self.keyGen))
-        print(String(format: "\(clearLine())    secp256k1   : %8.3f ms", self.secp256k1))
-        print(String(format: "\(clearLine())    Hashing     : %8.3f ms", self.hashing))
         print(String(format: "\(clearLine())    Bloom Filter: %8.3f ms | FPR %.4f%% (%d)", self.bloomFilter, falsePositiveRate, self.bfFalePositiveCnt))
-        print("\(clearLine())    ─────────────────────────────")
-        print("\(clearLine())    Throughput  :  \(statusStr)")
+        print("\(clearLine())    Throughput  : \(statusStr)")
         fflush(stdout)
         
     }

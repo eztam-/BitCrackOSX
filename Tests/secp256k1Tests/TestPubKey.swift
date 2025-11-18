@@ -47,7 +47,7 @@ class TestPubKey: TestBase {
         )!;
         
         
-        let secp256k1obj = try Secp256k1_GPU(on:super.device, batchSize: numTests)
+        let secp256k1obj = try Secp256k1(on:super.device, batchSize: numTests)
         let (pubKeysComp, pubKeysUncomp) = secp256k1obj.generatePublicKeys(privateKeyBuffer: privKeysBuffer)
         
         let resultPubKeysComp = bytePtrToData(bytePtr: pubKeysComp.contents(), keySizeBytes: 33, numKeys: numTests)
@@ -143,7 +143,7 @@ class TestPubKey: TestBase {
                                            options: [])!
         
         
-        let secp256k1obj = try Secp256k1_GPU(on:super.device, batchSize: testCases.count)
+        let secp256k1obj = try Secp256k1(on:super.device, batchSize: testCases.count)
         let (pubKeysComp, pubKeysUncomp) = secp256k1obj.generatePublicKeys(privateKeyBuffer: privKeysBuffer)
         
         let resultPubKeysComp = bytePtrToData(bytePtr: pubKeysComp.contents(), keySizeBytes: 33, numKeys: testCases.count)

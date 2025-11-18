@@ -1079,17 +1079,19 @@ inline void affine_from_jacobian_batch(
 
 kernel void private_to_public_keys(
     device const uint* base_private_keys     [[buffer(0)]],
-    device uchar*      public_keys_comp      [[buffer(1)]],
-    device uchar*      public_keys_uncomp    [[buffer(2)]],
+    device uchar*      public_keys           [[buffer(1)]],
+    device bool&       compressed            [[buffer(2)]],
     constant uint&     batchSize             [[buffer(3)]],
     constant uint&     keys_per_thread       [[buffer(4)]],
     uint thread_id                           [[thread_position_in_grid]],
-    uint lid                                  [[thread_position_in_threadgroup]],
-    uint tpg                                  [[threads_per_threadgroup]]
+    uint lid                                 [[thread_position_in_threadgroup]],
+    uint tpg                                 [[threads_per_threadgroup]]
 )
 {
     if (thread_id >= batchSize) return;
 
+    int pubKeyLength = compressed ? 33 : 65;
+    
     // --- 1) Load base private key for this thread (start key k0) ---
     uint256 k0 = load_private_key(base_private_keys, thread_id);
 
@@ -1145,13 +1147,16 @@ kernel void private_to_public_keys(
         for (int i = 0; i < n; i++) {
             uint out_idx = thread_id * keys_per_thread + (produced + (uint)i);
             if (bufA[i].infinity) {
+               
                 #pragma unroll
-                for (int b = 0; b < 33; b++) public_keys_comp[out_idx * 33 + b] = 0;
-                #pragma unroll
-                for (int b = 0; b < 65; b++) public_keys_uncomp[out_idx * 65 + b] = 0;
+                for (int b = 0; b < pubKeyLength; b++) public_keys[out_idx * pubKeyLength + b] = 0;
+               
             } else {
-                store_public_key_compressed  (public_keys_comp,   out_idx, bufA[i].x, bufA[i].y);
-                store_public_key_uncompressed(public_keys_uncomp, out_idx, bufA[i].x, bufA[i].y);
+                if (compressed) {
+                    store_public_key_compressed  (public_keys, out_idx, bufA[i].x, bufA[i].y);
+                } else {
+                    store_public_key_uncompressed(public_keys, out_idx, bufA[i].x, bufA[i].y);
+                }
             }
         }
 

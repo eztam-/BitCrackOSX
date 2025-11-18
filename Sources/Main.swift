@@ -105,10 +105,10 @@ _________                        __     ____  __.               _________       
                 let db = try DB(dbPath: dbFile)
                 let bloomFilter = try BloomFilter(db: db, batchSize: Helpers.PUB_KEY_BATCH_SIZE) // TODO: bad access of BATCH_SIZE in KeySearch
                 if startKey == "RANDOM" {
-                    try KeySearch(bloomFilter: bloomFilter, database: db, outputFile: outputFile).run(startKey: startKey)
+                    try KeySearch(bloomFilter: bloomFilter, database: db, outputFile: outputFile).run(startHexKey: startKey)
                 }
                 else if startKey.count == 64 && startKey.allSatisfy(\.isHexDigit) {
-                    try KeySearch(bloomFilter: bloomFilter, database: db, outputFile: outputFile).run(startKey: startKey)
+                    try KeySearch(bloomFilter: bloomFilter, database: db, outputFile: outputFile).run(startHexKey: startKey)
                 }
                 print("Invalid start key provided. Please provide a valid 32 byte hex string.")
             } catch {

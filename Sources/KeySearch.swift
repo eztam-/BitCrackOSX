@@ -27,81 +27,59 @@ class KeySearch {
         self.ui = UI(batchSize: self.pubKeyBatchSize)
     }
     
-    func run(startKey: String) throws {
+    func run(startHexKey: String) throws {
 
         // TODO: check for maximum range wich is: 0xFFFF FFFF FFFF FFFF FFFF FFFF FFFF FFFE BAAE DCE6 AF48 A03B BFD2 5E8C D036 4140
         
         //let startKey = "0000000000000000000000000000000000000000000000000001000000000000"
         
+        let commandQueue = device.makeCommandQueue()!
+        let keyLength = Properties.compressedKeySearch ? 33 : 65 //   keyLength:  33 = compressed;  65 = uncompressed
         
-        
-        //let secp256k1obj = try Secp256k1_GPU(on:  device, inputBatchSize: privKeyBatchSize, outputBatchSize: pubKeyBatchSize, inputBuffer: keyGen.getOutputBuffer())
-        let hashing = try Hashing(on: device, batchSize: pubKeyBatchSize, startHexKey: startKey)
-        
+        let keyGen = try KeyGen(device: device, batchSize: privKeyBatchSize, startKeyHex: startHexKey)
+        let secp256k1 = try Secp256k1(on:  device, inputBatchSize: privKeyBatchSize, outputBatchSize: pubKeyBatchSize, inputBuffer: keyGen.getOutputBuffer())
+        let sha256 = try SHA256(on: device, batchSize: pubKeyBatchSize, inputBuffer: secp256k1.getOutputBuffer(), keyLength: UInt32(keyLength))
+        let ripemd160 = try RIPEMD160(on: device, batchSize: pubKeyBatchSize, inputBuffer: sha256.getOutputBuffer())
         
         
         try Helpers.printGPUInfo(device: device)
         
         if Properties.verbose {
             print("                  │ Threads per TG │ TGs per Grid │ Thread Exec. Width │")
-            //keyGen.printThreadConf()
-            //secp256k1obj.printThreadConf()
-            //SHA256.printThreadConf()
+            keyGen.printThreadConf()
+            secp256k1.printThreadConf()
+            sha256.printThreadConf()
+            ripemd160.printThreadConf()
             bloomFilter.printThreadConf()
             print("")
         }
         
         let compUncomp = Properties.compressedKeySearch ? "compressed" : "uncompressed"
-        print("🚀 Starting \(compUncomp) key search from: \(startKey)\n")
+        print("🚀 Starting \(compUncomp) key search from: \(startHexKey)\n")
        
+        ui.startLiveStats()
         
         while true {  // TODO: Shall we introduce an end key, if reached then the application stops?
             
             let startTime = CFAbsoluteTimeGetCurrent()
             
-            var start = DispatchTime.now()
-            // Generate batch of private keys
-            /*
-            var start = DispatchTime.now()
-            let privateKeyBuffer = keyGen.run()
-            ui.keyGen = Double(DispatchTime.now().uptimeNanoseconds - start.uptimeNanoseconds) / 1_000_000.0
-            */
+            let commandBuffer = commandQueue.makeCommandBuffer()!
+            keyGen.appendCommandEncoder(commandBuffer: commandBuffer)
+            secp256k1.appendCommandEncoder(commandBuffer: commandBuffer)
+            sha256.appendCommandEncoder(commandBuffer: commandBuffer)
+            ripemd160.appendCommandEncoder(commandBuffer: commandBuffer)
             
+            // Submit work to GPU
+            commandBuffer.commit()
+            commandBuffer.waitUntilCompleted()
             
-            // Using secp256k1 EC to calculate public keys for the given private keys
-            /*
-            start = DispatchTime.now()
-            let (pubKeysCompBuff, pubKeysUncompBuff) = secp256k1obj.generatePublicKeys(basePrivateKeyBuffer: privateKeyBuffer)
-            ui.secp256k1 = Double(DispatchTime.now().uptimeNanoseconds - start.uptimeNanoseconds) / 1_000_000.0
-            */
-            
-            
-            // Calculate SHA256 for the batch of public keys
-           // start = DispatchTime.now()
-            let ripemd160Buffer = hashing.run(keyLength: 33) //   keyLength:  33 = compressed;  65 = uncompressed
-            
-            /*
-            let ripemd160Buffer: MTLBuffer
-            if Properties.compressedKeySearch {
-                ripemd160Buffer = hashing.run(publicKeysBuffer: pubKeysCompBuff, keyLength: 33) //   keyLength:  33 = compressed;  65 = uncompressed
-            } else{
-                ripemd160Buffer = hashing.run(publicKeysBuffer: pubKeysUncompBuff, keyLength: 65) //   keyLength:  33 = compressed;  65 = uncompressed
-            }
-            */
-            //printSha256Output(BATCH_SIZE, outPtr)
-            //ui.hashing = Double(DispatchTime.now().uptimeNanoseconds - start.uptimeNanoseconds) / 1_000_000.0
-            
-            
-            
-            // Check RIPEMD160 hashes against the bloom filter
-            // Note, we have reverse-calculated BASE58 before inserting addresses into the bloom filter, so we can check directly the RIPEMD160 hashes which is faster.
-            start = DispatchTime.now()
-            let result = bloomFilter.query(ripemd160Buffer, batchSize: pubKeyBatchSize)   //contains(pointer: ripemd160_result, length: 5, offset: i*5)
+            let start = DispatchTime.now()
+            let result = bloomFilter.query(ripemd160.getOutputBuffer(), batchSize: pubKeyBatchSize)   //contains(pointer: ripemd160_result, length: 5, offset: i*5)
             
             let falsePositiveCnt = checkBloomFilterResults(
                 result: result,
-                privateKeyBuffer: hashing.getBasePrivKeyBuffer(),
-                ripemd160Buffer: ripemd160Buffer)
+                privateKeyBuffer: keyGen.getOutputBuffer(),
+                ripemd160Buffer: ripemd160.getOutputBuffer())
             
             ui.bloomFilter = Double(DispatchTime.now().uptimeNanoseconds - start.uptimeNanoseconds) / 1_000_000.0
             

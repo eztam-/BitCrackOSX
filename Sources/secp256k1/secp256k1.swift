@@ -1,7 +1,7 @@
 import Metal
 import Foundation
 
-public class Secp256k1_GPU {
+public class Secp256k1 {
     private let device: MTLDevice
     private let commandQueue: MTLCommandQueue
     private let pipelineState: MTLComputePipelineState
@@ -9,9 +9,9 @@ public class Secp256k1_GPU {
     private let inputBatchSize: Int // Number of base private keys per batch (number of total threads in grid)
     private let outputBatchSize: Int // Number of public keys generated per batch (batchSize * Properties.KEYS_PER_THREAD)
     
-    private let publicKeyBufferComp: MTLBuffer
-    private let publicKeyBufferUncomp: MTLBuffer
+    private let publicKeyBuffer: MTLBuffer
     private let inputBuffer: MTLBuffer
+    private let compressedKeySearchBuffer: MTLBuffer
     
     let threadsPerThreadgroup : MTLSize
     let threadgroupsPerGrid : MTLSize
@@ -30,18 +30,17 @@ public class Secp256k1_GPU {
             batchSize: self.inputBatchSize,
             threadsPerThreadgroupMultiplier: 16)
         
+        let keyLength = Properties.compressedKeySearch ? 33 : 65 //   keyLength:  33 = compressed;  65 = uncompressed
         
-        let publicKeyBufferComp = device.makeBuffer(
-                length: MemoryLayout<UInt8>.stride * outputBatchSize * 33, // Compressed public key is 256 bits + 8 bits = 33 bytes
-                options: .storageModeShared // TODO: we should mae this private for better performance. And only switch it to shared for unit tests who need that
-        )!;
-        let publicKeyBufferUncomp = device.makeBuffer(
-                length: MemoryLayout<UInt8>.stride * outputBatchSize * 65, // Uncompressed public key is 512 bits + 8 bits = 65 bytes
+        self.publicKeyBuffer = device.makeBuffer(
+                length: MemoryLayout<UInt8>.stride * outputBatchSize * keyLength,
                 options: .storageModeShared // TODO: we should mae this private for better performance. And only switch it to shared for unit tests who need that
         )!;
         
-        self.publicKeyBufferComp = publicKeyBufferComp
-        self.publicKeyBufferUncomp = publicKeyBufferUncomp
+       
+        var compressedKeySearch = Bool(Properties.compressedKeySearch)
+        self.compressedKeySearchBuffer = device.makeBuffer(bytes: &compressedKeySearch, length: MemoryLayout<Bool>.stride, options: .storageModeShared)!
+       
     }
     
     
@@ -52,8 +51,8 @@ public class Secp256k1_GPU {
         // Configure the compute pipeline
         commandEncoder.setComputePipelineState(pipelineState)
         commandEncoder.setBuffer(inputBuffer, offset: 0, index: 0)
-        commandEncoder.setBuffer(publicKeyBufferComp, offset: 0, index: 1)
-        commandEncoder.setBuffer(publicKeyBufferUncomp, offset: 0, index: 2)
+        commandEncoder.setBuffer(publicKeyBuffer, offset: 0, index: 1)
+        commandEncoder.setBuffer(compressedKeySearchBuffer, offset: 0, index: 2)
         var batchSizeU32 = UInt32(self.inputBatchSize)
         commandEncoder.setBytes(&batchSizeU32, length: MemoryLayout<UInt32>.stride, index: 3)
         var keysPerThread = UInt32(Properties.KEYS_PER_THREAD)
@@ -75,7 +74,7 @@ public class Secp256k1_GPU {
     }
     
     func getOutputBuffer() -> MTLBuffer {
-        return publicKeyBufferComp // publicKeyBufferUncomp
+        return publicKeyBuffer 
     }
     
 }

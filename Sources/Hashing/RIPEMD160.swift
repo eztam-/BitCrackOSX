@@ -47,4 +47,11 @@ class RIPEMD160 {
     func getOutputBuffer() -> MTLBuffer {
         return outBuffer
     }
+    
+    public func printThreadConf(){
+        print(String(format: "    RIPEMD160:    │         %6d │       %6d │             %6d │",
+                      threadsPerThreadgroup.width,
+                      threadgroupsPerGrid.width,
+                      pipelineState.threadExecutionWidth))
+    }
 }
