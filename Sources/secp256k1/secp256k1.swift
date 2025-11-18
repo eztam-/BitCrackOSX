@@ -61,7 +61,7 @@ public class Secp256k1 {
         // Dispatch compute threads
         commandEncoder.dispatchThreadgroups(threadgroupsPerGrid, threadsPerThreadgroup: threadsPerThreadgroup)
         // Alternatively let Metal find the best number of thread groups
-        //commandEncoder.dispatchThreads(MTLSize(width: batchSize, height: 1, depth: 1), threadsPerThreadgroup: threadsPerThreadgroup)
+        // commandEncoder.dispatchThreads(MTLSize(width: inputBatchSize, height: 1, depth: 1), threadsPerThreadgroup: threadsPerThreadgroup)
         commandEncoder.endEncoding()
     }
     

@@ -45,17 +45,17 @@ class SHA256 {
     
 
     func appendCommandEncoder(commandBuffer: MTLCommandBuffer){
-        let encoderSha256 = commandBuffer.makeComputeCommandEncoder()!
+        let commandEncoder = commandBuffer.makeComputeCommandEncoder()!
         
-        encoderSha256.setComputePipelineState(pipelineState)
-        encoderSha256.setBuffer(inputBuffer, offset: 0, index: 0)
-        encoderSha256.setBuffer(messageSizeBuffer, offset: 0, index: 1)
-        encoderSha256.setBuffer(outputBuffer, offset: 0, index: 2)
-        encoderSha256.setBuffer(numMessagesBuffer, offset: 0, index: 3)
-        encoderSha256.dispatchThreadgroups(threadgroupsPerGrid, threadsPerThreadgroup: threadsPerThreadgroup)
+        commandEncoder.setComputePipelineState(pipelineState)
+        commandEncoder.setBuffer(inputBuffer, offset: 0, index: 0)
+        commandEncoder.setBuffer(messageSizeBuffer, offset: 0, index: 1)
+        commandEncoder.setBuffer(outputBuffer, offset: 0, index: 2)
+        commandEncoder.setBuffer(numMessagesBuffer, offset: 0, index: 3)
+        commandEncoder.dispatchThreadgroups(threadgroupsPerGrid, threadsPerThreadgroup: threadsPerThreadgroup)
         // Alternatively let Metal find the best number of thread groups
-        //encoder.dispatchThreads(MTLSize(width: batchSize, height: 1, depth: 1), threadsPerThreadgroup: threadsPerGroup)
-        encoderSha256.endEncoding()
+        //commandEncoder.dispatchThreads(MTLSize(width: batchSize, height: 1, depth: 1), threadsPerThreadgroup: threadsPerThreadgroup)
+        commandEncoder.endEncoding()
     }
 
     func getOutputBuffer() -> MTLBuffer {

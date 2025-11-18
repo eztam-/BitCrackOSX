@@ -15,10 +15,11 @@ public class KeyGen {
     let threadgroupsPerGrid : MTLSize
     let threadsPerThreadgroup : MTLSize
     
+    let keyGenBatchSize: Int
     
     public init(device: MTLDevice, batchSize: Int, startKeyHex: String) throws {
         
-        let keyGenBatchSize = batchSize
+        self.keyGenBatchSize = batchSize
       
         self.queue = device.makeCommandQueue()!
         self.pipelineState = try Helpers.buildPipelineState(kernelFunctionName: "generate_keys")
@@ -60,7 +61,7 @@ public class KeyGen {
         encoder.setBytes(&incrementByN, length: MemoryLayout<UInt32>.stride, index: 3)
         encoder.dispatchThreadgroups(threadgroupsPerGrid, threadsPerThreadgroup: threadsPerThreadgroup)
         // Alternatively let Metal find the best number of thread groups
-        //encoder.dispatchThreads(MTLSize(width: keyGenBatchSize, height: 1, depth: 1), threadsPerThreadgroup: threadsPerGroup)
+        //encoder.dispatchThreads(MTLSize(width: keyGenBatchSize, height: 1, depth: 1), threadsPerThreadgroup: threadsPerThreadgroup)
         encoder.endEncoding()
 
     }

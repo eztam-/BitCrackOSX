@@ -1162,6 +1162,11 @@ kernel void private_to_public_keys(
 
         produced += (uint)n;
 
+        // FIX: If there’s more work, advance once so the next block
+        // starts at the *next* key (no duplicate boundary element).
+        if (produced < total) {
+            J = point_add_mixed_jacobian(J, G);
+        }
         // If more to do, advance J by exactly one more +G so the next
         // sub-batch starts at the *next* key. If we just finished exactly n
         // adds inside the block, J already sits at the last produced key.

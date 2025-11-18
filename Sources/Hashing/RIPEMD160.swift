@@ -39,7 +39,7 @@ class RIPEMD160 {
         commandEncoder.setBytes(&n, length: MemoryLayout<UInt32>.stride, index: 2)
         commandEncoder.dispatchThreadgroups(threadgroupsPerGrid, threadsPerThreadgroup: threadsPerThreadgroup)
         // Alternatively let Metal find the best number of thread groups
-        //encoder.dispatchThreads(MTLSize(width: batchSize, height: 1, depth: 1), threadsPerThreadgroup: threadsPerGroup)
+        //commandEncoder.dispatchThreads(MTLSize(width: batchSize, height: 1, depth: 1), threadsPerThreadgroup: threadsPerThreadgroup)
         commandEncoder.endEncoding()
     }
     
