@@ -8,7 +8,6 @@
 #include <metal_stdlib>
 using namespace metal;
 
-
 // Maximum allowed message length in bytes per-message
 // Keep reasonable; increase if you need longer messages.
 #define MAX_MSG_BYTES 1024  // TODO: Better remove this check? 

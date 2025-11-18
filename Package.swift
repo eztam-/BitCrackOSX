@@ -23,12 +23,19 @@ let package = Package(
                 .product(name: "BigNumber", package: "Swift-BigInt"),
             ],
             path: "Sources",
+            exclude: [
+                // We need to exclude metal files that are included into others from the compilation sources.
+                // Otherwise, the linker will encounter multiple definitions of the same functions and throw an error.
+                //"RIPEMD160/RIPEMD160.metal"
+            ],
             resources: [
+                /*
                 .process("KeyGen/KeyGen.metal"),
                 .process("secp256k1/secp256k1.metal"),
                 .process("SHA256/SHA256.metal"),
                 .process("RIPEMD160/RIPEMD160.metal"),
                 .process("BloomFilter/BloomFilter.metal")
+                 */
             ],
         ),
         .testTarget(
@@ -40,11 +47,13 @@ let package = Package(
             ],
             path: "Tests",
             resources: [
+                /*
                 .process("../Sources/KeyGen/KeyGen.metal"),
                 .process("../Sources/secp256k1/secp256k1.metal"),
                 .process("../Sources/SHA256/SHA256.metal"),
                 .process("../Sources/RIPEMD160/RIPEMD160.metal"),
                 .process("../Sources/BloomFilter/BloomFilter.metal")
+                 */
             ],)
     ]
 )

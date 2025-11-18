@@ -37,7 +37,7 @@ class KeySearch {
         let keyGen = try KeyGen(device: device, batchSize: privKeyBatchSize, startKeyHex: startKey)
         let secp256k1obj = try Secp256k1_GPU(on:  device, inputBatchSize: privKeyBatchSize, outputBatchSize: pubKeyBatchSize)
         let SHA256 = try SHA256(on: device, batchSize: pubKeyBatchSize)
-        let RIPEMD160 = try RIPEMD160(on: device, batchSize: pubKeyBatchSize)
+        
         
         
         try Helpers.printGPUInfo(device: device)
@@ -47,7 +47,6 @@ class KeySearch {
             keyGen.printThreadConf()
             secp256k1obj.printThreadConf()
             SHA256.printThreadConf()
-            RIPEMD160.printThreadConf()
             bloomFilter.printThreadConf()
             print("")
         }
@@ -77,21 +76,14 @@ class KeySearch {
             
             // Calculate SHA256 for the batch of public keys
             start = DispatchTime.now()
-            let sha256Buff: MTLBuffer
+            let ripemd160Buffer: MTLBuffer
             if Properties.compressedKeySearch {
-                sha256Buff = SHA256.run(publicKeysBuffer: pubKeysCompBuff, keyLength: 33) //   keyLength:  33 = compressed;  65 = uncompressed
+                ripemd160Buffer = SHA256.run(publicKeysBuffer: pubKeysCompBuff, keyLength: 33) //   keyLength:  33 = compressed;  65 = uncompressed
             } else{
-                sha256Buff = SHA256.run(publicKeysBuffer: pubKeysUncompBuff, keyLength: 65) //   keyLength:  33 = compressed;  65 = uncompressed
+                ripemd160Buffer = SHA256.run(publicKeysBuffer: pubKeysUncompBuff, keyLength: 65) //   keyLength:  33 = compressed;  65 = uncompressed
             }
             //printSha256Output(BATCH_SIZE, outPtr)
             ui.sha256 = Double(DispatchTime.now().uptimeNanoseconds - start.uptimeNanoseconds) / 1_000_000.0
-            
-            
-            
-            // Calculate RIPEDM160
-            start = DispatchTime.now()
-            let ripemd160Buffer = RIPEMD160.run(messagesBuffer: sha256Buff)
-            ui.ripemd160 = Double(DispatchTime.now().uptimeNanoseconds - start.uptimeNanoseconds) / 1_000_000.0
             
             
             
