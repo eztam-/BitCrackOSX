@@ -1,8 +1,8 @@
 import Foundation
 import Metal
 
-
-class SHA256 {
+// Calculates SHA256 followed by RIPEMD160 for a batch of public keys
+class Hashing {
     
     // General
     let device: MTLDevice
@@ -11,8 +11,8 @@ class SHA256 {
     // SHA256
     let pipelineStateSha256: MTLComputePipelineState
     let outBufferSha256: MTLBuffer
-    let numMessagesBuffer: MTLBuffer
-    let messageSizeBuffer: MTLBuffer
+    let numMessagesBufferSha256: MTLBuffer
+    let messageSizeBufferSha256: MTLBuffer
     let threadgroupsPerGridSha256: MTLSize
     let threadsPerThreadgroupSha256: MTLSize
     
@@ -43,16 +43,17 @@ class SHA256 {
         
         // Output buffer: uint (32bit) * 8 words per message
         let outWordCountSha256 = batchSize * 8
-        self.outBufferSha256 = device.makeBuffer(length: outWordCountSha256 * MemoryLayout<UInt32>.stride, options: [])!
+        self.outBufferSha256 = device.makeBuffer(length: outWordCountSha256 * MemoryLayout<UInt32>.stride, options: .storageModePrivate)!
         
         // numMessages buffer (we pass it as a small uniform buffer)
         var numMessagesUInt32 = UInt32(batchSize)
-        self.numMessagesBuffer = device.makeBuffer(bytes: &numMessagesUInt32, length: MemoryLayout<UInt32>.stride, options: [])!
+        self.numMessagesBufferSha256 = device.makeBuffer(bytes: &numMessagesUInt32, length: MemoryLayout<UInt32>.stride, options: .storageModeShared)!
         
         // Message size in bytes (we pass it as a small uniform buffer)
        // var messageSizeUInt32 = UInt32(33) // TODO: 33 = compressed 65 = uncompressed
         //self.messageSizeBuffer = device.makeBuffer(bytes: &messageSizeUInt32, length: MemoryLayout<UInt32>.stride, options: [])!
-        self.messageSizeBuffer = device.makeBuffer(length: MemoryLayout<UInt32>.stride,options: .storageModeShared)!
+        
+        self.messageSizeBufferSha256 = device.makeBuffer(length: MemoryLayout<UInt32>.stride,options: .storageModeShared)!
           
         
         (self.threadsPerThreadgroupSha256,  self.threadgroupsPerGridSha256) = try Helpers.getThreadConfig(
@@ -87,14 +88,14 @@ class SHA256 {
         let commandBuffer = commandQueue.makeCommandBuffer()!
         let encoderSha256 = commandBuffer.makeComputeCommandEncoder()!
         
-        let ptr = messageSizeBuffer.contents().bindMemory(to: UInt32.self, capacity: 1)
+        let ptr = messageSizeBufferSha256.contents().bindMemory(to: UInt32.self, capacity: 1)
         ptr.pointee = keyLength
         
         encoderSha256.setComputePipelineState(pipelineStateSha256)
         encoderSha256.setBuffer(publicKeysBuffer, offset: 0, index: 0)
-        encoderSha256.setBuffer(messageSizeBuffer, offset: 0, index: 1)
+        encoderSha256.setBuffer(messageSizeBufferSha256, offset: 0, index: 1)
         encoderSha256.setBuffer(outBufferSha256, offset: 0, index: 2)
-        encoderSha256.setBuffer(numMessagesBuffer, offset: 0, index: 3)
+        encoderSha256.setBuffer(numMessagesBufferSha256, offset: 0, index: 3)
         encoderSha256.dispatchThreadgroups(threadgroupsPerGridSha256, threadsPerThreadgroup: threadsPerThreadgroupSha256)
         // Alternatively let Metal find the best number of thread groups
         //encoder.dispatchThreads(MTLSize(width: batchSize, height: 1, depth: 1), threadsPerThreadgroup: threadsPerGroup)

@@ -36,7 +36,7 @@ class KeySearch {
         
         let keyGen = try KeyGen(device: device, batchSize: privKeyBatchSize, startKeyHex: startKey)
         let secp256k1obj = try Secp256k1_GPU(on:  device, inputBatchSize: privKeyBatchSize, outputBatchSize: pubKeyBatchSize)
-        let SHA256 = try SHA256(on: device, batchSize: pubKeyBatchSize)
+        let SHA256 = try Hashing(on: device, batchSize: pubKeyBatchSize)
         
         
         
