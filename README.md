@@ -84,6 +84,22 @@ If the high GPU utilization of the keysearch slows down all the other apps of yo
 - What should bring measurable performance improvement:
     - Replacing the current field_inv with Fermat's Little Theorem with an optimized addition chain as. e.g. done in bitcoin-core lib
 
+Before merging some steps into one command buffer I measured the following performance. So secp256k1
+
+Key gen     :    0.674 ms
+secp256k1   :  738.731 ms
+SHA256      :   81.175 ms
+RIPEMD160   :   20.001 ms
+Bloom Filter:   25.387 ms (includes 23 db queries)
+    
+Different settings:
+Key gen     :    2.536 ms
+secp256k1   : 1022.950 ms
+SHA256      :  136.692 ms
+RIPEMD160   :   31.352 ms
+Bloom Filter:   46.387 ms (39 db queries)
+    
+        
 
 ## Architecture
 The GPU is used for:

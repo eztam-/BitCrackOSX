@@ -76,7 +76,6 @@ class Hashing {
             batchSize: batchSize,
             threadsPerThreadgroupMultiplier: 16)
         
-        
     }
     
 
@@ -86,36 +85,8 @@ class Hashing {
     func run(publicKeysBuffer: MTLBuffer, keyLength: UInt32) -> MTLBuffer {
 
         let commandBuffer = commandQueue.makeCommandBuffer()!
-        let encoderSha256 = commandBuffer.makeComputeCommandEncoder()!
-        
-        let ptr = messageSizeBufferSha256.contents().bindMemory(to: UInt32.self, capacity: 1)
-        ptr.pointee = keyLength
-        
-        encoderSha256.setComputePipelineState(pipelineStateSha256)
-        encoderSha256.setBuffer(publicKeysBuffer, offset: 0, index: 0)
-        encoderSha256.setBuffer(messageSizeBufferSha256, offset: 0, index: 1)
-        encoderSha256.setBuffer(outBufferSha256, offset: 0, index: 2)
-        encoderSha256.setBuffer(numMessagesBufferSha256, offset: 0, index: 3)
-        encoderSha256.dispatchThreadgroups(threadgroupsPerGridSha256, threadsPerThreadgroup: threadsPerThreadgroupSha256)
-        // Alternatively let Metal find the best number of thread groups
-        //encoder.dispatchThreads(MTLSize(width: batchSize, height: 1, depth: 1), threadsPerThreadgroup: threadsPerGroup)
-        encoderSha256.endEncoding()
-        
-        
-        // RIPEMD160
-      
-        let encoderRipemd160 = commandBuffer.makeComputeCommandEncoder()!
-        
-        encoderRipemd160.setComputePipelineState(pipelineStateRipemd160)
-        encoderRipemd160.setBuffer(outBufferSha256, offset: 0, index: 0)
-        encoderRipemd160.setBuffer(outBufferRipemd160, offset: 0, index: 1)
-        var n = UInt32(self.batchSize)
-        encoderRipemd160.setBytes(&n, length: MemoryLayout<UInt32>.stride, index: 2)
-        encoderRipemd160.dispatchThreadgroups(threadgroupsPerGridRipemd160, threadsPerThreadgroup: threadsPerThreadgroupRipemd160)
-        // Alternatively let Metal find the best number of thread groups
-        //encoder.dispatchThreads(MTLSize(width: batchSize, height: 1, depth: 1), threadsPerThreadgroup: threadsPerGroup)
-        encoderRipemd160.endEncoding()
-        
+        appendSha256Encoder(commandBuffer: commandBuffer, inputBuffer: publicKeysBuffer, keyLength: keyLength)
+        appendRipemd160Encoder(commandBuffer: commandBuffer)
         
         // Submit work for both SHA256 and RIPEMD160
         commandBuffer.commit()
@@ -126,10 +97,41 @@ class Hashing {
     
     // TODO: this exists in each host class. Move to common super class
     public func printThreadConf(){
-        print(String(format: "    SHA256:       │         %6d │       %6d │             %6d │",
+        print(String(format: "   Hashing:       │         %6d │       %6d │             %6d │",
                       threadsPerThreadgroupSha256.width,
                       threadgroupsPerGridSha256.width,
                       pipelineStateSha256.threadExecutionWidth))
+    }
+    
+    
+    func appendSha256Encoder(commandBuffer: MTLCommandBuffer, inputBuffer: MTLBuffer, keyLength: UInt32){
+        let encoderSha256 = commandBuffer.makeComputeCommandEncoder()!
+        
+        let ptr = messageSizeBufferSha256.contents().bindMemory(to: UInt32.self, capacity: 1)
+        ptr.pointee = keyLength
+        
+        encoderSha256.setComputePipelineState(pipelineStateSha256)
+        encoderSha256.setBuffer(inputBuffer, offset: 0, index: 0)
+        encoderSha256.setBuffer(messageSizeBufferSha256, offset: 0, index: 1)
+        encoderSha256.setBuffer(outBufferSha256, offset: 0, index: 2)
+        encoderSha256.setBuffer(numMessagesBufferSha256, offset: 0, index: 3)
+        encoderSha256.dispatchThreadgroups(threadgroupsPerGridSha256, threadsPerThreadgroup: threadsPerThreadgroupSha256)
+        // Alternatively let Metal find the best number of thread groups
+        //encoder.dispatchThreads(MTLSize(width: batchSize, height: 1, depth: 1), threadsPerThreadgroup: threadsPerGroup)
+        encoderSha256.endEncoding()
+    }
+    
+    func appendRipemd160Encoder(commandBuffer: MTLCommandBuffer){
+        let encoderRipemd160 = commandBuffer.makeComputeCommandEncoder()!
+        encoderRipemd160.setComputePipelineState(pipelineStateRipemd160)
+        encoderRipemd160.setBuffer(outBufferSha256, offset: 0, index: 0)
+        encoderRipemd160.setBuffer(outBufferRipemd160, offset: 0, index: 1)
+        var n = UInt32(self.batchSize)
+        encoderRipemd160.setBytes(&n, length: MemoryLayout<UInt32>.stride, index: 2)
+        encoderRipemd160.dispatchThreadgroups(threadgroupsPerGridRipemd160, threadsPerThreadgroup: threadsPerThreadgroupRipemd160)
+        // Alternatively let Metal find the best number of thread groups
+        //encoder.dispatchThreads(MTLSize(width: batchSize, height: 1, depth: 1), threadsPerThreadgroup: threadsPerGroup)
+        encoderRipemd160.endEncoding()
     }
     
 }

@@ -5,8 +5,7 @@ class UI {
     // Per batch detailled stats
     var keyGen: Double = 0
     var secp256k1: Double = 0
-    var sha256: Double = 0
-    var ripemd160: Double = 0
+    var hashing: Double = 0
     var bloomFilter: Double = 0
     
     // Per batch stats
@@ -19,7 +18,7 @@ class UI {
     var isFirstRun = true
     private let lock = NSLock()
     
-    private static let STATS_LINES = 8
+    private static let STATS_LINES = 7
     
     private let batchSize: Int
     
@@ -99,8 +98,7 @@ class UI {
         print("📊 Live Stats")
         print(String(format: "\(clearLine())    Key gen     : %8.3f ms", self.keyGen))
         print(String(format: "\(clearLine())    secp256k1   : %8.3f ms", self.secp256k1))
-        print(String(format: "\(clearLine())    SHA256      : %8.3f ms", self.sha256))
-        print(String(format: "\(clearLine())    RIPEMD160   : %8.3f ms", self.ripemd160))
+        print(String(format: "\(clearLine())    Hashing     : %8.3f ms", self.hashing))
         print(String(format: "\(clearLine())    Bloom Filter: %8.3f ms | FPR %.4f%% (%d)", self.bloomFilter, falsePositiveRate, self.bfFalePositiveCnt))
         print("\(clearLine())    ─────────────────────────────")
         print("\(clearLine())    Throughput  :  \(statusStr)")

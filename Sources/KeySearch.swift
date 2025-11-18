@@ -83,7 +83,7 @@ class KeySearch {
                 ripemd160Buffer = SHA256.run(publicKeysBuffer: pubKeysUncompBuff, keyLength: 65) //   keyLength:  33 = compressed;  65 = uncompressed
             }
             //printSha256Output(BATCH_SIZE, outPtr)
-            ui.sha256 = Double(DispatchTime.now().uptimeNanoseconds - start.uptimeNanoseconds) / 1_000_000.0
+            ui.hashing = Double(DispatchTime.now().uptimeNanoseconds - start.uptimeNanoseconds) / 1_000_000.0
             
             
             
