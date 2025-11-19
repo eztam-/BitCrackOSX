@@ -655,27 +655,27 @@ inline uint256 field_mul(uint256 a, uint256 b) {
 
     #pragma unroll
     for (int i = 0; i < 8; i++) {
-        uint carry = 0u;
+        ulong carry = 0ull;
         #pragma unroll
         for (int j = 0; j < 8; j++) {
             uint lo, hi;
             mul_32x32(a.limbs[i], b.limbs[j], &lo, &hi);
 
-            uint sum, c1;
-            add_with_carry(product.limbs[i + j], lo, carry, &sum, &c1);
-            product.limbs[i + j] = sum;
-            carry = hi + c1;
+            ulong acc = (ulong)product.limbs[i + j] + (ulong)lo + carry;
+            product.limbs[i + j] = (uint)acc;
+            carry = (acc >> 32) + (ulong)hi;
         }
+        // spill remaining carry
         uint idx = i + 8;
-        uint sum, c1;
-        add_with_carry(product.limbs[idx], carry, 0u, &sum, &c1);
-        product.limbs[idx] = sum;
-        if (c1 && idx + 1 < 16)
-            product.limbs[idx + 1] += c1;
+        ulong acc = (ulong)product.limbs[idx] + carry;
+        product.limbs[idx] = (uint)acc;
+        if (acc >> 32 && idx + 1 < 16) {
+            product.limbs[idx + 1] += (uint)(acc >> 32);
+        }
     }
-
     return reduce_secp256k1_simd(product);
 }
+
 
 
 uint256 field_sqr(uint256 a) {
