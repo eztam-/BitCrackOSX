@@ -9,8 +9,8 @@ class UI {
     var bloomFilter: Double = 0
     
     // Per batch stats
-    var totalStartTime: CFAbsoluteTime = CFAbsoluteTimeGetCurrent()
-    var totalEndTime: CFAbsoluteTime = CFAbsoluteTimeGetCurrent()
+    var totalStartTime: UInt64 = 0
+    var totalEndTime: UInt64 = 0
     var bfFalePositiveCnt: Int = 0
     
   
@@ -18,7 +18,7 @@ class UI {
     var isFirstRun = true
     private let lock = NSLock()
     
-    private static let STATS_LINES = 3
+    private static let STATS_LINES = 4
     
     private let batchSize: Int
     
@@ -45,7 +45,7 @@ class UI {
         }
     }
     
-    public func updateStats(totalStartTime: CFAbsoluteTime, totalEndTime: CFAbsoluteTime, bfFalsePositiveCnt: Int){
+    public func updateStats(totalStartTime: UInt64, totalEndTime: UInt64, bfFalsePositiveCnt: Int){
         self.totalStartTime = totalStartTime
         self.totalEndTime = totalEndTime
         self.bfFalePositiveCnt = bfFalsePositiveCnt
@@ -85,8 +85,15 @@ class UI {
         lock.lock()
         defer { lock.unlock() }
         
-        let totalTimeElapsed = self.totalEndTime - self.totalStartTime
-        let mHashesPerSec = Double(batchSize) / totalTimeElapsed / 1000000
+        
+        
+        let durationNs = totalEndTime - totalStartTime
+        let durationSeconds = Double(durationNs) / 1_000_000_000.0
+
+        let itemsPerSecond = Double(batchSize) / durationSeconds
+        let mHashesPerSec = itemsPerSecond / 1_000_000.0
+
+
         let falsePositiveRate = 100.0 / Double(batchSize) * Double(self.bfFalePositiveCnt)
         var statusStr = String(format: "  %.3f MKey/s ", mHashesPerSec)
      
@@ -98,6 +105,7 @@ class UI {
         
         print("\u{1B}[\(UI.STATS_LINES)A", terminator: "")
         // TODO: hide the details about the individual steps and make them available by compiler flag or preporeccor? if pperformance is dramatic. Otherwise make them available by comln param
+        print("")
         print("📊 Live Stats")
         print(String(format: "\(clearLine())    Bloom Filter: %8.3f ms | FPR %.4f%% (%d)", self.bloomFilter, falsePositiveRate, self.bfFalePositiveCnt))
         print("\(clearLine())    Throughput  : \(statusStr)")

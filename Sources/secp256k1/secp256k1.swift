@@ -34,7 +34,7 @@ public class Secp256k1 {
         
         self.publicKeyBuffer = device.makeBuffer(
                 length: MemoryLayout<UInt8>.stride * outputBatchSize * keyLength,
-                options: .storageModeShared // TODO: we should mae this private for better performance. And only switch it to shared for unit tests who need that
+                options: .storageModePrivate // TODO: we should mae this private for better performance. And only switch it to shared for unit tests who need that
         )!;
         
        

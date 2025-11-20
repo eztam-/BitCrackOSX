@@ -98,8 +98,11 @@ secp256k1   : 1022.950 ms
 SHA256      :  136.692 ms
 RIPEMD160   :   31.352 ms
 Bloom Filter:   46.387 ms (39 db queries)
-    
-        
+
+Stats per shader can also be nicely profiled in XCode -> Run the app -> capture GPU workload -> Select Command Queue -> Capture
+<img src="https://raw.githubusercontent.com/eztam-/BitCrackOSX/refs/heads/main/img/shader_performance.png">  
+
+
 
 ## Architecture
 The GPU is used for:

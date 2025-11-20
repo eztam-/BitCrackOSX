@@ -21,7 +21,7 @@ class RIPEMD160 {
       
         // output: 5 uints per message
         let outWordCountRipemd160 = batchSize * 5
-        self.outBuffer = device.makeBuffer(length: outWordCountRipemd160 * MemoryLayout<UInt32>.stride, options: .storageModeShared)!
+        self.outBuffer = device.makeBuffer(length: outWordCountRipemd160 * MemoryLayout<UInt32>.stride, options: .storageModeShared)! // TODO storageModePrivate
         
         (self.threadsPerThreadgroup,  self.threadgroupsPerGrid) = try Helpers.getThreadConfig(
             pipelineState: pipelineState,

@@ -23,7 +23,14 @@ public class BloomFilter {
     let query_threadsPerThreadgroup: MTLSize
     let query_threadgroupsPerGrid: MTLSize
     
+    // Bloom Filter configuration
+    var countU: UInt32
+    var itemLenU: UInt32
+    var mBits: UInt32
+    var kHashes: UInt32
     
+    
+    let queryResultsBuffer: MTLBuffer
     
     enum BloomFilterError: Error {
         case initializationFailed
@@ -113,6 +120,19 @@ public class BloomFilter {
         self.insertPipeline = try Helpers.buildPipelineState(kernelFunctionName: "bloom_insert")
         self.queryPipeline = try Helpers.buildPipelineState(kernelFunctionName: "bloom_query")
 
+        // Intitialization for query
+        let queryResultsBufferSize = batchSize * MemoryLayout<UInt32>.stride // TODO why uint? it is bool??? FIXME
+        
+        self.queryResultsBuffer = device.makeBuffer(length: queryResultsBufferSize, options: .storageModeShared)!
+     
+        
+        self.countU = UInt32(batchSize)
+        self.itemLenU = UInt32(itemU32Length)
+        self.mBits = UInt32(bitCount)
+        self.kHashes = UInt32(hashCount)
+        
+        
+        
         (self.query_threadsPerThreadgroup,  self.query_threadgroupsPerGrid) = try Helpers.getThreadConfig(
             pipelineState: queryPipeline,
             batchSize: batchSize,
@@ -171,17 +191,6 @@ public class BloomFilter {
     
     func appendCommandEncoder(commandBuffer: MTLCommandBuffer, inputBuffer: MTLBuffer){
         let commandEncoder = commandBuffer.makeComputeCommandEncoder()!
-        let resultsBufferSize = batchSize * MemoryLayout<UInt32>.stride // TODO why uint? it is bool??? FIXME
-        
-        if resultsBuffer == nil || resultsBuffer!.length < resultsBufferSize {
-            resultsBuffer = device.makeBuffer(length: resultsBufferSize, options: .storageModeShared)
-        }
-        
-        var countU = UInt32(batchSize)
-        var itemLenU = UInt32(itemU32Length)
-        var mBits = UInt32(bitCount)
-        var kHashes = UInt32(hashCount)
-        
         commandEncoder.setComputePipelineState(queryPipeline)
         commandEncoder.setBuffer(inputBuffer, offset: 0, index: 0)
         commandEncoder.setBytes(&countU, length: 4, index: 1)
@@ -189,18 +198,18 @@ public class BloomFilter {
         commandEncoder.setBuffer(bitsBuffer, offset: 0, index: 3)
         commandEncoder.setBytes(&mBits, length: 4, index: 4)
         commandEncoder.setBytes(&kHashes, length: 4, index: 5)
-        commandEncoder.setBuffer(resultsBuffer, offset: 0, index: 6)
+        commandEncoder.setBuffer(queryResultsBuffer, offset: 0, index: 6)
         commandEncoder.dispatchThreadgroups(self.query_threadgroupsPerGrid, threadsPerThreadgroup: self.query_threadsPerThreadgroup)
         commandEncoder.endEncoding()
         
     }
 
     func getOutputBuffer() -> MTLBuffer {
-        return resultsBuffer!
+        return queryResultsBuffer
     }
     
     func getResults() -> [Bool] {
-        let resultsPtr = resultsBuffer!.contents().bindMemory(to: UInt32.self, capacity: batchSize)
+        let resultsPtr = queryResultsBuffer.contents().bindMemory(to: UInt32.self, capacity: batchSize)
         return (0..<batchSize).map { resultsPtr[$0] != 0 }
     }
     

@@ -61,7 +61,7 @@ class KeySearch {
         
         while true {  // TODO: Shall we introduce an end key, if reached then the application stops?
             
-            let startTime = CFAbsoluteTimeGetCurrent()
+            let startTotal = DispatchTime.now()
             
             let commandBuffer = commandQueue.makeCommandBuffer()!
             keyGen.appendCommandEncoder(commandBuffer: commandBuffer)
@@ -70,9 +70,13 @@ class KeySearch {
             ripemd160.appendCommandEncoder(commandBuffer: commandBuffer)
             bloomFilter.appendCommandEncoder(commandBuffer: commandBuffer, inputBuffer: ripemd160.getOutputBuffer()) // TODO: make this consistent and move inputBuffer to constructor once refactored
             
+            
+   
             // Submit work to GPU
             commandBuffer.commit()
             commandBuffer.waitUntilCompleted()
+            
+           
             
             let start = DispatchTime.now()
             let result = bloomFilter.getResults() //query(ripemd160.getOutputBuffer(), batchSize: pubKeyBatchSize)   
@@ -81,12 +85,13 @@ class KeySearch {
                 result: result,
                 privateKeyBuffer: keyGen.getOutputBuffer(),
                 ripemd160Buffer: ripemd160.getOutputBuffer())
+           
             
             ui.bloomFilter = Double(DispatchTime.now().uptimeNanoseconds - start.uptimeNanoseconds) / 1_000_000.0
             
             
-            let endTime = CFAbsoluteTimeGetCurrent()
-            ui.updateStats(totalStartTime: startTime, totalEndTime: endTime, bfFalsePositiveCnt: falsePositiveCnt)
+            
+            ui.updateStats(totalStartTime: startTotal.uptimeNanoseconds, totalEndTime: DispatchTime.now().uptimeNanoseconds, bfFalsePositiveCnt: falsePositiveCnt)
            
             
         }
