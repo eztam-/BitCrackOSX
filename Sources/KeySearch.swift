@@ -40,7 +40,7 @@ class KeySearch {
         let secp256k1 = try Secp256k1(on:  device, inputBatchSize: privKeyBatchSize, outputBatchSize: pubKeyBatchSize, inputBuffer: keyGen.getOutputBuffer())
         let sha256 = try SHA256(on: device, batchSize: pubKeyBatchSize, inputBuffer: secp256k1.getOutputBuffer(), keyLength: UInt32(keyLength))
         let ripemd160 = try RIPEMD160(on: device, batchSize: pubKeyBatchSize, inputBuffer: sha256.getOutputBuffer())
-        
+        // TODO Initialize the bloomfilter from here
         
         try Helpers.printGPUInfo(device: device)
         
@@ -68,13 +68,14 @@ class KeySearch {
             secp256k1.appendCommandEncoder(commandBuffer: commandBuffer)
             sha256.appendCommandEncoder(commandBuffer: commandBuffer)
             ripemd160.appendCommandEncoder(commandBuffer: commandBuffer)
+            bloomFilter.appendCommandEncoder(commandBuffer: commandBuffer, inputBuffer: ripemd160.getOutputBuffer()) // TODO: make this consistent and move inputBuffer to constructor once refactored
             
             // Submit work to GPU
             commandBuffer.commit()
             commandBuffer.waitUntilCompleted()
             
             let start = DispatchTime.now()
-            let result = bloomFilter.query(ripemd160.getOutputBuffer(), batchSize: pubKeyBatchSize)   //contains(pointer: ripemd160_result, length: 5, offset: i*5)
+            let result = bloomFilter.getResults() //query(ripemd160.getOutputBuffer(), batchSize: pubKeyBatchSize)   
             
             let falsePositiveCnt = checkBloomFilterResults(
                 result: result,
