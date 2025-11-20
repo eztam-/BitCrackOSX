@@ -3,34 +3,41 @@ import Metal
 
 
 // TODO: Externalize the DB related stuff it doesn't belog here
-// TODO: Create two separate constuctors, opne for query the other for insert?
+// TODO: Create two separate constuctors, one for query the other for insert?
 public class BloomFilter {
+    
     private let device: MTLDevice
-    private let commandQueue: MTLCommandQueue
-    private let insertPipeline: MTLComputePipelineState
-    private let queryPipeline: MTLComputePipelineState
+    private let batchSize: Int
+    
+  
+    // Bloom Filter configuration TODO: cleanup
+    private var countU: UInt32
+    private var itemLenU: UInt32
+    private var mBits: UInt32
+    private var kHashes: UInt32
     
     private let bitsBuffer: MTLBuffer
     private let bitCount: Int
     private let hashCount: Int
     private let itemU32Length: Int
     
-    private var itemsBuffer: MTLBuffer?
-    private var resultsBuffer: MTLBuffer?
-    let  itemLengthBytes: Int
-    let batchSize: Int
-    
-    let query_threadsPerThreadgroup: MTLSize
-    let query_threadgroupsPerGrid: MTLSize
-    
-    // Bloom Filter configuration
-    var countU: UInt32
-    var itemLenU: UInt32
-    var mBits: UInt32
-    var kHashes: UInt32
+    private let  itemLengthBytes: Int
     
     
-    let queryResultsBuffer: MTLBuffer
+    // Insert
+    private let insertPipeline: MTLComputePipelineState
+    private let insert_threadsPerThreadgroup: MTLSize
+    private let insert_threadgroupsPerGrid: MTLSize
+    private var insertItemsBuffer: MTLBuffer
+    private let insertCommandQueue: MTLCommandQueue
+    
+
+    // Query
+    private let queryPipeline: MTLComputePipelineState
+    private let query_threadsPerThreadgroup: MTLSize
+    private let query_threadgroupsPerGrid: MTLSize
+    private let queryResultsBuffer: MTLBuffer
+    
     
     enum BloomFilterError: Error {
         case initializationFailed
@@ -77,7 +84,7 @@ public class BloomFilter {
         }
         
         self.device = Helpers.getSharedDevice()
-        self.commandQueue = device.makeCommandQueue()!
+        self.insertCommandQueue = device.makeCommandQueue()!
      
         
         self.itemU32Length = itemBytes / 4
@@ -116,22 +123,27 @@ public class BloomFilter {
         memset(bits.contents(), 0, bufferSize)
         self.bitsBuffer = bits
         
-        
-        self.insertPipeline = try Helpers.buildPipelineState(kernelFunctionName: "bloom_insert")
-        self.queryPipeline = try Helpers.buildPipelineState(kernelFunctionName: "bloom_query")
-
-        // Intitialization for query
-        let queryResultsBufferSize = batchSize * MemoryLayout<UInt32>.stride // TODO why uint? it is bool??? FIXME
-        
-        self.queryResultsBuffer = device.makeBuffer(length: queryResultsBufferSize, options: .storageModeShared)!
-     
-        
-        self.countU = UInt32(batchSize)
         self.itemLenU = UInt32(itemU32Length)
         self.mBits = UInt32(bitCount)
         self.kHashes = UInt32(hashCount)
         
         
+        
+        // Intitialization for insert
+        insertItemsBuffer = device.makeBuffer(length: bufferSize, options: .storageModeShared)!
+        self.insertPipeline = try Helpers.buildPipelineState(kernelFunctionName: "bloom_insert")
+        (self.insert_threadsPerThreadgroup,  self.insert_threadgroupsPerGrid) = try Helpers.getThreadConfig(
+            pipelineState: insertPipeline,
+            batchSize: batchSize,
+            threadsPerThreadgroupMultiplier: 16)
+        
+        
+        
+        // Intitialization for query
+        let queryResultsBufferSize = batchSize * MemoryLayout<UInt32>.stride // TODO why uint? it is bool??? FIXME
+        self.queryResultsBuffer = device.makeBuffer(length: queryResultsBufferSize, options: .storageModeShared)!
+        self.countU = UInt32(batchSize)
+        self.queryPipeline = try Helpers.buildPipelineState(kernelFunctionName: "bloom_query")
         
         (self.query_threadsPerThreadgroup,  self.query_threadgroupsPerGrid) = try Helpers.getThreadConfig(
             pipelineState: queryPipeline,
@@ -144,12 +156,8 @@ public class BloomFilter {
         guard !items.isEmpty else { return }
         let count = items.count
         let itemBytes = itemU32Length * 4
-        let bufferSize = count * itemBytes
-        
-        if itemsBuffer == nil || itemsBuffer!.length < bufferSize {
-            itemsBuffer = device.makeBuffer(length: bufferSize, options: .storageModeShared)
-        }
-        let ptr = itemsBuffer!.contents().assumingMemoryBound(to: UInt8.self)
+       
+        let ptr = insertItemsBuffer.contents().assumingMemoryBound(to: UInt8.self)
         for (i, item) in items.enumerated() {
             let offset = i * itemBytes
             let copyCount = min(item.count, itemBytes)
@@ -159,25 +167,21 @@ public class BloomFilter {
             }
         }
         
-        guard let cmdBuffer = commandQueue.makeCommandBuffer(),
+        guard let cmdBuffer = insertCommandQueue.makeCommandBuffer(),
               let encoder = cmdBuffer.makeComputeCommandEncoder() else { return }
         var countU = UInt32(count)
-        var itemLenU = UInt32(itemU32Length)
-        var mBits = UInt32(bitCount)
-        var kHashes = UInt32(hashCount)
+      
         
         encoder.setComputePipelineState(insertPipeline)
-        encoder.setBuffer(itemsBuffer, offset: 0, index: 0)
+        encoder.setBuffer(insertItemsBuffer, offset: 0, index: 0)
         encoder.setBytes(&countU, length: 4, index: 1)
         encoder.setBytes(&itemLenU, length: 4, index: 2)
         encoder.setBuffer(bitsBuffer, offset: 0, index: 3)
         encoder.setBytes(&mBits, length: 4, index: 4)
         encoder.setBytes(&kHashes, length: 4, index: 5)
         
-        let w = insertPipeline.threadExecutionWidth
-        let threadsPerGroup = MTLSize(width: min(256, w), height: 1, depth: 1)
-        let threadgroups = MTLSize(width: (count + threadsPerGroup.width - 1) / threadsPerGroup.width, height: 1, depth: 1)
-        encoder.dispatchThreadgroups(threadgroups, threadsPerThreadgroup: threadsPerGroup)
+       
+        encoder.dispatchThreadgroups(insert_threadgroupsPerGrid, threadsPerThreadgroup: insert_threadsPerThreadgroup)
         // Alternatively let Metal find the best number of thread groups
         //encoder.dispatchThreads(MTLSize(width: batchSize, height: 1, depth: 1), threadsPerThreadgroup: threadsPerGroup)
         encoder.endEncoding()
@@ -201,7 +205,6 @@ public class BloomFilter {
         commandEncoder.setBuffer(queryResultsBuffer, offset: 0, index: 6)
         commandEncoder.dispatchThreadgroups(self.query_threadgroupsPerGrid, threadsPerThreadgroup: self.query_threadsPerThreadgroup)
         commandEncoder.endEncoding()
-        
     }
 
     func getOutputBuffer() -> MTLBuffer {
