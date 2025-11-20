@@ -12,16 +12,13 @@ public class BloomFilter {
   
     // Bloom Filter configuration TODO: cleanup
     private var countU: UInt32
-    private var itemLenU: UInt32
     private var mBits: UInt32
     private var kHashes: UInt32
     
     private let bitsBuffer: MTLBuffer
     private let bitCount: Int
     private let hashCount: Int
-    private let itemU32Length: Int
-    
-    private let  itemLengthBytes: Int
+    private let itemLengthBytes: Int
     
     
     // Insert
@@ -54,7 +51,7 @@ public class BloomFilter {
             print("❌ No records found in the database. Please load some addresses first.")
             exit(1)
         }
-        try self.init(expectedInsertions: cnt, itemBytes: 20, falsePositiveRate:0.000001, batchSize: batchSize)
+        try self.init(expectedInsertions: cnt, falsePositiveRate:0.000001, batchSize: batchSize)
         print("\n🌀 Start loading \(cnt) public key hashes from database into the bloom filter.")
         let startTime = CFAbsoluteTimeGetCurrent()
 
@@ -76,19 +73,14 @@ public class BloomFilter {
         
     }
     
-    public init(expectedInsertions: Int, itemBytes: Int, falsePositiveRate: Double = 0.0001, batchSize: Int) throws {
+    public init(expectedInsertions: Int, falsePositiveRate: Double = 0.0001, batchSize: Int) throws {
         self.batchSize = batchSize
-        guard itemBytes % 4 == 0 else {
-            print("❌ itemBytes must be multiple of 4 for UInt32 alignment")
-            throw BloomFilterError.initializationFailed
-        }
-        
         self.device = Helpers.getSharedDevice()
         self.insertCommandQueue = device.makeCommandQueue()!
      
         
-        self.itemU32Length = itemBytes / 4
-        self.itemLengthBytes = itemBytes
+      //  self.itemU32Length = 20 / 4
+        self.itemLengthBytes = 20
         
         // This is a dirty fix, for the issue, that the bloomfilter causes too many false positifes, but only for small datasets
         let numInsertions = expectedInsertions < 100000 ? expectedInsertions * 2 : expectedInsertions
@@ -123,7 +115,7 @@ public class BloomFilter {
         memset(bits.contents(), 0, bufferSize)
         self.bitsBuffer = bits
         
-        self.itemLenU = UInt32(itemU32Length)
+       // self.itemLenU = UInt32(itemU32Length)
         self.mBits = UInt32(bitCount)
         self.kHashes = UInt32(hashCount)
         
@@ -155,7 +147,7 @@ public class BloomFilter {
     public func insert(_ items: [Data]) throws {
         guard !items.isEmpty else { return }
         let count = items.count
-        let itemBytes = itemU32Length * 4
+        let itemBytes = 20
        
         let ptr = insertItemsBuffer.contents().assumingMemoryBound(to: UInt8.self)
         for (i, item) in items.enumerated() {
@@ -175,10 +167,9 @@ public class BloomFilter {
         encoder.setComputePipelineState(insertPipeline)
         encoder.setBuffer(insertItemsBuffer, offset: 0, index: 0)
         encoder.setBytes(&countU, length: 4, index: 1)
-        encoder.setBytes(&itemLenU, length: 4, index: 2)
-        encoder.setBuffer(bitsBuffer, offset: 0, index: 3)
-        encoder.setBytes(&mBits, length: 4, index: 4)
-        encoder.setBytes(&kHashes, length: 4, index: 5)
+        encoder.setBuffer(bitsBuffer, offset: 0, index: 2)
+        encoder.setBytes(&mBits, length: 4, index: 3)
+        encoder.setBytes(&kHashes, length: 4, index: 4)
         
        
         encoder.dispatchThreadgroups(insert_threadgroupsPerGrid, threadsPerThreadgroup: insert_threadsPerThreadgroup)
@@ -198,11 +189,10 @@ public class BloomFilter {
         commandEncoder.setComputePipelineState(queryPipeline)
         commandEncoder.setBuffer(inputBuffer, offset: 0, index: 0)
         commandEncoder.setBytes(&countU, length: 4, index: 1)
-        commandEncoder.setBytes(&itemLenU, length: 4, index: 2)
-        commandEncoder.setBuffer(bitsBuffer, offset: 0, index: 3)
-        commandEncoder.setBytes(&mBits, length: 4, index: 4)
-        commandEncoder.setBytes(&kHashes, length: 4, index: 5)
-        commandEncoder.setBuffer(queryResultsBuffer, offset: 0, index: 6)
+        commandEncoder.setBuffer(bitsBuffer, offset: 0, index: 2)
+        commandEncoder.setBytes(&mBits, length: 4, index: 3)
+        commandEncoder.setBytes(&kHashes, length: 4, index: 4)
+        commandEncoder.setBuffer(queryResultsBuffer, offset: 0, index: 5)
         commandEncoder.dispatchThreadgroups(self.query_threadgroupsPerGrid, threadsPerThreadgroup: self.query_threadsPerThreadgroup)
         commandEncoder.endEncoding()
     }

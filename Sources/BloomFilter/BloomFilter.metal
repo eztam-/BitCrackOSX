@@ -75,18 +75,17 @@ inline void hash_pair_fnv(const device uchar *data,
 kernel void bloom_insert(
     const device uchar *items      [[buffer(0)]],
     constant uint &item_count      [[buffer(1)]],
-    constant uint &item_u32_len    [[buffer(2)]],
-    device atomic_uint *bits       [[buffer(3)]],
-    constant uint &m_bits          [[buffer(4)]],
-    constant uint &k_hashes        [[buffer(5)]],
+    device atomic_uint *bits       [[buffer(2)]],
+    constant uint &m_bits          [[buffer(3)]],
+    constant uint &k_hashes        [[buffer(4)]],
     uint gid [[thread_position_in_grid]])
 {
     if (gid >= item_count) return;
     
-    const device uchar *key = items + (gid * item_u32_len * 4);
+    const device uchar *key = items + (gid * 20); // RIPEMD160 hash is 20 bytes long
     
     uint h1, h2;
-    hash_pair_fnv(key, item_u32_len, h1, h2);
+    hash_pair_fnv(key, 5, h1, h2); // RIPEMD160 hash is 5 UInt32 long
     
     for (uint i = 0; i < k_hashes; i++) {
         // Matching Swift: (h1 + i * h2) % m_bits
@@ -103,19 +102,18 @@ kernel void bloom_insert(
 kernel void bloom_query(
     const device uchar *items      [[buffer(0)]],
     constant uint &item_count      [[buffer(1)]],
-    constant uint &item_u32_len    [[buffer(2)]],
-    const device uint *bits        [[buffer(3)]],
-    constant uint &m_bits          [[buffer(4)]],
-    constant uint &k_hashes        [[buffer(5)]],
-    device uint *results           [[buffer(6)]],
+    const device uint *bits        [[buffer(2)]],
+    constant uint &m_bits          [[buffer(3)]],
+    constant uint &k_hashes        [[buffer(4)]],
+    device uint *results           [[buffer(5)]],
     uint gid [[thread_position_in_grid]])
 {
     if (gid >= item_count) return;
     
-    const device uchar *key = items + (gid * item_u32_len * 4);
+    const device uchar *key = items + (gid * 20); // RIPEMD160 hash is 20 bytes long
     
     uint h1, h2;
-    hash_pair_fnv(key, item_u32_len, h1, h2);
+    hash_pair_fnv(key, 5, h1, h2); // RIPEMD160 hash is 5 UInt32 long
     
     for (uint i = 0; i < k_hashes; i++) {
         ulong combined = (ulong)h1 + (ulong)i * (ulong)h2;
