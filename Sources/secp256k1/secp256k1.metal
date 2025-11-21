@@ -792,105 +792,107 @@ inline uint add_uint256_raw(thread uint256 &r, uint256 a, uint256 b) {
 
 
 
-// Modular inverse using a binary extended GCD variant (fast, branchy, GPU-friendly)
-// Returns a^{-1} mod p. If a == 0, returns 0.
-uint256 field_inv(uint256 a) {
-    if (is_zero(a)) return a;
 
-    const uint256 p = mod_p_u256();
+// secp256k1 p - 2 (MSW..LSW)
+constant uint P_MINUS_2_MSW[8] = {
+    0xFFFFFFFFu, 0xFFFFFFFFu, 0xFFFFFFFFu, 0xFFFFFFFFu,
+    0xFFFFFFFFu, 0xFFFFFFFFu, 0xFFFFFFFEu, 0xFFFFFC2Du
+};
 
-    // t0 = a, t1 = p, t2 = 1, t3 = 0
-    uint256 t0 = a;
-    uint256 t1 = p;
-
-    uint256 t2; // accumulator for a^{-1} mod p
-    #pragma unroll
-    for (int i = 0; i < 8; i++) t2.limbs[i] = 0;
-    t2.limbs[0] = 1;
-
-    uint256 t3; // auxiliary (for p - a^{-1})
-    #pragma unroll
-    for (int i = 0; i < 8; i++) t3.limbs[i] = 0;
-
-    // while (t0 != t1)
-    while (!is_equal(t0, t1)) {
-        if ((t0.limbs[0] & 1u) == 0u) {
-            // t0 even: t0 >>= 1
-            t0 = rshift1_with_msb(t0, 0u);
-
-            // If t2 is odd, add p before halving to keep it integral mod p
-            uint msb_in = 0u;
-            if (t2.limbs[0] & 1u) {
-                uint256 tmp;
-                msb_in = add_uint256_raw(tmp, t2, p); // carry becomes top bit
-                t2 = tmp;
-            }
-            t2 = rshift1_with_msb(t2, msb_in);
-        }
-        else if ((t1.limbs[0] & 1u) == 0u) {
-            // t1 even
-            t1 = rshift1_with_msb(t1, 0u);
-
-            uint msb_in = 0u;
-            if (t3.limbs[0] & 1u) {
-                uint256 tmp;
-                msb_in = add_uint256_raw(tmp, t3, p);
-                t3 = tmp;
-            }
-            t3 = rshift1_with_msb(t3, msb_in);
-        }
-        else {
-            // both odd: subtract the larger by the smaller
-            if (compare(t0, t1) > 0) {
-                // t0 = (t0 - t1) >> 1
-                t0 = sub_uint256(t0, t1);
-
-                // t2 = (t2 - t3) >> 1   (mod p), do borrow fix by +p if needed
-                // If t2 < t3, add p before subtracting to avoid underflow.
-                if (compare(t2, t3) < 0) {
-                    uint256 tmp;
-                    (void)add_uint256_raw(tmp, t2, p);
-                    t2 = tmp;
-                }
-                t2 = sub_uint256(t2, t3);
-
-                uint msb_in = 0u;
-                if (t2.limbs[0] & 1u) {
-                    uint256 tmp;
-                    msb_in = add_uint256_raw(tmp, t2, p);
-                    t2 = tmp;
-                }
-                t2 = rshift1_with_msb(t2, msb_in);
-
-                t0 = rshift1_with_msb(t0, 0u);
-            } else {
-                // t1 = (t1 - t0) >> 1
-                t1 = sub_uint256(t1, t0);
-
-                // t3 = (t3 - t2) >> 1   (mod p)
-                if (compare(t3, t2) < 0) {
-                    uint256 tmp;
-                    (void)add_uint256_raw(tmp, t3, p);
-                    t3 = tmp;
-                }
-                t3 = sub_uint256(t3, t2);
-
-                uint msb_in = 0u;
-                if (t3.limbs[0] & 1u) {
-                    uint256 tmp;
-                    msb_in = add_uint256_raw(tmp, t3, p);
-                    t3 = tmp;
-                }
-                t3 = rshift1_with_msb(t3, msb_in);
-
-                t1 = rshift1_with_msb(t1, 0u);
-            }
-        }
-    }
-
-    // Result is t2
-    return t2;
+// Get bit i (MSB first: i=255..0) from p-2
+inline uint exp_bit_p_minus_2(int i) {
+    int word = 7 - (i >> 5);          // MSW at index 0
+    int bit  = i & 31;
+    return (P_MINUS_2_MSW[word] >> bit) & 1u;
 }
+
+// Get up to 'len' bits ending at i (i is MSB), returns value in [0, 2^len)
+inline uint exp_bits_p_minus_2(int i, int len) {
+    uint v = 0u;
+    for (int k = 0; k < len; ++k) {
+        v <<= 1;
+        v |= exp_bit_p_minus_2(i - (len - 1 - k));
+    }
+    return v;
+}
+
+
+// Branchless-ish Fermat inverse using window-4 (≈255 squarings, ~64 muls)
+inline uint256 field_inv(uint256 a) {
+    // Precompute odd powers: g[1]=a, g[3],...,g[15]
+    uint256 g1 = a;
+    uint256 a2 = field_sqr(a);
+
+    uint256 g3  = field_mul(g1, a2);           // a^3
+    uint256 g5  = field_mul(g3, a2);           // a^5
+    uint256 g7  = field_mul(g5, a2);           // a^7
+    uint256 g9  = field_mul(g7, a2);           // a^9
+    uint256 g11 = field_mul(g9, a2);           // a^11
+    uint256 g13 = field_mul(g11, a2);          // a^13
+    uint256 g15 = field_mul(g13, a2);          // a^15
+
+    // Table lookup without branches
+    auto table = [&](uint idx)->uint256 {
+        // idx is odd in [1,15]
+        // Use a small cascade of selects to keep codegen simple
+        uint256 r = g1;
+        r = (idx==3 ) ? g3  : r;
+        r = (idx==5 ) ? g5  : r;
+        r = (idx==7 ) ? g7  : r;
+        r = (idx==9 ) ? g9  : r;
+        r = (idx==11) ? g11 : r;
+        r = (idx==13) ? g13 : r;
+        r = (idx==15) ? g15 : r;
+        return r;
+    };
+
+    // Find top 1 bit of p-2 (it’s 255)
+    int i = 255;
+    while (i >= 0 && exp_bit_p_minus_2(i) == 0u) --i;
+
+    // Initialize result with first nonzero window
+    const int W = 4;
+    uint256 acc; // uninitialized; set on first window
+    bool acc_init = false;
+
+    while (i >= 0) {
+        if (exp_bit_p_minus_2(i) == 0u) {
+            // square once
+            if (acc_init) acc = field_sqr(acc);
+            --i;
+            continue;
+        }
+        // Take up to W bits (must end at i and start with 1)
+        int l = min(W, i + 1);
+        uint win = 0u;
+        int used = 1;
+        // force MSB=1
+        win = 1u;
+        // pull next up to W-1 bits (stop early if zero would make win even)
+        for (int k = 1; k < l; ++k) {
+            uint b = exp_bit_p_minus_2(i - k);
+            uint candidate = (win << 1) | b;
+            if ((candidate & 1u) == 0u) break; // keep odd
+            win = candidate;
+            used = k + 1;
+        }
+
+        // advance: first iteration just seeds acc
+        if (!acc_init) {
+            acc = table(win);
+            acc_init = true;
+        } else {
+            // do 'used' squarings
+            for (int s = 0; s < used; ++s) acc = field_sqr(acc);
+            // multiply by odd power
+            acc = field_mul(acc, table(win));
+        }
+        i -= used;
+    }
+    // acc holds a^(p-2)
+    return acc;
+}
+
 
 
 // Replace the whole helper with this version
