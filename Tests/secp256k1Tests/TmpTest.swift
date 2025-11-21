@@ -8,7 +8,7 @@ class Secp256k1MetalTester: TestBase {
     
     init() {
        // super.init(kernelFunctionName: "tmp_test_fixes")!
-        super.init(kernelFunctionName: "debug_point_double")!
+        super.init(kernelFunctionName: "debug_point_double")
     }
     
     func random256(byteLength : Int)-> BInt {

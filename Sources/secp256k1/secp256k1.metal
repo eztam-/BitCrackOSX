@@ -649,32 +649,105 @@ inline uint256 reduce_secp256k1_simd(uint512 T) {
 
 
 inline uint256 field_mul(uint256 a, uint256 b) {
-    uint512 product;
-    #pragma unroll
-    for (int i = 0; i < 16; i++) product.limbs[i] = 0u;
+    // Load limbs into scalars
+    uint a0=a.limbs[0], a1=a.limbs[1], a2=a.limbs[2], a3=a.limbs[3];
+    uint a4=a.limbs[4], a5=a.limbs[5], a6=a.limbs[6], a7=a.limbs[7];
+    uint b0=b.limbs[0], b1=b.limbs[1], b2=b.limbs[2], b3=b.limbs[3];
+    uint b4=b.limbs[4], b5=b.limbs[5], b6=b.limbs[6], b7=b.limbs[7];
 
-    #pragma unroll
-    for (int i = 0; i < 8; i++) {
-        ulong carry = 0ull;
-        #pragma unroll
-        for (int j = 0; j < 8; j++) {
-            uint lo, hi;
-            mul_32x32(a.limbs[i], b.limbs[j], &lo, &hi);
+    // 128-bit accumulator emulated with two 64-bit lanes
+    ulong acc_lo = 0ul;
+    ulong acc_hi = 0ul;
 
-            ulong acc = (ulong)product.limbs[i + j] + (ulong)lo + carry;
-            product.limbs[i + j] = (uint)acc;
-            carry = (acc >> 32) + (ulong)hi;
-        }
-        // spill remaining carry
-        uint idx = i + 8;
-        ulong acc = (ulong)product.limbs[idx] + carry;
-        product.limbs[idx] = (uint)acc;
-        if (acc >> 32 && idx + 1 < 16) {
-            product.limbs[idx + 1] += (uint)(acc >> 32);
-        }
-    }
-    return reduce_secp256k1_simd(product);
+    // Helper: add 64-bit with carry into (acc_lo, acc_hi)
+    auto add64 = [&](ulong w) {
+        ulong prev = acc_lo;
+        acc_lo += w;
+        acc_hi += (acc_lo < prev) ? 1ul : 0ul; // carry out of low 64
+    };
+
+    // Helper: emit one 32-bit limb, then logical right shift the 128-bit acc by 32
+    auto emit_and_shr32 = [&](thread uint& out_limb) {
+        out_limb = (uint)acc_lo;                        // low 32 bits
+        acc_lo = (acc_lo >> 32) | (acc_hi << 32);       // 128-bit >> 32
+        acc_hi >>= 32;
+    };
+
+    uint512 prod;
+
+    // Column 0
+    add64((ulong)a0*b0);
+    emit_and_shr32(prod.limbs[0]);
+
+    // Column 1
+    add64((ulong)a0*b1); add64((ulong)a1*b0);
+    emit_and_shr32(prod.limbs[1]);
+
+    // Column 2
+    add64((ulong)a0*b2); add64((ulong)a1*b1); add64((ulong)a2*b0);
+    emit_and_shr32(prod.limbs[2]);
+
+    // Column 3
+    add64((ulong)a0*b3); add64((ulong)a1*b2); add64((ulong)a2*b1); add64((ulong)a3*b0);
+    emit_and_shr32(prod.limbs[3]);
+
+    // Column 4
+    add64((ulong)a0*b4); add64((ulong)a1*b3); add64((ulong)a2*b2); add64((ulong)a3*b1); add64((ulong)a4*b0);
+    emit_and_shr32(prod.limbs[4]);
+
+    // Column 5
+    add64((ulong)a0*b5); add64((ulong)a1*b4); add64((ulong)a2*b3); add64((ulong)a3*b2);
+    add64((ulong)a4*b1); add64((ulong)a5*b0);
+    emit_and_shr32(prod.limbs[5]);
+
+    // Column 6
+    add64((ulong)a0*b6); add64((ulong)a1*b5); add64((ulong)a2*b4); add64((ulong)a3*b3);
+    add64((ulong)a4*b2); add64((ulong)a5*b1); add64((ulong)a6*b0);
+    emit_and_shr32(prod.limbs[6]);
+
+    // Column 7 (widest)
+    add64((ulong)a0*b7); add64((ulong)a1*b6); add64((ulong)a2*b5); add64((ulong)a3*b4);
+    add64((ulong)a4*b3); add64((ulong)a5*b2); add64((ulong)a6*b1); add64((ulong)a7*b0);
+    emit_and_shr32(prod.limbs[7]);
+
+    // Column 8
+    add64((ulong)a1*b7); add64((ulong)a2*b6); add64((ulong)a3*b5); add64((ulong)a4*b4);
+    add64((ulong)a5*b3); add64((ulong)a6*b2); add64((ulong)a7*b1);
+    emit_and_shr32(prod.limbs[8]);
+
+    // Column 9
+    add64((ulong)a2*b7); add64((ulong)a3*b6); add64((ulong)a4*b5); add64((ulong)a5*b4);
+    add64((ulong)a6*b3); add64((ulong)a7*b2);
+    emit_and_shr32(prod.limbs[9]);
+
+    // Column 10
+    add64((ulong)a3*b7); add64((ulong)a4*b6); add64((ulong)a5*b5); add64((ulong)a6*b4); add64((ulong)a7*b3);
+    emit_and_shr32(prod.limbs[10]);
+
+    // Column 11
+    add64((ulong)a4*b7); add64((ulong)a5*b6); add64((ulong)a6*b5); add64((ulong)a7*b4);
+    emit_and_shr32(prod.limbs[11]);
+
+    // Column 12
+    add64((ulong)a5*b7); add64((ulong)a6*b6); add64((ulong)a7*b5);
+    emit_and_shr32(prod.limbs[12]);
+
+    // Column 13
+    add64((ulong)a6*b7); add64((ulong)a7*b6);
+    emit_and_shr32(prod.limbs[13]);
+
+    // Column 14
+    add64((ulong)a7*b7);
+    emit_and_shr32(prod.limbs[14]);
+
+    // Column 15 (final carry)
+    // Remaining 32 bits of the accumulator become the top limb.
+    prod.limbs[15] = (uint)acc_lo;
+
+    return reduce_secp256k1_simd(prod);
 }
+
+
 
 
 
@@ -1095,7 +1168,7 @@ kernel void private_to_public_keys(
     // --- 1) Load base private key for this thread (start key k0) ---
     uint256 k0 = load_private_key(base_private_keys, thread_id);
 
-    // --- 2) First public key via scalar multiply (affine) ---
+    // --- 2) First public key via scalar multiply (affine) which is slow ---
     Point A0 = point_mul(k0, G_TABLE256);
 
     // --- 3) Lift to Jacobian (Z=1) to allow cheap +G steps ---
@@ -1184,7 +1257,7 @@ kernel void private_to_public_keys(
 
  
 // ================ Test Kernels ================
-#ifdef DEBUG
+//#ifdef DEBUG
 
 kernel void test_field_mul(
     device const uint* input_a [[buffer(0)]],
@@ -1243,5 +1316,5 @@ kernel void test_field_sub(
         output[id * 8 + i] = result.limbs[i];
     }
 }
-#endif
+//#endif
 

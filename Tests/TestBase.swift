@@ -21,24 +21,15 @@ class TestBase {
     let commandQueue: MTLCommandQueue
     let pipelineState: MTLComputePipelineState
     
-    convenience init?() {
+    convenience init?() throws {
         self.init(kernelFunctionName: "test_field_mul") // dummy
+        
     }
     
-    init?(kernelFunctionName : String) {
+    init(kernelFunctionName : String) {
         
+        self.pipelineState = try! Helpers.buildPipelineState(kernelFunctionName: kernelFunctionName)
         self.commandQueue = device.makeCommandQueue()!
-
-        let library: MTLLibrary! = try? device.makeDefaultLibrary(bundle: Bundle.module)
-
-        guard let function = library.makeFunction(name: kernelFunctionName) else {
-            fatalError("Failed to load function \(kernelFunctionName) from library")
-        }
-        do {
-            self.pipelineState = try device.makeComputePipelineState(function: function)
-        } catch {
-            fatalError("Failed to create pipeline state: \(error)")
-        }
         
     }
     

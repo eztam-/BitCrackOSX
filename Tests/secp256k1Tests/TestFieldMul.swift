@@ -9,7 +9,7 @@ class TestFieldMul: TestBase {
    
     
     init() {
-        super.init(kernelFunctionName: "test_field_mul")!
+        super.init(kernelFunctionName: "test_field_mul")
     }
     
     @Test func testFieldMulRandomInput() {

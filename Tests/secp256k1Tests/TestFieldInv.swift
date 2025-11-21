@@ -7,7 +7,7 @@ class TestFieldInv : TestBase {
 
     
     init() {
-        super.init(kernelFunctionName: "test_field_inv")!
+        super.init(kernelFunctionName: "test_field_inv")
     }
     
     @Test func testFieldInv() {

@@ -9,7 +9,7 @@ class TestFieldSub: TestBase {
    
     
     init() {
-        super.init(kernelFunctionName: "test_field_sub")!
+        super.init(kernelFunctionName: "test_field_sub")
     }
     
     @Test func testFieldSubRandomInput() {

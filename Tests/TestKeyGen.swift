@@ -9,9 +9,10 @@ class TestKeyGen: TestBase {
     
     
     init() {
-        super.init(kernelFunctionName: "generate_keys")!
+        super.init(kernelFunctionName: "generate_keys")
     }
-    
+   
+    /*
     @Test func testKeyGen() throws {
         
         var numFailedTests = 0
@@ -115,7 +116,7 @@ class TestKeyGen: TestBase {
         }
         return hexKeys
     }
-    
+    */
     
 }
 

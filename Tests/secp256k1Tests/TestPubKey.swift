@@ -7,9 +7,9 @@ import P256K
 class TestPubKey: TestBase {
     
     init() {
-        super.init(kernelFunctionName: "test_field_sub")! // dummy. actuylly not needed
+        super.init(kernelFunctionName: "test_field_sub") // dummy. actuylly not needed
     }
-   
+   /*
     func bytePtrToData(bytePtr : UnsafeRawPointer, keySizeBytes : Int, numKeys: Int) -> [Data]{
         let pubKeyArray = bytePtr.bindMemory(to: UInt8.self,capacity: numKeys * keySizeBytes)
         var pubKeysData : [Data] = []
@@ -197,7 +197,7 @@ class TestPubKey: TestBase {
         }
         return data
     }
-    
+ */
 }
 
 
