@@ -83,7 +83,7 @@ public class BloomFilter {
         self.itemLengthBytes = 20
         
         // This is a dirty fix, for the issue, that the bloomfilter causes too many false positifes, but only for small datasets
-        let numInsertions = expectedInsertions < 100000 ? expectedInsertions * 2 : expectedInsertions
+        let numInsertions = expectedInsertions < 100000 ? expectedInsertions * 5 : expectedInsertions
         
         // Match Swift implementation exactly
         let m = ceil(-(Double(numInsertions) * log(falsePositiveRate)) / pow(log(2.0), 2.0))
