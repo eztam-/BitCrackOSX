@@ -28,8 +28,6 @@ class KeySearch {
     }
     
     func run(startHexKey: String) throws {
-
-        // TODO: check for maximum range wich is: 0xFFFF FFFF FFFF FFFF FFFF FFFF FFFF FFFE BAAE DCE6 AF48 A03B BFD2 5E8C D036 4140
         
         //let startKey = "0000000000000000000000000000000000000000000000000001000000000000"
         
@@ -62,6 +60,7 @@ class KeySearch {
         while true {  // TODO: Shall we introduce an end key, if reached then the application stops?
             
             let startTotal = DispatchTime.now()
+
             
             let commandBuffer = commandQueue.makeCommandBuffer()!
             keyGen.appendCommandEncoder(commandBuffer: commandBuffer)
@@ -71,11 +70,10 @@ class KeySearch {
             bloomFilter.appendCommandEncoder(commandBuffer: commandBuffer, inputBuffer: ripemd160.getOutputBuffer()) // TODO: make this consistent and move inputBuffer to constructor once refactored
             
             
-   
             // Submit work to GPU
             commandBuffer.commit()
             commandBuffer.waitUntilCompleted()
-            
+
            
             
             let start = DispatchTime.now()
@@ -86,12 +84,12 @@ class KeySearch {
                 privateKeyBuffer: keyGen.getOutputBuffer(),
                 ripemd160Buffer: ripemd160.getOutputBuffer())
            
-            
+            ui.updateStats(totalStartTime: startTotal.uptimeNanoseconds, totalEndTime: DispatchTime.now().uptimeNanoseconds, bfFalsePositiveCnt: falsePositiveCnt)
+
             ui.bloomFilter = Double(DispatchTime.now().uptimeNanoseconds - start.uptimeNanoseconds) / 1_000_000.0
             
             
             
-            ui.updateStats(totalStartTime: startTotal.uptimeNanoseconds, totalEndTime: DispatchTime.now().uptimeNanoseconds, bfFalsePositiveCnt: falsePositiveCnt)
            
             
         }

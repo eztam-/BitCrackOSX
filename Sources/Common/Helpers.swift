@@ -1,5 +1,6 @@
 import Foundation
 import Metal
+import BigNumber
 
 
 enum KeySearchError: Error {
@@ -220,5 +221,33 @@ public class Helpers{
             fatalError("Failed to create pipeline state: \(error)")
         }
     }
+    
+    
+
+    /// Generate a random 32-byte hex string between two inclusive 256-bit hex bounds
+    public static func randomHex256(in range: (String, String)) -> String {
+        let (startHex, endHex) = range
+        
+        guard let start = BInt(startHex, radix: 16),
+              let end   = BInt(endHex, radix: 16),
+              start < end else {
+            fatalError("Invalid range")
+        }
+        
+        let diff = end - start + 1
+
+        // Random 256-bit number
+        var bytes = [UInt8](repeating: 0, count: 32)
+        _ = SecRandomCopyBytes(kSecRandomDefault, bytes.count, &bytes)
+        let r = BInt(bytes: bytes)
+
+        // Scale into range with modulo (no infinite loop)
+        let result = start + (r % diff)
+
+        // Convert to fixed-width 64-hex-char string
+        let hex = String(result.asString(radix: 16))
+        return String(repeating: "0", count: max(0, 64 - hex.count)) + hex
+    }
+
 }
 

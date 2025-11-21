@@ -57,8 +57,8 @@ _________                        __     ____  __.               _________       
         
         @Option(
             name: [.customShort("s"), .customLong("start-key")],
-            help: ArgumentHelp("Either a private key from which the search will start like: 0000000000000000000000000000000000000000000000000000000000000001. Or 'RANDOM' to start with a random private key.",
-                               valueName: "start-key|RANDOM",
+            help: ArgumentHelp("Either a private key from which the search will start like: 0000000000000000000000000000000000000000000000000000000000000001. Or 'RANDOM' to start with a random private key. Or a random number withing a range of private keys like: RANDOM:1:1000",
+                               valueName: "<start-key>|RANDOM|RANDOM:<start>:<end>",
                               ))
         var startKey: String
         
@@ -98,19 +98,22 @@ _________                        __     ____  __.               _________       
                 }
                 
                 print(banner)
-                if startKey == "RANDOM" {
-                    //print("\n✨ Using random start key")
-                    startKey = Helpers.generateRandom256BitHex()
-                }
+             
                 let db = try DB(dbPath: dbFile)
                 let bloomFilter = try BloomFilter(db: db, batchSize: Helpers.PUB_KEY_BATCH_SIZE) // TODO: bad access of BATCH_SIZE in KeySearch
                 if startKey == "RANDOM" {
-                    try KeySearch(bloomFilter: bloomFilter, database: db, outputFile: outputFile).run(startHexKey: startKey)
+                    startKey = Helpers.randomHex256(in: ("1", "FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFEBAAEDCE6AF48A03BBFD25E8CD0364140")) // Max range for BTC keys
                 }
-                else if startKey.count == 64 && startKey.allSatisfy(\.isHexDigit) {
+                else if startKey.starts(with: "RANDOM:") {
+                    let parts = startKey.split(separator: ":")
+                    startKey = Helpers.randomHex256(in: (String(parts[1]), String(parts[2])))
+                }
+                
+                if startKey.count == 64 && startKey.allSatisfy(\.isHexDigit) {
                     try KeySearch(bloomFilter: bloomFilter, database: db, outputFile: outputFile).run(startHexKey: startKey)
                 }
                 print("Invalid start key provided. Please provide a valid 32 byte hex string.")
+
             } catch {
                 print("Caught error: \(error)")
                 print("Type: \(type(of: error))")
