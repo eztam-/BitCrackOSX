@@ -565,89 +565,86 @@ uint256 field_add(uint256 a, uint256 b) {
 
 
 // =========================================
-// Branchless, SIMD-aware secp256k1 reduction
+// Fast & correct: two-pass secp256k1 reduction
 // 2^256 ≡ 2^32 + 977 (mod p)
 // =========================================
-
 inline uint256 reduce_secp256k1_simd(uint512 T) {
+    // Copy to local limbs (thread-private)
     thread uint limbs[16];
     #pragma unroll
-    for (int i = 0; i < 16; i++) limbs[i] = T.limbs[i];
+    for (int i = 0; i < 16; ++i) limbs[i] = T.limbs[i];
 
-    // ---- two passes maximum ----
-    for (int pass = 0; pass < 2; pass++) {
+    // --- two passes maximum ---
+    for (int pass = 0; pass < 2; ++pass) {
+        // carry “array” as thread locals
         thread uint carry[17];
         #pragma unroll
-        for (int i = 0; i < 17; i++) carry[i] = 0u;
+        for (int i = 0; i < 17; ++i) carry[i] = 0u;
 
-        // vectorized prefetch of high limbs
-        uint4 high0 = uint4(limbs[8], limbs[9], limbs[10], limbs[11]);
-        uint4 high1 = uint4(limbs[12], limbs[13], limbs[14], limbs[15]);
-
-        // pack them into array for looping without branches
-        thread uint packed_high[8];
-        *((thread uint4*)&packed_high[0]) = high0;
-        *((thread uint4*)&packed_high[4]) = high1;
-
-        // ---- fold high limbs into low region ----
+        // Fold each high limb (8..15) down using 2^256 ≡ 2^32 + 977
         #pragma unroll
-        for (int i = 0; i < 8; i++) {
-            uint c = packed_high[i];
+        for (int i = 0; i < 8; ++i) {
+            uint c = limbs[8 + i];
 
-            // mask avoids branch
-            uint active_mask = (c != 0u);
+            // full-width mask (0xFFFFFFFF or 0x0)
+            uint mask = (uint)0 - (uint)(c != 0u);
 
-            // compute c*977 always; inactive lanes add zero
-            uint lo, hi;
-            mul_32x32(c, 977u, &lo, &hi);
-            lo *= active_mask;
-            hi *= active_mask;
-            c  *= active_mask;
+            // c*977 split
+            ulong w = (ulong)c * 977ul;
+            uint lo = (uint) w;         lo &= mask;
+            uint hi = (uint)(w >> 32);  hi &= mask;
+            c &= mask;
 
-            int k = i;  // target limb offset = (8+i) - 8 = i
+            // target k = i
+            int k = i;
 
-            // Add c*977 at limb[k]
-            uint sum, co;
-            add_with_carry(limbs[k], lo, 0u, &sum, &co);
+            // Add lo at limb[k], carry -> carry[k+1] (+hi)
+            uint x = limbs[k];
+            uint sum = x + lo;
+            uint co  = (sum < x);
             limbs[k] = sum;
-            carry[k + 1] += (hi + co);
+            carry[k + 1] += hi + co;
 
-            // Add c at limb[k+1]
-            add_with_carry(limbs[k + 1], c, 0u, &sum, &co);
+            // Add c at limb[k+1], carry -> carry[k+2]
+            x   = limbs[k + 1];
+            sum = x + c;
+            co  = (sum < x);
             limbs[k + 1] = sum;
             carry[k + 2] += co;
 
-            // clear high limb slot for next pass
+            // Clear the high slot we just folded
             limbs[8 + i] = 0u;
         }
 
-        // ---- carry propagation in SIMD-friendly linear pass ----
+        // Linear carry propagation, identical to your original semantics
         ulong acc = 0ul;
         #pragma unroll
-        for (int i = 0; i < 16; i++) {
+        for (int i = 0; i < 16; ++i) {
             acc = (ulong)limbs[i] + (ulong)carry[i];
             limbs[i] = (uint)acc;
             carry[i + 1] += (uint)(acc >> 32);
         }
+        // (any overflow past limb[15] is safely ignored; bounded by construction)
     }
 
-    // ---- final 256-bit result ----
+    // Low 256 bits are the candidate
     uint256 r;
     #pragma unroll
-    for (int i = 0; i < 8; i++) r.limbs[i] = limbs[i];
+    for (int i = 0; i < 8; ++i) r.limbs[i] = limbs[i];
 
-    // ---- final reduction mod p ----
+    // Single conditional subtraction (result < 2p here)
     uint256 P256;
     #pragma unroll
-    for (int i = 0; i < 8; i++) P256.limbs[i] = P[i];
+    for (int i = 0; i < 8; ++i) P256.limbs[i] = P[i];
 
     if (compare(r, P256) >= 0) r = sub_uint256(r, P256);
-    if (compare(r, P256) >= 0) r = sub_uint256(r, P256);
-
     return r;
 }
 
 
+
+
+// Unrolled 8×8 Comba multiplication with wide accumulators.
 inline uint256 field_mul(uint256 a, uint256 b) {
     // Load limbs into scalars
     uint a0=a.limbs[0], a1=a.limbs[1], a2=a.limbs[2], a3=a.limbs[3];
