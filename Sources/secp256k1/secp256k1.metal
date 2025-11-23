@@ -1,6 +1,7 @@
+#pragma clang fp contract(fast)
 #include <metal_stdlib>
 using namespace metal;
-
+#pragma clang optimize on
 
 // Silicon GPU integer ALUs are natively 32-bit wide, so 64-bit (ulong, long, ulong4, etc.) arithmetic is emulated using multiple 32-bit ops.
 // Therefore this implementation uses mainly 32-bit arithmetic.
@@ -42,6 +43,10 @@ constant uint P_MINUS_2[8] = {
 
 
 
+
+
+
+
 // ================ Type Definitions ================
 
 struct uint256 {
@@ -65,6 +70,55 @@ constant Point G_POINT = {
     { 0xfb10d4b8, 0x9c47d08f, 0xa6855419, 0xfd17b448, 0x0e1108a8, 0x5da4fbfc, 0x26a3c465, 0x483ada77 },
     false
 };
+
+
+
+
+constant Point G_DOUBLES[8] = {
+    {
+        { 0x16f81798, 0x59f2815b, 0x2dce28d9, 0x029bfcdb, 0xce870b07, 0x55a06295, 0xf9dcbbac, 0x79be667e },
+        { 0xfb10d4b8, 0x9c47d08f, 0xa6855419, 0xfd17b448, 0x0e1108a8, 0x5da4fbfc, 0x26a3c465, 0x483ada77 },
+        false
+    },
+    {
+        { 0x5c709ee5, 0xabac09b9, 0x8cef3ca7, 0x5c778e4b, 0x95c07cd8, 0x3045406e, 0x41ed7d6d, 0xc6047f94 },
+        { 0x50cfe52a, 0x236431a9, 0x3266d0e1, 0xf7f63265, 0x466ceaee, 0xa3c58419, 0xa63dc339, 0x1ae168fe },
+        false
+    },
+    {
+        { 0xe8c4cd13, 0x74fa94ab, 0x0ee07584, 0xcc6c1390, 0x930b1404, 0x581e4904, 0xc10d80f3, 0xe493dbf1 },
+        { 0x47739922, 0xcfe97bdc, 0xbfbdfe40, 0xd967ae33, 0x8ea51448, 0x5642e209, 0xa0d455b7, 0x51ed993e },
+        false
+    },
+    {
+        { 0xe10a2a01, 0x67784ef3, 0xe5af888a, 0x0a1bdd05, 0xb70f3c2f, 0xaff3843f, 0x5cca351d, 0x2f01e5e1 },
+        { 0x6cbde904, 0xb5da2cb7, 0xba5b7617, 0xc2e213d6, 0x132d13b4, 0x293d082a, 0x41539949, 0x5c4da8a7 },
+        false
+    },
+    {
+        { 0x2a6dec0a, 0xc44ee89e, 0xb87a5ae9, 0xb2a31369, 0x21c23e97, 0x3011aabc, 0xb59e9ec5, 0xe60fce93 },
+        { 0x69616821, 0xe1f32cce, 0x44d23f0b, 0x1296891e, 0xf5793710, 0x9db99f34, 0x99e59592, 0xf7e35073 },
+        false
+    },
+    {
+        { 0x07143e65, 0x75d0dbd4, 0x9904a61d, 0xdacffcb8, 0xe2f378ce, 0x47b6e054, 0x4fb5a22d, 0xd30199d7 },
+        { 0x24106ab9, 0x05b3ff1f, 0x64ed8196, 0x1f760cc3, 0xe9838065, 0xb3d6dec9, 0x0ae3d5c3, 0x95038d9d },
+        false
+    },
+    {
+        { 0xf874ef8b, 0xe37918e6, 0xcdbafd81, 0xfc4c6f1d, 0xf832823c, 0x0b1051ea, 0x2d16eab7, 0xbf23c154 },
+        { 0x66831d9f, 0x4dc37efe, 0x811e2f78, 0xc522fc54, 0xba5392e4, 0x7ad928a0, 0xc3300373, 0x5cb3866f },
+        false
+    },
+    {
+        { 0x6769a24e, 0x64707745, 0x00535655, 0xbcf55cd7, 0xf7d1671c, 0x696c3d09, 0x033f7a06, 0x34ff3be4 },
+        { 0x73cc2f1a, 0x8491067a, 0xe8f8b681, 0x55df16c3, 0x9832098c, 0x3f6619d8, 0x3a236c55, 0x5d9d1162 },
+        false
+    },
+};
+
+// Macro to inline-add a precomputed double
+#define DOUBLE_STEP(P, D)  P = point_add_mixed_jacobian(P, D)
 
 
 
@@ -1075,21 +1129,32 @@ inline PointJacobian point_add_mixed_jacobian(PointJacobian P, Point Q) {
 
 
 
-
-inline Point point_mul(uint256 k, constant Point* tg_table)
+// Precomputed 8 doublings: constant or threadgroup; pass in via parameter
+// G_DOUBLES[d] = (1<<d) * G   for d = 0..7
+// tg_table = 256-entry precomputed multiples (threadgroup memory)
+inline Point point_mul(
+    uint256 k,
+    constant Point* tg_table,
+    constant Point* G_DOUBLES
+)
 {
+    // Jacobian accumulator
     PointJacobian R;
     R.infinity = true;
 
-    // process 32 bytes (8 limbs × 4 bytes)
+ 
+
+    // Process 32 bytes (8 limbs × 4 bytes)
     for (int limb = 7; limb >= 0; limb--) {
         uint w = k.limbs[limb];
 
+        // Iterate 4 bytes per limb, MSB first
         for (int by = 3; by >= 0; by--) {
             uint b = (w >> (by * 8)) & 0xFFu;
 
-            // 8 doublings → ×256
+            
             if (!R.infinity) {
+                
                 R = point_double_jacobian(R);
                 R = point_double_jacobian(R);
                 R = point_double_jacobian(R);
@@ -1098,8 +1163,20 @@ inline Point point_mul(uint256 k, constant Point* tg_table)
                 R = point_double_jacobian(R);
                 R = point_double_jacobian(R);
                 R = point_double_jacobian(R);
+                
+                // Replace 8 point doublings with 8 precomputed additions
+                // Isn't  faster
+                //DOUBLE_STEP(R, G_DOUBLES[0]); // +1·G
+                //DOUBLE_STEP(R, G_DOUBLES[1]); // +2·G
+                //DOUBLE_STEP(R, G_DOUBLES[2]); // +4·G
+                //DOUBLE_STEP(R, G_DOUBLES[3]); // +8·G
+                //DOUBLE_STEP(R, G_DOUBLES[4]); // +16·G
+                //DOUBLE_STEP(R, G_DOUBLES[5]); // +32·G
+                //DOUBLE_STEP(R, G_DOUBLES[6]); // +64·G
+                //DOUBLE_STEP(R, G_DOUBLES[7]); // +128·G
             }
 
+            // Add table entry if byte ≠ 0
             if (b != 0u) {
                 const Point addend = tg_table[b - 1];
                 if (R.infinity) {
@@ -1116,8 +1193,10 @@ inline Point point_mul(uint256 k, constant Point* tg_table)
         }
     }
 
-    return jacobian_to_affine(R); // one inversion
+    // One inversion at the end to return affine
+    return jacobian_to_affine(R);
 }
+
 
 
 
@@ -1162,13 +1241,18 @@ kernel void private_to_public_keys(
 {
     if (thread_id >= batchSize) return;
 
+    // In theory it should be faster on threadgroup mem, but it isn't
+    // threadgroup Point tg_g_table[256];
+    // if (lid < 256) tg_g_table[lid] = G_TABLE256[lid];
+    // threadgroup_barrier(mem_flags::mem_threadgroup);
+    
     int pubKeyLength = compressed ? 33 : 65;
     
     // --- 1) Load base private key for this thread (start key k0) ---
     uint256 k0 = load_private_key(base_private_keys, thread_id);
 
     // --- 2) First public key via scalar multiply (affine) which is slow ---
-    Point A0 = point_mul(k0, G_TABLE256);
+    Point A0 = point_mul(k0, G_TABLE256, G_DOUBLES );
 
     // --- 3) Lift to Jacobian (Z=1) to allow cheap +G steps ---
     PointJacobian J;
