@@ -566,7 +566,6 @@ uint256 sub_uint256(uint256 a, uint256 b) {
     uint256 result;
     uint borrow = 0;
     
-    #pragma unroll
     for (int i = 0; i < 8; i++) {
         uint ai = a.limbs[i];
         uint bi = b.limbs[i];
@@ -625,7 +624,6 @@ uint256 field_add(uint256 a, uint256 b) {
 inline uint256 reduce_secp256k1_simd(uint512 T) {
     // Copy to local limbs (thread-private)
     thread uint limbs[16];
-    #pragma unroll
     for (int i = 0; i < 16; ++i) limbs[i] = T.limbs[i];
 
     // --- two passes maximum ---
@@ -636,7 +634,6 @@ inline uint256 reduce_secp256k1_simd(uint512 T) {
         for (int i = 0; i < 17; ++i) carry[i] = 0u;
 
         // Fold each high limb (8..15) down using 2^256 ≡ 2^32 + 977
-        #pragma unroll
         for (int i = 0; i < 8; ++i) {
             uint c = limbs[8 + i];
 
