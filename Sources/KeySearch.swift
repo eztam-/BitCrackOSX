@@ -34,18 +34,21 @@ class KeySearch {
         let commandQueue = device.makeCommandQueue()!
         let keyLength = Properties.compressedKeySearch ? 33 : 65 //   keyLength:  33 = compressed;  65 = uncompressed
         
-        let keyGen = try KeyGen(device: device, batchSize: privKeyBatchSize, startKeyHex: startHexKey)
-        let secp256k1 = try Secp256k1(on:  device, inputBatchSize: privKeyBatchSize, outputBatchSize: pubKeyBatchSize, inputBuffer: keyGen.getOutputBuffer())
-        let sha256 = try SHA256(on: device, batchSize: pubKeyBatchSize, inputBuffer: secp256k1.getOutputBuffer(), keyLength: UInt32(keyLength))
+      //  let keyGen = try KeyGen(device: device, batchSize: privKeyBatchSize, startKeyHex: startHexKey)
+        let secp256k1 = try Secp256k1(on:  device, batchSize: privKeyBatchSize, keysPerThread: Properties.KEYS_PER_THREAD, compressed: Properties.compressedKeySearch, startKeyHex: startHexKey)
+        let sha256 = try SHA256(on: device, batchSize: pubKeyBatchSize, inputBuffer: secp256k1.getPublicKeyBuffer(), keyLength: UInt32(keyLength))
         let ripemd160 = try RIPEMD160(on: device, batchSize: pubKeyBatchSize, inputBuffer: sha256.getOutputBuffer())
         // TODO Initialize the bloomfilter from here
+        
+        
+        secp256k1.initializeBasePoints()
         
         try Helpers.printGPUInfo(device: device)
         
         if Properties.verbose {
             print("                  │ Threads per TG │ TGs per Grid │ Thread Exec. Width │")
-            keyGen.printThreadConf()
-            secp256k1.printThreadConf()
+            //keyGen.printThreadConf()
+            //secp256k1.printThreadConf()
             sha256.printThreadConf()
             ripemd160.printThreadConf()
             bloomFilter.printThreadConf()
@@ -63,7 +66,7 @@ class KeySearch {
 
             
             let commandBuffer = commandQueue.makeCommandBuffer()!
-            keyGen.appendCommandEncoder(commandBuffer: commandBuffer)
+           // keyGen.appendCommandEncoder(commandBuffer: commandBuffer)
             secp256k1.appendCommandEncoder(commandBuffer: commandBuffer)
             sha256.appendCommandEncoder(commandBuffer: commandBuffer)
             ripemd160.appendCommandEncoder(commandBuffer: commandBuffer)
@@ -81,7 +84,7 @@ class KeySearch {
             
             let falsePositiveCnt = checkBloomFilterResults(
                 result: result,
-                privateKeyBuffer: keyGen.getOutputBuffer(),
+                privateKeyBuffer: secp256k1.getBasePrivateKeyBuffer(),
                 ripemd160Buffer: ripemd160.getOutputBuffer())
            
             ui.updateStats(totalStartTime: startTotal.uptimeNanoseconds, totalEndTime: DispatchTime.now().uptimeNanoseconds, bfFalsePositiveCnt: falsePositiveCnt)
@@ -105,14 +108,16 @@ class KeySearch {
                 
                 if result[pubKeyIndex] {
                     // Get the base private key
-                    var privKey = [UInt8](repeating: 0, count: 32)
-                    memcpy(&privKey, privateKeyBuffer.contents().advanced(by: privKeyIndex*32), 32)
+                   // var privKey = [UInt8](repeating: 0, count: 32)
+                   //memcpy(&privKey, privateKeyBuffer.contents().advanced(by: privKeyIndex*32), 32)
                     
                     // We only have the base key. We need to add the offset i (key position in secp256k1 thread) to get the real private key
-                    let basePrivKeyHex = Data(privKey.reversed()).hexString
-                    let privateKey = BInt(basePrivKeyHex, radix: 16)! + BInt(i)
-                    var privateKeyStr = privateKey.asString(radix: 16)
-                    privateKeyStr = String(repeating: "0", count: max(0, 64 - privateKeyStr.count)) + privateKeyStr
+                    //let basePrivKeyHex = Data(privKey.reversed()).hexString
+                    //let privateKey = BInt(basePrivKeyHex, radix: 16)! + BInt(i)
+                    //var privateKeyStr = privateKey.asString(radix: 16)
+                    //privateKeyStr = String(repeating: "0", count: max(0, 64 - privateKeyStr.count)) + privateKeyStr
+                    
+                    var privateKeyStr = "FIXME"
                     
                     // Get the hash160
                     var pubKeyHash = [UInt8](repeating: 0, count: 20)
