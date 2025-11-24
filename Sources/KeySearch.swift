@@ -108,16 +108,16 @@ class KeySearch {
                 
                 if result[pubKeyIndex] {
                     // Get the base private key
-                   // var privKey = [UInt8](repeating: 0, count: 32)
-                   //memcpy(&privKey, privateKeyBuffer.contents().advanced(by: privKeyIndex*32), 32)
+                   var privKey = [UInt8](repeating: 0, count: 32)
+                    memcpy(&privKey, privateKeyBuffer.contents(), 32)
                     
                     // We only have the base key. We need to add the offset i (key position in secp256k1 thread) to get the real private key
-                    //let basePrivKeyHex = Data(privKey.reversed()).hexString
-                    //let privateKey = BInt(basePrivKeyHex, radix: 16)! + BInt(i)
-                    //var privateKeyStr = privateKey.asString(radix: 16)
-                    //privateKeyStr = String(repeating: "0", count: max(0, 64 - privateKeyStr.count)) + privateKeyStr
+                    let basePrivKeyHex = Data(privKey.reversed()).hexString
+                    let privateKey = BInt(basePrivKeyHex, radix: 16)! + BInt(privKeyIndex) + BInt(i)
+                    var privateKeyStr = privateKey.asString(radix: 16)
+                    privateKeyStr = String(repeating: "0", count: max(0, 64 - privateKeyStr.count)) + privateKeyStr
                     
-                    var privateKeyStr = "FIXME"
+                    
                     
                     // Get the hash160
                     var pubKeyHash = [UInt8](repeating: 0, count: 20)
@@ -133,7 +133,7 @@ class KeySearch {
                         ui.printMessage(
                         """
                         --------------------------------------------------------------------------------------
-                        💰 Private key found: \(privateKeyStr)
+                        💰 Private key found: \(privateKeyStr) THIS IS STILL WRIONG!!!!
                            For addresses:
                             \(addresses.map { $0.address }.joined(separator: "\n    "))
                         --------------------------------------------------------------------------------------

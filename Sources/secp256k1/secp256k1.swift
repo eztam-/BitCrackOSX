@@ -134,38 +134,7 @@ public class Secp256k1 {
     
     
     
-    static func uint256FromHex(_ hex: String) -> [UInt32] {
-        // Remove optional "0x" and normalize
-        var clean = hex.trimmingCharacters(in: .whitespacesAndNewlines)
-        if clean.hasPrefix("0x") { clean.removeFirst(2) }
-        clean = clean.lowercased()
-        
-        // Pad to 64 bytes (128 hex chars)
-        clean = String(repeating: "0", count: max(0, 64*2 - clean.count)) + clean
-        
-        // Parse big-endian bytes
-        var bytes = [UInt8]()
-        var index = clean.startIndex
-        while index < clean.endIndex {
-            let nextIndex = clean.index(index, offsetBy: 2)
-            if nextIndex <= clean.endIndex {
-                let byteStr = String(clean[index..<nextIndex])
-                if let byte = UInt8(byteStr, radix: 16) {
-                    bytes.append(byte)
-                }
-            }
-            index = nextIndex
-        }
-        
-        // Reverse for little-endian 32-bit limbs
-        var limbs = [UInt32](repeating: 0, count: 8)
-        for i in 0..<8 {
-            let start = bytes.count - (i + 1)*4
-            let slice = bytes[start..<start+4]
-            limbs[i] = slice.reversed().reduce(0) { ($0 << 8) | UInt32($1) }
-        }
-        return limbs
-    }
+  
 
 
 }
