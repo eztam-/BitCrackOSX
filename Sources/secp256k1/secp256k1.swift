@@ -90,11 +90,9 @@ public class Secp256k1 {
 
 
     public func initializeBasePoints() {
-        guard let commandBuffer = commandQueue.makeCommandBuffer(),
-              let encoder = commandBuffer.makeComputeCommandEncoder() else { return }
-
+        let commandBuffer = commandQueue.makeCommandBuffer()!
+        let encoder = commandBuffer.makeComputeCommandEncoder()!
         encoder.setComputePipelineState(initPipeline)
-
         encoder.setBytes(&batchSizeU32, length: MemoryLayout<UInt32>.stride, index: 0)
         encoder.setBytes(&keysPerThreadU32, length: MemoryLayout<UInt32>.stride, index: 1)
         encoder.setBuffer(basePrivateKeyBuffer, offset: 0, index: 2)
