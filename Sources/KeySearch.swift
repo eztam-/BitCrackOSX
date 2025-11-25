@@ -113,10 +113,12 @@ class KeySearch {
                     
                     // We only have the base key. We need to add the offset i (key position in secp256k1 thread) to get the real private key
                     let basePrivKeyHex = Data(privKey.reversed()).hexString
-                    let privateKey = BInt(basePrivKeyHex, radix: 16)! + BInt(privKeyIndex) + BInt(i)
+                   // let privateKey = BInt(basePrivKeyHex, radix: 16)! + BInt(privKeyIndex) + BInt(i)
+                    let privateKey = BInt(basePrivKeyHex, radix: 16)! - BInt(self.pubKeyBatchSize) + BInt(privKeyIndex) + BInt(i)
                     var privateKeyStr = privateKey.asString(radix: 16)
-                    privateKeyStr = String(repeating: "0", count: max(0, 64 - privateKeyStr.count)) + privateKeyStr
                     
+                    privateKeyStr = String(repeating: "0", count: max(0, 64 - privateKeyStr.count)) + privateKeyStr
+                   
                     
                     
                     // Get the hash160
