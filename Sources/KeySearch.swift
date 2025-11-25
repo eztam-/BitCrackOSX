@@ -57,9 +57,7 @@ class KeySearch {
         while true {
             
             let startTotal = DispatchTime.now()
-            
             let commandBuffer = commandQueue.makeCommandBuffer()!
-           // keyGen.appendCommandEncoder(commandBuffer: commandBuffer)
             secp256k1.appendCommandEncoder(commandBuffer: commandBuffer)
             sha256.appendCommandEncoder(commandBuffer: commandBuffer)
             ripemd160.appendCommandEncoder(commandBuffer: commandBuffer)
@@ -71,7 +69,7 @@ class KeySearch {
             commandBuffer.waitUntilCompleted()
 
             let start = DispatchTime.now()
-            let result = bloomFilter.getResults() //query(ripemd160.getOutputBuffer(), batchSize: pubKeyBatchSize)   
+            let result = bloomFilter.getResults()  
             
             // Get the base private key TODO: make this async
             memcpy(&nextBasePrivKey, secp256k1.getBasePrivateKeyBuffer().contents(), 32)

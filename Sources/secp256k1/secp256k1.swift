@@ -26,8 +26,11 @@ public class Secp256k1 {
     private let processPipeline: MTLComputePipelineState
 
     private let batchSize: Int
+    private var batchSizeU32: UInt32
     private let keysPerThread: Int
+    private var keysPerThreadU32: UInt32
 
+    
     private let compressed: Bool
     private let publicKeyLength: Int
 
@@ -43,6 +46,7 @@ public class Secp256k1 {
     let threadsPerThreadgroup: MTLSize
     let threadgroupsPerGrid: MTLSize
 
+    
     public init(on device: MTLDevice, batchSize: Int, keysPerThread: Int, compressed: Bool, startKeyHex: String) throws {
         self.device = device
         self.commandQueue = device.makeCommandQueue()!
@@ -51,6 +55,8 @@ public class Secp256k1 {
         self.compressed = compressed
         self.publicKeyLength = compressed ? 33 : 65
         self.startKeyHex = startKeyHex
+        self.batchSizeU32 = UInt32(batchSize)
+        self.keysPerThreadU32 = UInt32(keysPerThread)
         
         self.initPipeline = try Helpers.buildPipelineState(kernelFunctionName: "init_base_points")
         self.processPipeline = try Helpers.buildPipelineState(kernelFunctionName: "process_batch_incremental")
@@ -88,16 +94,13 @@ public class Secp256k1 {
               let encoder = commandBuffer.makeComputeCommandEncoder() else { return }
 
         encoder.setComputePipelineState(initPipeline)
-        var bSize = UInt32(batchSize)
-        var kpt = UInt32(keysPerThread)
 
-        encoder.setBytes(&bSize, length: MemoryLayout<UInt32>.stride, index: 0)
-        encoder.setBytes(&kpt, length: MemoryLayout<UInt32>.stride, index: 1)
+        encoder.setBytes(&batchSizeU32, length: MemoryLayout<UInt32>.stride, index: 0)
+        encoder.setBytes(&keysPerThreadU32, length: MemoryLayout<UInt32>.stride, index: 1)
         encoder.setBuffer(basePrivateKeyBuffer, offset: 0, index: 2)
         encoder.setBuffer(basePublicPointsBuffer, offset: 0, index: 3)
         encoder.setBuffer(deltaGBuffer, offset: 0, index: 4)
         encoder.setBuffer(startKeyBuffer, offset: 0, index: 5)
-
 
         encoder.dispatchThreadgroups(threadgroupsPerGrid, threadsPerThreadgroup: threadsPerThreadgroup)
         encoder.endEncoding()
@@ -112,10 +115,8 @@ public class Secp256k1 {
         commandEncoder.setBuffer(basePublicPointsBuffer, offset: 0, index: 0)
         commandEncoder.setBuffer(deltaGBuffer, offset: 0, index: 1)
         commandEncoder.setBuffer(publicKeyBuffer, offset: 0, index: 2)
-        var bSize = UInt32(batchSize)
-        var kpt = UInt32(keysPerThread)
-        commandEncoder.setBytes(&bSize, length: MemoryLayout<UInt32>.stride, index: 3)
-        commandEncoder.setBytes(&kpt, length: MemoryLayout<UInt32>.stride, index: 4)
+        commandEncoder.setBytes(&batchSizeU32, length: MemoryLayout<UInt32>.stride, index: 3)
+        commandEncoder.setBytes(&keysPerThreadU32, length: MemoryLayout<UInt32>.stride, index: 4)
         commandEncoder.setBuffer(compressedFlagBuffer, offset: 0, index: 5)
         commandEncoder.setBuffer(basePrivateKeyBuffer, offset: 0, index: 6)
 
