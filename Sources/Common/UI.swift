@@ -12,14 +12,14 @@ class UI {
     var totalStartTime: UInt64 = 0
     var totalEndTime: UInt64 = 0
     var bfFalePositiveCnt: Int = 0
-    
+    var startHexKey: String = ""
     var nextBasePrivKey: [UInt8] = []
   
     let timer = DispatchSource.makeTimerSource()
     var isFirstRun = true
     private let lock = NSLock()
     
-    private static let STATS_LINES = 5
+    private static let STATS_LINES = 6
     
     private let batchSize: Int
     
@@ -109,6 +109,7 @@ class UI {
         // TODO: hide the details about the individual steps and make them available by compiler flag or preporeccor? if pperformance is dramatic. Otherwise make them available by comln param
         print("")
         print("📊 Live Stats")
+        print("\(clearLine())    Start key   :   \(startHexKey.uppercased())")
         let currKey = nextBasePrivKey.isEmpty ? "" : Data(nextBasePrivKey.reversed()).hexString
         print("\(clearLine())    Current key :   \(currKey.uppercased())")
         //let nextBasePrivKeyHex = Data(privKey.reversed()).hexString
