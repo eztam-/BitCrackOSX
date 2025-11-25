@@ -49,7 +49,7 @@ class KeySearch {
         }
         
         let compUncomp = Properties.compressedKeySearch ? "compressed" : "uncompressed"
-        print("🚀 Starting \(compUncomp) key search from: \(startHexKey)\n")
+        print("🚀 Starting \(compUncomp) key search from: \(startHexKey.uppercased())\n")
        
         ui.startLiveStats()
         var nextBasePrivKey = [UInt8](repeating: 0, count: 32)

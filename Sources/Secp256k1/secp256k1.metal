@@ -1310,7 +1310,7 @@ kernel void process_batch_incremental(
 {
     if (thread_id >= batchSize) return;
 
-    const Point G = G_POINT;
+    constant Point& G = G_POINT;
     int pubKeyLength = compressed ? 33 : 65;
 
     // Load current base point

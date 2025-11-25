@@ -79,7 +79,7 @@ public class Secp256k1 {
         
         
         
-        let keyLimbs = Helpers.hex256ToUInt32Limbs(startKeyHex) //Secp256k1.uint256FromHex(startKeyHex)
+        let keyLimbs = Helpers.hex256ToUInt32Limbs(startKeyHex) 
 
         self.startKeyBuffer = device.makeBuffer(
             bytes: keyLimbs,

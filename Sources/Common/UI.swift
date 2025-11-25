@@ -97,7 +97,7 @@ class UI {
 
 
         let falsePositiveRate = 100.0 / Double(batchSize) * Double(self.bfFalePositiveCnt)
-        var statusStr = String(format: "  %.1f MKey/s ", mHashesPerSec)
+        var statusStr = String(format: "  %.1f MKey/s ", mHashesPerSec).uppercased()
      
         
         if self.bfFalePositiveCnt > 10 {
