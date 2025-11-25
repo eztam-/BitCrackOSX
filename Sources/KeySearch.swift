@@ -60,6 +60,7 @@ class KeySearch {
        
         ui.startLiveStats()
         
+        
         while true {  // TODO: Shall we introduce an end key, if reached then the application stops?
             
             let startTotal = DispatchTime.now()
@@ -77,29 +78,30 @@ class KeySearch {
             commandBuffer.commit()
             commandBuffer.waitUntilCompleted()
 
-           
-            
             let start = DispatchTime.now()
             let result = bloomFilter.getResults() //query(ripemd160.getOutputBuffer(), batchSize: pubKeyBatchSize)   
             
+            // Get the base private key TODO: make this async
+            var nextBasePrivKey = [UInt8](repeating: 0, count: 32)
+            memcpy(&nextBasePrivKey, secp256k1.getBasePrivateKeyBuffer().contents(), 32)
+            
             let falsePositiveCnt = checkBloomFilterResults(
                 result: result,
-                privateKeyBuffer: secp256k1.getBasePrivateKeyBuffer(),
+                nextBasePrivKey: nextBasePrivKey,
                 ripemd160Buffer: ripemd160.getOutputBuffer())
+            
            
-            ui.updateStats(totalStartTime: startTotal.uptimeNanoseconds, totalEndTime: DispatchTime.now().uptimeNanoseconds, bfFalsePositiveCnt: falsePositiveCnt)
+          
+            
+            ui.updateStats(totalStartTime: startTotal.uptimeNanoseconds, totalEndTime: DispatchTime.now().uptimeNanoseconds, bfFalsePositiveCnt: falsePositiveCnt, nextBasePrivKey: nextBasePrivKey)
 
             ui.bloomFilter = Double(DispatchTime.now().uptimeNanoseconds - start.uptimeNanoseconds) / 1_000_000.0
-            
-            
-            
-           
-            
+                
         }
     }
     
     
-    func checkBloomFilterResults(result: [Bool], privateKeyBuffer: MTLBuffer, ripemd160Buffer: MTLBuffer) -> Int {
+    func checkBloomFilterResults(result: [Bool], nextBasePrivKey: [UInt8], ripemd160Buffer: MTLBuffer) -> Int {
         var falsePositiveCnt = 0
       
         for privKeyIndex in 0..<privKeyBatchSize {
@@ -107,51 +109,53 @@ class KeySearch {
                 let pubKeyIndex = privKeyIndex*Properties.KEYS_PER_THREAD + i
                 
                 if result[pubKeyIndex] {
-                    
-                   
-                    
-                    // Get the hash160
                     var pubKeyHash = [UInt8](repeating: 0, count: 20)
-                    memcpy(&pubKeyHash, ripemd160Buffer.contents().advanced(by: pubKeyIndex*20), 20)
+                    memcpy(&pubKeyHash, ripemd160Buffer.contents().advanced(by: pubKeyIndex * 20), 20)
                     let pubKeyHashHex = Data(pubKeyHash).hexString
                     let addresses = try! db.getAddresses(for: pubKeyHashHex)
-                    
+
                     if addresses.isEmpty {
-                        falsePositiveCnt+=1
-                        //print("False positive bloom filter result")
-                    }
-                    else {
+                        falsePositiveCnt += 1
+                    } else {
                         
-                        // Get the base private key
-                        var privKey = [UInt8](repeating: 0, count: 32)
-                        memcpy(&privKey, privateKeyBuffer.contents(), 32)
-                        
-                        // We only have the base key. We need to add the offset i (key position in secp256k1 thread) to get the real private key
-                        let basePrivKeyHex = Data(privKey.reversed()).hexString
-                        let privateKey = BInt(basePrivKeyHex, radix: 16)! - BInt(self.pubKeyBatchSize)  + BInt(pubKeyIndex)
-                        var privateKeyStr = privateKey.asString(radix: 16)
-                        privateKeyStr = String(repeating: "0", count: max(0, 64 - privateKeyStr.count)) + privateKeyStr
-                        
-                        
+                        // Convert GPU-updated next base key to BigInt
+                        let nextBaseKeyHex = Data(nextBasePrivKey.reversed()).hexString
+                        let nextBaseKey = BInt(nextBaseKeyHex, radix: 16)!
+
+                        // Compute current batch’s start key
+                        let batchDelta = BInt(pubKeyBatchSize)
+                        let startKey = nextBaseKey - batchDelta - batchDelta
+
+                        // Compute actual private key = startKey + pubKeyIndex
+                        let privKeyVal = startKey + BInt(pubKeyIndex)
+                        var privKeyHex = privKeyVal.asString(radix: 16)
+                        privKeyHex = String(repeating: "0", count: max(0, 64 - privKeyHex.count)) + privKeyHex
+
                         ui.printMessage(
                         """
                         --------------------------------------------------------------------------------------
-                        💰 Private key found: \(privateKeyStr) THIS IS STILL WRIONG!!!!
+                        💰 Private key found: \(privKeyHex)
                            For addresses:
                             \(addresses.map { $0.address }.joined(separator: "\n    "))
                         --------------------------------------------------------------------------------------
                         """)
                        
-                        try! appendToResultFile(text: "Found private key: \(privateKeyStr) for addresses: \(addresses.map(\.address).joined(separator: ", ")) \n")
-                        // exit(0) // TODO: do we want to exit? Make this configurable
+                        try! appendToResultFile(
+                            text: "Found private key: \(privKeyHex) for addresses: \(addresses.map(\.address).joined(separator: ", ")) \n"
+                        )
                     }
                 }
+
             }
             
         }
        
         return falsePositiveCnt
     }
+    
+    
+   
+
     
     
     

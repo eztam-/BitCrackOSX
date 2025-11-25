@@ -122,6 +122,8 @@ public class Secp256k1 {
         commandEncoder.setBytes(&bSize, length: MemoryLayout<UInt32>.stride, index: 3)
         commandEncoder.setBytes(&kpt, length: MemoryLayout<UInt32>.stride, index: 4)
         commandEncoder.setBuffer(compressedFlagBuffer, offset: 0, index: 5)
+        commandEncoder.setBuffer(basePrivateKeyBuffer, offset: 0, index: 6)
+
 
         commandEncoder.dispatchThreadgroups(threadgroupsPerGrid, threadsPerThreadgroup: threadsPerThreadgroup)
         commandEncoder.endEncoding()

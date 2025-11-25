@@ -1231,15 +1231,12 @@ inline void affine_from_jacobian_batch(
  The ΔG point (shared for the entire batch)
  The last private key value used (so the next batch can resume)
  */
-// ============================================================
-//  KERNEL 1: init_base_points
-// ============================================================
 kernel void init_base_points(
     constant uint& batchSize             [[buffer(0)]],
     constant uint& keys_per_thread       [[buffer(1)]],
     device uint* base_private_key_out    [[buffer(2)]],
     device Point* base_public_points_out [[buffer(3)]],
-    device Point& deltaG_out             [[buffer(4)]],
+    device Point& deltaG_out             [[buffer(4)]],      // will hold ΔG_next (fixed)
     device const uint* start_key_limbs   [[buffer(5)]],
     uint thread_id                       [[thread_position_in_grid]]
 )
@@ -1250,26 +1247,46 @@ kernel void init_base_points(
     uint256 startKey;
     for (int i = 0; i < 8; i++) startKey.limbs[i] = start_key_limbs[i];
 
-    // Compute k0 = startKey + thread_id * keys_per_thread
-    // Simple offset for distinct threads
-    uint256 offset;
-    for (int i = 0; i < 8; i++) offset.limbs[i] = 0;
+    // k0 = startKey + thread_id * keys_per_thread
+    uint256 offset; for (int i = 0; i < 8; i++) offset.limbs[i] = 0;
     offset.limbs[0] = thread_id * keys_per_thread;
-
     uint256 k0 = field_add(startKey, offset);
 
-    // Compute P0 = k0 * G
+    // P0 = k0 * G
     Point P0 = point_mul(k0, G_TABLE256, G_DOUBLES);
     base_public_points_out[thread_id] = P0;
 
-    // Thread 0: compute ΔG and save final base key
+    // Thread 0: compute ΔG_next and the scalar "last" = startKey + Δk
     if (thread_id == 0) {
-        uint256 deltaK;
-        for (int i = 0; i < 8; i++) deltaK.limbs[i] = 0;
+        // Δk = batchSize * keys_per_thread
+        uint256 deltaK; for (int i = 0; i < 8; i++) deltaK.limbs[i] = 0;
         deltaK.limbs[0] = batchSize * keys_per_thread;
-        deltaG_out = point_mul(deltaK, G_TABLE256, G_DOUBLES);
 
-        // base_private_key_out = startKey + deltaK
+        // Compute ΔG = Δk · G
+        Point deltaG_batch = point_mul(deltaK, G_TABLE256, G_DOUBLES);
+
+        // Compute (keys_per_thread − 1) · G  (call it step_m1)
+        uint256 kpt_m1; for (int i = 0; i < 8; i++) kpt_m1.limbs[i] = 0;
+        kpt_m1.limbs[0] = (keys_per_thread > 0) ? (keys_per_thread - 1) : 0;
+        Point step_m1 = point_mul(kpt_m1, G_TABLE256, G_DOUBLES);
+
+        // ΔG_next = ΔG_batch - step_m1  (affine subtraction via add with negated Y)
+        // acc = deltaG_batch + (-step_m1)
+        PointJacobian acc; acc.infinity = true;
+        acc = point_add_mixed_jacobian(acc, deltaG_batch);
+
+        // negate Y: y -> p - y
+        uint256 P256; for (int i = 0; i < 8; i++) P256.limbs[i] = P[i];
+        Point step_m1_neg = step_m1;
+        step_m1_neg.y = field_sub(P256, step_m1.y);
+
+        acc = point_add_mixed_jacobian(acc, step_m1_neg);
+        Point deltaG_next = jacobian_to_affine(acc);
+
+        // Store ΔG_next for the process kernel
+        deltaG_out = deltaG_next;
+
+        // base_private_key_out = startKey + Δk   (scalar for the host; LE limbs)
         uint256 last = field_add(startKey, deltaK);
         for (int i = 0; i < 8; i++) base_private_key_out[i] = last.limbs[i];
     }
@@ -1277,106 +1294,86 @@ kernel void init_base_points(
 
 
 
-
 // ============================================================
 //  KERNEL 2: process_batch_incremental
 // ============================================================
 kernel void process_batch_incremental(
-    device Point*   base_points          [[buffer(0)]],
-    constant Point& deltaG               [[buffer(1)]],
-    device uchar*   public_keys          [[buffer(2)]],
-    constant uint&  batchSize            [[buffer(3)]],
-    constant uint&  keys_per_thread      [[buffer(4)]],
-    device bool&    compressed           [[buffer(5)]],
-    uint            thread_id            [[thread_position_in_grid]]
+    device Point* base_points            [[buffer(0)]],
+    device const Point& deltaG           [[buffer(1)]],   // now carries ΔG_next from init
+    device uchar* public_keys            [[buffer(2)]],
+    constant uint& batchSize             [[buffer(3)]],
+    constant uint& keys_per_thread       [[buffer(4)]],
+    device bool& compressed              [[buffer(5)]],
+    device uint* base_private_key        [[buffer(6)]],
+    uint thread_id                       [[thread_position_in_grid]]
 )
 {
     if (thread_id >= batchSize) return;
 
-    // ---- Load current base point into Jacobian (Z = 1) ----
+    const Point G = G_POINT;
+    int pubKeyLength = compressed ? 33 : 65;
+
+    // Load current base point
     PointJacobian J;
     J.X = base_points[thread_id].x;
     J.Y = base_points[thread_id].y;
-    for (int i = 0; i < 8; i++) J.Z.limbs[i] = 0u;
-    J.Z.limbs[0] = 1u;
+    for (int i = 0; i < 8; i++) J.Z.limbs[i] = 0;
+    J.Z.limbs[0] = 1;
     J.infinity = false;
 
+    // Scratch buffers
     thread PointJacobian bufJ[MAX_KEYS_PER_THREAD];
     thread uint256 Zs[MAX_KEYS_PER_THREAD];
     thread uint256 invZ[MAX_KEYS_PER_THREAD];
     thread Point bufA[MAX_KEYS_PER_THREAD];
 
-    const uint pubKeyLen = compressed ? 33u : 65u;
-    uint produced = 0u;
+    uint produced = 0;
+    while (produced < keys_per_thread) {
+        int n = min((uint)MAX_KEYS_PER_THREAD, keys_per_thread - produced);
+        bufJ[0] = J;
+        Zs[0] = J.Z;
 
-    // ---- Build and convert all keys ----
-    bufJ[0] = J;
-    Zs[0]   = J.Z;
+        for (int i = 1; i < n; i++) {
+            J = point_add_mixed_jacobian(J, G);
+            bufJ[i] = J;
+            Zs[i] = J.Z;
+        }
 
-    for (uint i = 1; i < keys_per_thread; i++) {
-        J = point_add_mixed_jacobian(J, G_POINT);
-        bufJ[i] = J;
-        Zs[i]   = J.Z;
+        batch_inverse(Zs, invZ, n);
+        affine_from_jacobian_batch(bufJ, invZ, bufA, n);
+
+        for (int i = 0; i < n; i++) {
+            uint out_idx = thread_id * keys_per_thread + produced + i;
+            if (compressed)
+                store_public_key_compressed(public_keys, out_idx, bufA[i].x, bufA[i].y);
+            else
+                store_public_key_uncompressed(public_keys, out_idx, bufA[i].x, bufA[i].y);
+        }
+
+        produced += n;
     }
 
-    // Invert all Z once
-    batch_inverse(Zs, invZ, keys_per_thread);
-    affine_from_jacobian_batch(bufJ, invZ, bufA, keys_per_thread);
-
-    // ---- Serialize public keys ----
-    device uchar* outPtr = public_keys + (thread_id * keys_per_thread * pubKeyLen);
-
-    if (compressed) {
-        for (uint i = 0; i < keys_per_thread; i++) {
-            outPtr[0] = (bufA[i].y.limbs[0] & 1u) ? (uchar)0x03 : (uchar)0x02;
-            int pos = 1;
-            for (int limb = 7; limb >= 0; limb--) {
-                uint vx = bufA[i].x.limbs[limb];
-                outPtr[pos + 0] = (uchar)((vx >> 24) & 0xFF);
-                outPtr[pos + 1] = (uchar)((vx >> 16) & 0xFF);
-                outPtr[pos + 2] = (uchar)((vx >>  8) & 0xFF);
-                outPtr[pos + 3] = (uchar)((vx >>  0) & 0xFF);
-                pos += 4;
-            }
-            outPtr += pubKeyLen;
-        }
-    } else {
-        for (uint i = 0; i < keys_per_thread; i++) {
-            outPtr[0] = 0x04;
-            int pos = 1;
-            for (int limb = 7; limb >= 0; limb--) {
-                uint vx = bufA[i].x.limbs[limb];
-                outPtr[pos + 0] = (uchar)((vx >> 24) & 0xFF);
-                outPtr[pos + 1] = (uchar)((vx >> 16) & 0xFF);
-                outPtr[pos + 2] = (uchar)((vx >>  8) & 0xFF);
-                outPtr[pos + 3] = (uchar)((vx >>  0) & 0xFF);
-                pos += 4;
-            }
-            for (int limb = 7; limb >= 0; limb--) {
-                uint vy = bufA[i].y.limbs[limb];
-                outPtr[pos + 0] = (uchar)((vy >> 24) & 0xFF);
-                outPtr[pos + 1] = (uchar)((vy >> 16) & 0xFF);
-                outPtr[pos + 2] = (uchar)((vy >>  8) & 0xFF);
-                outPtr[pos + 3] = (uchar)((vy >>  0) & 0xFF);
-                pos += 4;
-            }
-            outPtr += pubKeyLen;
-        }
-    }
-
-    // ---- Advance base point for next batch ----
-    // Reuse last inverse (invZ[keys_per_thread - 1]) to avoid an extra inversion.
+    // J is the LAST element of this thread for the batch (= start + (KPT-1)·G).
+    // Using ΔG_next here makes: J + ΔG_next = start + ΔG_batch. Correct next base.
     PointJacobian J_next = point_add_mixed_jacobian(J, deltaG);
-    uint256 z1 = invZ[keys_per_thread - 1];
-    uint256 z2 = field_sqr(z1);
-    uint256 z3 = field_mul(z2, z1);
+    base_points[thread_id] = jacobian_to_affine(J_next);
 
-    Point nextA;
-    nextA.x = field_mul(J_next.X, z2);
-    nextA.y = field_mul(J_next.Y, z3);
-    nextA.infinity = false;
+    // ---- Thread 0 updates base private key in place (scalar += batchSize*keys_per_thread) ----
+    if (thread_id == 0) {
+        uint256 k; for (int i = 0; i < 8; i++) k.limbs[i] = base_private_key[i];
 
-    base_points[thread_id] = nextA;
+        uint256 delta; for (int i = 0; i < 8; i++) delta.limbs[i] = 0;
+        delta.limbs[0] = batchSize * keys_per_thread;
+
+        uint carry = 0;
+        uint256 result;
+        for (int i = 0; i < 8; i++) {
+            ulong sum = (ulong)k.limbs[i] + (ulong)delta.limbs[i] + (ulong)carry;
+            result.limbs[i] = (uint)sum;
+            carry = (uint)(sum >> 32);
+        }
+        for (int i = 0; i < 8; i++) base_private_key[i] = result.limbs[i];
+    }
 }
 
 
