@@ -2,13 +2,8 @@ import Foundation
 import Metal
 import BigNumber
 
-
-
-
-
 // TODO: FIXME: If the key range is smaller than the batch size it doesnt work
 // TODO: If the size is smaller, that we run into a memory leak since the garbage collector seem to slow, to free up the memory for the commandBuffers
-
 
 class KeySearch {
 
@@ -34,7 +29,6 @@ class KeySearch {
         let commandQueue = device.makeCommandQueue()!
         let keyLength = Properties.compressedKeySearch ? 33 : 65 //   keyLength:  33 = compressed;  65 = uncompressed
         
-      //  let keyGen = try KeyGen(device: device, batchSize: privKeyBatchSize, startKeyHex: startHexKey)
         let secp256k1 = try Secp256k1(on:  device, batchSize: privKeyBatchSize, keysPerThread: Properties.KEYS_PER_THREAD, compressed: Properties.compressedKeySearch, startKeyHex: startHexKey)
         let sha256 = try SHA256(on: device, batchSize: pubKeyBatchSize, inputBuffer: secp256k1.getPublicKeyBuffer(), keyLength: UInt32(keyLength))
         let ripemd160 = try RIPEMD160(on: device, batchSize: pubKeyBatchSize, inputBuffer: sha256.getOutputBuffer())
@@ -47,7 +41,6 @@ class KeySearch {
         
         if Properties.verbose {
             print("                  │ Threads per TG │ TGs per Grid │ Thread Exec. Width │")
-            //keyGen.printThreadConf()
             //secp256k1.printThreadConf()
             sha256.printThreadConf()
             ripemd160.printThreadConf()
@@ -59,12 +52,11 @@ class KeySearch {
         print("🚀 Starting \(compUncomp) key search from: \(startHexKey)\n")
        
         ui.startLiveStats()
+        var nextBasePrivKey = [UInt8](repeating: 0, count: 32)
         
-        
-        while true {  // TODO: Shall we introduce an end key, if reached then the application stops?
+        while true {
             
             let startTotal = DispatchTime.now()
-
             
             let commandBuffer = commandQueue.makeCommandBuffer()!
            // keyGen.appendCommandEncoder(commandBuffer: commandBuffer)
@@ -82,17 +74,13 @@ class KeySearch {
             let result = bloomFilter.getResults() //query(ripemd160.getOutputBuffer(), batchSize: pubKeyBatchSize)   
             
             // Get the base private key TODO: make this async
-            var nextBasePrivKey = [UInt8](repeating: 0, count: 32)
             memcpy(&nextBasePrivKey, secp256k1.getBasePrivateKeyBuffer().contents(), 32)
             
             let falsePositiveCnt = checkBloomFilterResults(
                 result: result,
                 nextBasePrivKey: nextBasePrivKey,
                 ripemd160Buffer: ripemd160.getOutputBuffer())
-            
-           
           
-            
             ui.updateStats(totalStartTime: startTotal.uptimeNanoseconds, totalEndTime: DispatchTime.now().uptimeNanoseconds, bfFalsePositiveCnt: falsePositiveCnt, nextBasePrivKey: nextBasePrivKey)
 
             ui.bloomFilter = Double(DispatchTime.now().uptimeNanoseconds - start.uptimeNanoseconds) / 1_000_000.0
@@ -163,12 +151,6 @@ class KeySearch {
     }
 	
     
-    
-   
-
-    
-    
-    
     func appendToResultFile(text: String) throws {
         let filePath = self.outputFile
         let url = URL(fileURLWithPath: filePath)
@@ -184,44 +166,6 @@ class KeySearch {
         }
     }
     
-    
-    /// Converts a pointer to UInt32 values into an array of `Data` objects.
-    /// Each `Data` chunk will contain `chunkSize` UInt32 values (default: 4).
-    func convertPointerToDataArray2(
-        ptr: UnsafeMutablePointer<UInt32>,
-        count: Int,
-        chunkSize: Int
-    ) -> [Data] {
-        precondition(chunkSize > 0, "chunkSize must be greater than zero")
-        precondition(count % chunkSize == 0, "count must be a multiple of chunkSize")
-        
-        var result: [Data] = []
-        result.reserveCapacity(count / chunkSize)
-        
-        for i in stride(from: 0, to: count, by: chunkSize) {
-            let chunkPtr = ptr.advanced(by: i)
-            let data = Data(bytes: chunkPtr, count: chunkSize * MemoryLayout<UInt32>.size)
-            result.append(data)
-        }
-        return result
-    }
-    
-    func convertPointerToDataArray(ptr: UnsafeMutablePointer<UInt32>, count: Int, dataItemLength: Int) -> [Data] {
-        
-        var result: [Data] = []
-        result.reserveCapacity(count / dataItemLength)
-        
-        for i in stride(from: 0, to: count, by: dataItemLength) {
-            // Create a raw pointer for the dateItemLength UInt32 words
-            let chunkPtr = ptr.advanced(by: i)
-            
-            // Create Data directly from memory (no copy)
-            let data = Data(bytes: chunkPtr, count: dataItemLength * MemoryLayout<UInt32>.size)
-            result.append(data)
-        }
-        
-        return result
-    }
     
 }
 
