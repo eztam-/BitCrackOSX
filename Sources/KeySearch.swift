@@ -107,15 +107,7 @@ class KeySearch {
                 let pubKeyIndex = privKeyIndex*Properties.KEYS_PER_THREAD + i
                 
                 if result[pubKeyIndex] {
-                    // Get the base private key
-                   var privKey = [UInt8](repeating: 0, count: 32)
-                    memcpy(&privKey, privateKeyBuffer.contents(), 32)
                     
-                    // We only have the base key. We need to add the offset i (key position in secp256k1 thread) to get the real private key
-                    let basePrivKeyHex = Data(privKey.reversed()).hexString
-                    let privateKey = BInt(basePrivKeyHex, radix: 16)! - BInt(self.pubKeyBatchSize)  + BInt(pubKeyIndex)
-                    var privateKeyStr = privateKey.asString(radix: 16)
-                    privateKeyStr = String(repeating: "0", count: max(0, 64 - privateKeyStr.count)) + privateKeyStr
                    
                     
                     // Get the hash160
@@ -129,6 +121,18 @@ class KeySearch {
                         //print("False positive bloom filter result")
                     }
                     else {
+                        
+                        // Get the base private key
+                        var privKey = [UInt8](repeating: 0, count: 32)
+                        memcpy(&privKey, privateKeyBuffer.contents(), 32)
+                        
+                        // We only have the base key. We need to add the offset i (key position in secp256k1 thread) to get the real private key
+                        let basePrivKeyHex = Data(privKey.reversed()).hexString
+                        let privateKey = BInt(basePrivKeyHex, radix: 16)! - BInt(self.pubKeyBatchSize)  + BInt(pubKeyIndex)
+                        var privateKeyStr = privateKey.asString(radix: 16)
+                        privateKeyStr = String(repeating: "0", count: max(0, 64 - privateKeyStr.count)) + privateKeyStr
+                        
+                        
                         ui.printMessage(
                         """
                         --------------------------------------------------------------------------------------
