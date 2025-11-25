@@ -13,12 +13,13 @@ class UI {
     var totalEndTime: UInt64 = 0
     var bfFalePositiveCnt: Int = 0
     
+    var nextBasePrivKey: [UInt8] = []
   
     let timer = DispatchSource.makeTimerSource()
     var isFirstRun = true
     private let lock = NSLock()
     
-    private static let STATS_LINES = 4
+    private static let STATS_LINES = 5
     
     private let batchSize: Int
     
@@ -45,10 +46,11 @@ class UI {
         }
     }
     
-    public func updateStats(totalStartTime: UInt64, totalEndTime: UInt64, bfFalsePositiveCnt: Int){
+    public func updateStats(totalStartTime: UInt64, totalEndTime: UInt64, bfFalsePositiveCnt: Int, nextBasePrivKey: [UInt8]){
         self.totalStartTime = totalStartTime
         self.totalEndTime = totalEndTime
         self.bfFalePositiveCnt = bfFalsePositiveCnt
+        self.nextBasePrivKey = nextBasePrivKey
     }
     
     
@@ -107,6 +109,9 @@ class UI {
         // TODO: hide the details about the individual steps and make them available by compiler flag or preporeccor? if pperformance is dramatic. Otherwise make them available by comln param
         print("")
         print("📊 Live Stats")
+        let currKey = nextBasePrivKey.isEmpty ? "" : Data(nextBasePrivKey.reversed()).hexString
+        print("\(clearLine())    Current key :   \(currKey.uppercased())")
+        //let nextBasePrivKeyHex = Data(privKey.reversed()).hexString
         print(String(format: "\(clearLine())    Bloom Filter: %8.3f ms | FPR %.4f%% (%d)", self.bloomFilter, falsePositiveRate, self.bfFalePositiveCnt))
         print("\(clearLine())    Throughput  : \(statusStr)")
         fflush(stdout)
