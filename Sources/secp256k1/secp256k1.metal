@@ -1342,13 +1342,22 @@ kernel void process_batch_incremental(
         batch_inverse(Zs, invZ, n);
         affine_from_jacobian_batch(bufJ, invZ, bufA, n);
 
-        for (int i = 0; i < n; i++) {
-            uint out_idx = thread_id * keys_per_thread + produced + i;
+        // --- Coalesced write version ---
+        // Layout: keys[i][thread] instead of threads[thread][i]
+        // Each iteration i now writes contiguous public keys across threads
+        uint produced_base = produced * batchSize;
+
+        for (int i = 0; i < n; ++i) {
+            uint out_idx = produced_base + thread_id;  // coalesced across threads
+
             if (compressed)
                 store_public_key_compressed(public_keys, out_idx, bufA[i].x, bufA[i].y);
             else
                 store_public_key_uncompressed(public_keys, out_idx, bufA[i].x, bufA[i].y);
+
+            produced_base += batchSize;  // move to next "row"
         }
+
 
         produced += n;
     }
