@@ -1298,14 +1298,14 @@ kernel void init_base_points(
 //  KERNEL 2: process_batch_incremental
 // ============================================================
 kernel void process_batch_incremental(
-    device Point* base_points            [[buffer(0)]],
-    device const Point& deltaG           [[buffer(1)]],   // now carries ΔG_next from init
-    device uchar* public_keys            [[buffer(2)]],
-    constant uint& batchSize             [[buffer(3)]],
-    constant uint& keys_per_thread       [[buffer(4)]],
-    device bool& compressed              [[buffer(5)]],
-    device uint* base_private_key        [[buffer(6)]],
-    uint thread_id                       [[thread_position_in_grid]]
+    device Point* base_points                [[buffer(0)]],
+    device const Point& deltaG               [[buffer(1)]],   // now carries ΔG_next from init
+    device uchar* public_keys                [[buffer(2)]],
+    constant const uint& batchSize           [[buffer(3)]],
+    constant const uint& keys_per_thread     [[buffer(4)]],
+    constant const bool& compressed          [[buffer(5)]],
+    device uint* base_private_key            [[buffer(6)]],
+    uint thread_id                           [[thread_position_in_grid]]
 )
 {
     if (thread_id >= batchSize) return;

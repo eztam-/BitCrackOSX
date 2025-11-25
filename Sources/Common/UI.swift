@@ -97,7 +97,7 @@ class UI {
 
 
         let falsePositiveRate = 100.0 / Double(batchSize) * Double(self.bfFalePositiveCnt)
-        var statusStr = String(format: "  %.1f MKey/s ", mHashesPerSec).uppercased()
+        var statusStr = String(format: "  %.1f MKey/s ", mHashesPerSec)
      
         
         if self.bfFalePositiveCnt > 10 {
@@ -110,7 +110,7 @@ class UI {
         print("")
         print("📊 Live Stats")
         let currKey = nextBasePrivKey.isEmpty ? "" : Data(nextBasePrivKey.reversed()).hexString
-        print("\(clearLine())    Current key :   \(currKey)")
+        print("\(clearLine())    Current key :   \(currKey.uppercased())")
         //let nextBasePrivKeyHex = Data(privKey.reversed()).hexString
         print(String(format: "\(clearLine())    Bloom Filter: %8.3f ms | FPR %.4f%% (%d)", self.bloomFilter, falsePositiveRate, self.bfFalePositiveCnt))
         print("\(clearLine())    Throughput  : \(statusStr)")
