@@ -110,8 +110,9 @@ class UI {
         print("")
         print("📊 Live Stats")
         print("\(clearLine())    Start key   :   \(startHexKey.uppercased())")
-        let currKey = nextBasePrivKey.isEmpty ? "" : Data(nextBasePrivKey.reversed()).hexString
-        print("\(clearLine())    Current key :   \(currKey.uppercased())")
+        var currKey = nextBasePrivKey.isEmpty ? "" : Data(nextBasePrivKey.reversed()).hexString
+        currKey = underlineFirstDifferentCharacter(base: startHexKey.uppercased(), modified: currKey.uppercased())
+        print("\(clearLine())    Current key :   \(currKey)")
         //let nextBasePrivKeyHex = Data(privKey.reversed()).hexString
         print(String(format: "\(clearLine())    Bloom Filter: %8.3f ms | FPR %.4f%% (%d)", self.bloomFilter, falsePositiveRate, self.bfFalePositiveCnt))
         print("\(clearLine())    Throughput  : \(statusStr)")
@@ -122,6 +123,33 @@ class UI {
     func clearLine() -> String {
         // Clear the current line and move cursor to beginning
         return "\u{001B}[2K\u{001B}[0G"
+    }
+    
+    
+    func underlineFirstDifferentCharacter(base: String, modified: String) -> String {
+        let baseChars = Array(base)
+           let modChars  = Array(modified)
+           let count = min(baseChars.count, modChars.count)
+           
+           // ANSI formatting
+           let boldUnderline = "\u{001B}[1m\u{001B}[4m"  // bold + underline
+           let reset         = "\u{001B}[0m"             // reset formatting
+           
+           for i in 0..<count {
+               if baseChars[i] != modChars[i] {
+                   let startIndex = modified.startIndex
+                   let diffIndex = modified.index(startIndex, offsetBy: i)
+                   let nextIndex = modified.index(after: diffIndex)
+                   
+                   let prefix = modified[startIndex..<diffIndex]
+                   let highlighted = "\(boldUnderline)\(modified[diffIndex])\(reset)"
+                   let suffix = modified[nextIndex..<modified.endIndex]
+                   
+                   return prefix + highlighted + suffix
+               }
+           }
+           
+           return modified
     }
 }
 
