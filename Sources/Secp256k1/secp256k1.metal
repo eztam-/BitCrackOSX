@@ -117,29 +117,13 @@ constant Point G_DOUBLES[8] = {
     },
 };
 
-// Macro to inline-add a precomputed double
-#define DOUBLE_STEP(P, D)  P = point_add_mixed_jacobian(P, D)
-
 
 
 // ---- Precomputed 4-bit window table for secp256k1 base point ----
-// G_TABLE[n] = (n+1) * G for n = 0..14, plus G_TABLE[15] = 16*G
-
-
-// 256-entry precomputed table: G_TABLE256[i] = (i+1)*G for i=0..254
-
-
-
-
-    // Each entry is { {x limbs[8]}, {y limbs[8]}, false }
-    // You must fill these with real secp256k1 multiples of G.
-    // Below are only G (1·G) as an example — fill others offline.
-   // {
-    //    { { 0x16F81798, 0x59F2815B, 0x2DCE28D9, 0x029BFCDB, 0xCE870B07, 0x55A06295, 0xF9DCBBAC, 0x79BE667E } },
-    //    { { 0xFB10D4B8, 0x9C47D08F, 0xA6855419, 0xFD17B448, 0x0E1108A8, 0x5DA4FBFC, 0x26A3C465, 0x483ADA77 } },
-    //    false
-   // },
-    // { 2·G }, { 3·G }, ... { 16·G }
+// 256-entry precomputed table with multiples of G: G_TABLE256[i] = (i+1)*G for i=0..254
+// Each entry is { {x limbs[8]}, {y limbs[8]}, false }
+// { 2·G }, { 3·G }, ... { 16·G }
+// TODO: Reduce this to 16 rows only and adjiost the point_mul accordingly. To improve performance of field multiplication, this table should be much larger but we can keep it small for simplicity since point_mul is happening only once at startup
 constant Point G_TABLE256[256] = {
     { { 0x16f81798, 0x59f2815b, 0x2dce28d9, 0x029bfcdb, 0xce870b07, 0x55a06295, 0xf9dcbbac, 0x79be667e }, { 0xfb10d4b8, 0x9c47d08f, 0xa6855419, 0xfd17b448, 0x0e1108a8, 0x5da4fbfc, 0x26a3c465, 0x483ada77 }, false },
     { { 0x5c709ee5, 0xabac09b9, 0x8cef3ca7, 0x5c778e4b, 0x95c07cd8, 0x3045406e, 0x41ed7d6d, 0xc6047f94 }, { 0x50cfe52a, 0x236431a9, 0x3266d0e1, 0xf7f63265, 0x466ceaee, 0xa3c58419, 0xa63dc339, 0x1ae168fe }, false },

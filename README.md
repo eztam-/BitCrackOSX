@@ -74,6 +74,11 @@ If the high GPU utilization of the keysearch slows down all the other apps of yo
         - Disk-backed key/value store (LMDB / RocksDB / LevelDB)
         - Memory-mapped sorted file + binary search
         - In mem hash map? -> the limit is the memory
+   
+- Next
+    - Remove private key increment from metal and do in in swift async. There is no need to do this on the GPU
+    - Do the bloomfilter result check async (ring buffer?)
+    - improve field_mul sinc it is the most used one
         
 ## secp256k1 Performance Improvement Notes
 - Mixing Jacobian and Affine (“Mixed Addition”).
