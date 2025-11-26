@@ -72,7 +72,7 @@ public class Secp256k1 {
         self.basePublicPointsBuffer = device.makeBuffer(length: batchSize * MemoryLayout<Point>.stride, options: .storageModePrivate)!
         self.nextBasePointsBuffer = device.makeBuffer(length: batchSize * MemoryLayout<Point>.stride, options: .storageModePrivate)!
         self.deltaGBuffer = device.makeBuffer(length: MemoryLayout<Point>.stride, options: .storageModeShared)!
-        self.publicKeyBuffer = device.makeBuffer(length: batchSize * keysPerThread * publicKeyLength, options: .storageModePrivate)!
+        self.publicKeyBuffer = device.makeBuffer(length: batchSize * keysPerThread * publicKeyLength, options: Helpers.getStorageModePrivate())! // needed to be public for testing  only
         
         var c = compressed
         self.compressedFlagBuffer = device.makeBuffer(bytes: &c, length: MemoryLayout<Bool>.stride, options: .storageModeShared)!
@@ -107,7 +107,7 @@ public class Secp256k1 {
     }
 
 
-    func appendCommandEncoder(commandBuffer: MTLCommandBuffer) {
+    public func appendCommandEncoder(commandBuffer: MTLCommandBuffer) {
         let commandEncoder = commandBuffer.makeComputeCommandEncoder()!
         commandEncoder.setComputePipelineState(processPipeline)
         commandEncoder.setBuffer(basePublicPointsBuffer, offset: 0, index: 0)

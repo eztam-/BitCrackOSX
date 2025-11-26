@@ -45,6 +45,8 @@ extension Data {
 public class Helpers{
    
 
+    nonisolated(unsafe) public static var TEST_MODE = false
+    
     private static let device : MTLDevice = MTLCreateSystemDefaultDevice()!
     
     // Shouldn't make a hige difference in performance, but having the batch size as a multiple of maxThreadsPerThreadgroup will utilize each thread group fully.
@@ -249,5 +251,8 @@ public class Helpers{
         return String(repeating: "0", count: max(0, 64 - hex.count)) + hex
     }
 
+    public static func getStorageModePrivate() -> MTLResourceOptions {
+        return TEST_MODE ? .storageModeShared : .storageModePrivate
+    }
 }
 

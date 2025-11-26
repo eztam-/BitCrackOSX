@@ -3,203 +3,160 @@ import Foundation
 import keysearch
 import Testing
 import P256K
+import BigNumber
 
-class TestPubKey: TestBase {
-    
+final class Secp256k1Tests: TestBase {
+
     init() {
-        super.init(kernelFunctionName: "test_field_sub") // dummy. actuylly not needed
+        super.init(kernelFunctionName: "test_field_sub") // dummy
     }
-   /*
-    func bytePtrToData(bytePtr : UnsafeRawPointer, keySizeBytes : Int, numKeys: Int) -> [Data]{
-        let pubKeyArray = bytePtr.bindMemory(to: UInt8.self,capacity: numKeys * keySizeBytes)
-        var pubKeysData : [Data] = []
-        for i in 0..<numKeys {
-            var d = Data()
-            for b in 0..<keySizeBytes {
-                let index = i * keySizeBytes + b
-                d.append(pubKeyArray[index])
-            }
-            pubKeysData.append(d)
-        }
-        return pubKeysData
-    }
-    
-    @Test func testRandomPubKeys() throws {
-        let numTests = 4096
-        print("Running \(numTests) random number tests. Only printing failed results.")
-        
-        var numFailedTests = 0
-       
-        var privKeysArr : [String] = []
-        var privKeysData : Data = Data()
-        for _ in 0..<numTests {
-            
-            let randomStr = Helpers.generateRandom256BitHex()
-            let  limbs = Helpers.hex256ToUInt32Limbs(randomStr)
-            privKeysData.append(dataFromUInt32Limbs(limbs))
-            privKeysArr.append(randomStr)
-        }
-        
-        let privKeysBuffer = device.makeBuffer(
-            bytes: privKeysData.bytes,
-            length: MemoryLayout<UInt32>.stride * numTests * 8,
-            options: .storageModeShared
-        )!;
-        
-        
-        let secp256k1obj = try Secp256k1(on:super.device, batchSize: numTests)
-        let (pubKeysComp, pubKeysUncomp) = secp256k1obj.generatePublicKeys(privateKeyBuffer: privKeysBuffer)
-        
-        let resultPubKeysComp = bytePtrToData(bytePtr: pubKeysComp.contents(), keySizeBytes: 33, numKeys: numTests)
-        let resultPubKeysUncomp = bytePtrToData(bytePtr: pubKeysUncomp.contents(), keySizeBytes: 65, numKeys: numTests)
-        
-        
-        for i in 0..<numTests{
-            
-            // Calculate expected value from lib
-            let privateKeyCompressed = try! P256K.Signing.PrivateKey(dataRepresentation: hexStringToData(hexString: privKeysArr[i]), format: .compressed)
-            let privateKeyUncomp = try! P256K.Signing.PrivateKey(dataRepresentation: hexStringToData(hexString: privKeysArr[i]), format: .uncompressed)
-            let expPubKeyComp = privateKeyCompressed.publicKey.dataRepresentation.hexString
-            let expPubKeyUncomp = privateKeyUncomp.publicKey.dataRepresentation.hexString
-            
-            
-            // Testing compressed keys
-            let pubKeyComp =  resultPubKeysComp[i].hexString
-            if pubKeyComp != expPubKeyComp {
-                print("❌ FAIL Comp Private Key: \(privKeysArr[i])")
-                print("                  Actual: \(pubKeyComp)")
-                print("                Expected: \(expPubKeyComp)\n")
-                numFailedTests += 1
-            }
-            
-            // Testing uncompressed keys
-            let pubKeyUncomp =  resultPubKeysUncomp[i].hexString
-            if pubKeyUncomp != expPubKeyUncomp {
-                print("❌ FAIL Uncomp Private Key: \(privKeysArr[i])")
-                print("                    Actual: \(pubKeyUncomp)")
-                print("                  Expected: \(expPubKeyUncomp)\n")
-                numFailedTests += 1
-            }
-            
-        }
-        
-        let result = numFailedTests == 0 ?  "✅ PASS" : "❌ FAIL"
-        print("\(result) \(numFailedTests) of \(numTests) tests have failed")
-        assert(numFailedTests==0)
-    }
-    
-    @Test func testPubKey() throws {
-        
-        
-        let testCases: [(String, String, Bool)] = [ // Private Key, Expected Pub Key, Compressed
-            (
-                "0000000000000000000000000000000000000000000000000000000000000001",
-                "0279be667ef9dcbbac55a06295ce870b07029bfcdb2dce28d959f2815b16f81798",
-                true
-            ),
-            (
-                "0000000000000000000000000000000000000000000000000000000000000002",
-                "02c6047f9441ed7d6d3045406e95c07cd85c778e4b8cef3ca7abac09b95c709ee5",
-                true
-            ),
-            (
-                "0000000000000000000000000000000000000000000000000000000000000003",
-                "02f9308a019258c31049344f85f89d5229b531c845836f99b08601f113bce036f9",
-                true
-            ),
-            (
-                "0000000000000000000000000000000000000000000000000000000000000003",
-                "04f9308a019258c31049344f85f89d5229b531c845836f99b08601f113bce036f9388f7b0f632de8140fe337e62a37f3566500a99934c2231b6cb9fd7584b8e672",
-                false
-            ),
-            (
-                "000000000000000000000000000000000A100000000000000000000000000003",
-                "0206a7d89b595868e231e3474a37051185a8c4d344f02edd122258fb355cfd6000",
-                true
-            ),
-            (
-                "c845836f99b08601f113bce036f9388f7b0f632de8140fe337e62a37f3566500",
-                "03f0cf7eb73ea035675bb7b91ce9b13af78bc7afe04e9be723983ed5a4ed150a9b",
-                true
+
+    func cpuCalculateExpectedPublicKey(privKey: BInt, compressed: Bool) -> String {
+        if compressed {
+            let privateKey = try! P256K.Signing.PrivateKey(
+                dataRepresentation: privKeyToData(privKey: privKey),
+                format: .compressed
             )
-            
-            
-        ]
-        
-        
-        var privKeysArr : [Data] = []
-        var privKeysData : Data = Data()
-        for t in testCases {
-            
-            //Helpers.printLimbs(limbs: Helpers.hex256ToUInt32Limbs(t.0))
-            
-            let  limbs = Helpers.hex256ToUInt32Limbs(t.0)
-            
-            privKeysData.append(dataFromUInt32Limbs(limbs))
-            privKeysArr.append(dataFromUInt32Limbs(limbs))
+            return privateKey.publicKey.dataRepresentation.hexString.lowercased()
+        } else {
+            let privateKey = try! P256K.Signing.PrivateKey(
+                dataRepresentation: privKeyToData(privKey: privKey),
+                format: .uncompressed
+            )
+            return privateKey.publicKey.dataRepresentation.hexString.lowercased()
         }
-        let privKeysBuffer = device.makeBuffer(bytes: privKeysData.bytes,
-                                           length: privKeysData.count * MemoryLayout<UInt32>.stride * 8,
-                                           options: [])!
-        
-        
-        let secp256k1obj = try Secp256k1(on:super.device, batchSize: testCases.count)
-        let (pubKeysComp, pubKeysUncomp) = secp256k1obj.generatePublicKeys(privateKeyBuffer: privKeysBuffer)
-        
-        let resultPubKeysComp = bytePtrToData(bytePtr: pubKeysComp.contents(), keySizeBytes: 33, numKeys: testCases.count)
-        let resultPubKeysUncomp = bytePtrToData(bytePtr: pubKeysUncomp.contents(), keySizeBytes: 65, numKeys: testCases.count)
-        
-        
-        for i in 0..<testCases.count {
-            let pubKey = testCases[i].2 ? resultPubKeysComp[i].hexString : resultPubKeysUncomp[i].hexString
-            let pass = pubKey == testCases[i].1 ?  "✅ PASS" : "❌ FAIL"
-            print("\(pass)  Private Key: \(testCases[i].0)")
-            print("         Actual:      \(pubKey)")
-            print("         Expected:    \(testCases[i].1)\n")
-            
-            assert(pubKey == testCases[i].1)
-        }
-        
     }
-    
-    func hexStringToData(hexString: String) -> Data{
-        var data = Data()
-        var hexString = hexString
-        if hexString.hasPrefix("0x") {
-            hexString = String(hexString.dropFirst(2))
+
+@Test func testGPUKeyGenerationMatchesCPU() throws {
+
+        // Small test values
+        let batchSize     = 64       // number of threads
+        let keysPerThread = 16       // keys per thread
+        let compressed    = true
+        let pubKeyLength  = compressed ? 33 : 65
+
+        let startKeyHex = Helpers.generateRandom256BitHex()
+
+        let secp = try Secp256k1(
+            on: device,
+            batchSize: batchSize,
+            keysPerThread: keysPerThread,
+            compressed: compressed,
+            startKeyHex: startKeyHex
+        )
+
+        // Step 1: Initialize base points
+        secp.initializeBasePoints()
+
+        // Step 2: Run GPU once
+        let commandQueue = device.makeCommandQueue()!
+        let cmd = commandQueue.makeCommandBuffer()!
+        secp.appendCommandEncoder(commandBuffer: cmd)
+        cmd.commit()
+        cmd.waitUntilCompleted()
+
+        // Step 3: Read GPU public keys
+        let gpuBuf = secp.getPublicKeyBuffer()
+        let totalKeys = batchSize * keysPerThread
+
+        var gpuHexKeys: [String] = []
+        gpuHexKeys.reserveCapacity(totalKeys)
+
+        for i in 0..<totalKeys {
+            let ptr = gpuBuf.contents().advanced(by: i * pubKeyLength)
+            let raw = UnsafeBufferPointer(
+                start: ptr.assumingMemoryBound(to: UInt8.self),
+                count: pubKeyLength
+            )
+            let hex = raw.map { String(format: "%02x", $0) }.joined()
+            gpuHexKeys.append(hex.lowercased())
         }
-        
-        var index = hexString.startIndex
-        while index < hexString.endIndex {
-            let nextIndex = hexString.index(index, offsetBy: 2)
-            if nextIndex <= hexString.endIndex {
-                let byteString = hexString[index..<nextIndex]
-                if let byte = UInt8(byteString, radix: 16) {
-                    data.append(byte)
-                }
+
+        // ---- Correct scalar sequence ----
+        // We *know* the starting scalar from startKeyHex:
+        let startKeyBig = BInt(startKeyHex, radix: 16)!
+
+        // Step 4: Compute CPU-side expected public keys with correct mapping
+        var cpuHexKeys: [String] = []
+        cpuHexKeys.reserveCapacity(totalKeys)
+
+        for pubIndex in 0..<totalKeys {
+            // Decode buffer index → (threadIdx, keyRow)
+            let threadIdx = pubIndex % batchSize
+            let keyRow    = pubIndex / batchSize       // integer division
+
+            // Same formula as in your bloom-filter code:
+            // offsetWithinBatch = threadIdx * KEYS_PER_THREAD + keyRow
+            let offsetWithinBatch = threadIdx * keysPerThread + keyRow
+
+            let scalar = startKeyBig + BInt(offsetWithinBatch)
+
+            let expected = cpuCalculateExpectedPublicKey(
+                privKey: scalar,
+                compressed: compressed
+            )
+            cpuHexKeys.append(expected)
+        }
+
+        // Step 5: Compare and print scalar on failure
+        for pubIndex in 0..<totalKeys {
+            let threadIdx = pubIndex % batchSize
+            let keyRow    = pubIndex / batchSize
+            let offsetWithinBatch = threadIdx * keysPerThread + keyRow
+            let scalar = startKeyBig + BInt(offsetWithinBatch)
+
+            var privHex = scalar.asString(radix: 16)
+            if privHex.count < 64 {
+                privHex = String(repeating: "0", count: 64 - privHex.count) + privHex
             }
+
+            assert(
+                gpuHexKeys[pubIndex] == cpuHexKeys[pubIndex],
+                """
+                ❌ Mismatch at index \(pubIndex)
+                   threadIdx=\(threadIdx), keyRow=\(keyRow), offset=\(offsetWithinBatch)
+
+                   Private Key (hex BE):
+                       \(privHex)
+
+                   GPU Public Key:
+                       \(gpuHexKeys[pubIndex])
+
+                   Expected CPU Public Key:
+                       \(cpuHexKeys[pubIndex])
+                """
+            )
+ 
+        }
+        print("✅ \(totalKeys) keys passed")
+    }
+
+    func privKeyToData(privKey: BInt) -> Data {
+        // Convert to hex (without 0x)
+        var hex = privKey.asString(radix: 16)
+
+        // Pad to 64 hex characters (32 bytes)
+        if hex.count < 64 {
+            hex = String(repeating: "0", count: 64 - hex.count) + hex
+        }
+
+        // Ensure length is exactly 64 (32 bytes)
+        if hex.count > 64 {
+            fatalError("Private key larger than 256 bits: \(hex)")
+        }
+
+        // Convert padded hex to Data
+        var data = Data(capacity: 32)
+        var index = hex.startIndex
+
+        while index < hex.endIndex {
+            let nextIndex = hex.index(index, offsetBy: 2)
+            let byteStr = hex[index..<nextIndex]
+            let byte = UInt8(byteStr, radix: 16)!
+            data.append(byte)
             index = nextIndex
         }
-        return data
+
+        return data   // big-endian 32-byte data
     }
-    
-    
-    /// Converts 8 UInt32 limbs into a Data object (little-endian).
-    func dataFromUInt32Limbs(_ limbs: [UInt32]) -> Data {
-        precondition(limbs.count == 8, "Expected exactly 8 limbs (UInt32).")
-        
-        var data = Data(capacity: 8 * MemoryLayout<UInt32>.size)
-        for limb in limbs {
-            var littleEndian = limb.littleEndian
-            withUnsafeBytes(of: &littleEndian) { bytes in
-                data.append(contentsOf: bytes)
-            }
-        }
-        return data
-    }
- */
 }
-
-
-
-

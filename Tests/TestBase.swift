@@ -27,7 +27,7 @@ class TestBase {
     }
     
     init(kernelFunctionName : String) {
-        
+        Helpers.TEST_MODE = true
         self.pipelineState = try! Helpers.buildPipelineState(kernelFunctionName: kernelFunctionName)
         self.commandQueue = device.makeCommandQueue()!
         
