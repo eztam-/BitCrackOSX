@@ -201,10 +201,7 @@ public class BloomFilter {
         return queryResultsBuffer
     }
     
-    func getResults() -> [Bool] {
-        let resultsPtr = queryResultsBuffer.contents().bindMemory(to: UInt32.self, capacity: batchSize)
-        return (0..<batchSize).map { resultsPtr[$0] != 0 }
-    }
+
     
     
     

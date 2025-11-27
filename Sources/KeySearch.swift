@@ -70,13 +70,13 @@ class KeySearch {
             commandBuffer.waitUntilCompleted()
 
             let start = DispatchTime.now()
-            let result = bloomFilter.getResults()  
+            
             
             // Get the base private key TODO: make this async
             memcpy(&nextBasePrivKey, secp256k1.getBasePrivateKeyBuffer().contents(), 32)
             
             let falsePositiveCnt = checkBloomFilterResults(
-                result: result,
+                resultBuffer: bloomFilter.getOutputBuffer(),
                 nextBasePrivKey: nextBasePrivKey,
                 ripemd160Buffer: ripemd160.getOutputBuffer())
           
@@ -88,7 +88,14 @@ class KeySearch {
     }
     
     
-    func checkBloomFilterResults(result: [Bool], nextBasePrivKey: [UInt8], ripemd160Buffer: MTLBuffer) -> Int {
+    func checkBloomFilterResults(resultBuffer: MTLBuffer, nextBasePrivKey: [UInt8], ripemd160Buffer: MTLBuffer) -> Int {
+        
+       
+        let resultsPtr = resultBuffer.contents().bindMemory(to: UInt32.self, capacity: pubKeyBatchSize)
+        let bfResults: [Bool] = (0..<pubKeyBatchSize).map { resultsPtr[$0] != 0 }
+    
+        
+        
         var falsePositiveCnt = 0
 
         // Total number of keys produced in one batch = batchSize * KEYS_PER_THREAD
@@ -109,7 +116,7 @@ class KeySearch {
                 // New storage order (coalesced): [key][thread]
                 let pubKeyIndex = i * privKeyBatchSize + threadIdx
 
-                if result[pubKeyIndex] {
+                if bfResults[pubKeyIndex] {
                     // Read 20-byte RIPEMD160 for this pub key
                     var pubKeyHash = [UInt8](repeating: 0, count: 20)
                     memcpy(&pubKeyHash, ripemd160Buffer.contents().advanced(by: pubKeyIndex * 20), 20)
