@@ -1,4 +1,6 @@
 import Foundation
+import BigNumber
+
 
 class UI {
     
@@ -13,7 +15,7 @@ class UI {
     var totalEndTime: UInt64 = 0
     var bfFalePositiveCnt: Int = 0
     var startHexKey: String = ""
-    var nextBasePrivKey: [UInt8] = []
+    var currentBaseKey: BInt = BInt.zero
   
     let timer = DispatchSource.makeTimerSource()
     var isFirstRun = true
@@ -46,11 +48,11 @@ class UI {
         }
     }
     
-    public func updateStats(totalStartTime: UInt64, totalEndTime: UInt64, bfFalsePositiveCnt: Int, nextBasePrivKey: [UInt8]){
+    public func updateStats(totalStartTime: UInt64, totalEndTime: UInt64, bfFalsePositiveCnt: Int, currentBaseKey: BInt){
         self.totalStartTime = totalStartTime
         self.totalEndTime = totalEndTime
         self.bfFalePositiveCnt = bfFalsePositiveCnt
-        self.nextBasePrivKey = nextBasePrivKey
+        self.currentBaseKey = currentBaseKey
     }
     
     
@@ -110,8 +112,17 @@ class UI {
         print("")
         print("📊 Live Stats")
         print("\(clearLine())    Start key   :   \(startHexKey.uppercased())")
-        var currKey = nextBasePrivKey.isEmpty ? "" : Data(nextBasePrivKey.reversed()).hexString
-        currKey = underlineFirstDifferentCharacter(base: startHexKey.uppercased(), modified: currKey.uppercased())
+        
+        var currKey = ""
+        if currentBaseKey > 0 {
+            currKey = currentBaseKey.asString(radix: 16)
+            // Add trailing zeros if missing
+            if currKey.count < 64 {
+                currKey = String(repeating: "0", count: 64 - currKey.count) + currKey
+            }
+            currKey = underlineFirstDifferentCharacter(base: startHexKey.uppercased(), modified: currKey.uppercased())
+        }
+       
         print("\(clearLine())    Current key :   \(currKey)")
         //let nextBasePrivKeyHex = Data(privKey.reversed()).hexString
         print(String(format: "\(clearLine())    Bloom Filter: %8.3f ms | FPR %.4f%% (%d)", self.bloomFilter, falsePositiveRate, self.bfFalePositiveCnt))

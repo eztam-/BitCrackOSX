@@ -110,7 +110,7 @@ _________                        __     ____  __.               _________       
                 }
                 
                 if startKey.count == 64 && startKey.allSatisfy(\.isHexDigit) {
-                    try KeySearch(bloomFilter: bloomFilter, database: db, outputFile: outputFile).run(startHexKey: startKey)
+                    try KeySearch(bloomFilter: bloomFilter, database: db, outputFile: outputFile, startKeyHex: startKey).run()
                 }
                 print("Invalid start key provided. Please provide a valid 32 byte hex string.")
 

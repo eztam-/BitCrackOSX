@@ -1288,7 +1288,7 @@ kernel void process_batch_incremental(
     constant const uint& batchSize           [[buffer(3)]],
     constant const uint& keys_per_thread     [[buffer(4)]],
     constant const bool& compressed          [[buffer(5)]],
-    device uint* base_private_key            [[buffer(6)]],
+    //device uint* base_private_key            [[buffer(6)]],
     uint thread_id                           [[thread_position_in_grid]]
 )
 {
@@ -1351,6 +1351,8 @@ kernel void process_batch_incremental(
     PointJacobian J_next = point_add_mixed_jacobian(J, deltaG);
     base_points[thread_id] = jacobian_to_affine(J_next);
 
+    // Doing this now on host side
+    /*
     // ---- Thread 0 updates base private key in place (scalar += batchSize*keys_per_thread) ----
     if (thread_id == 0) {
         uint256 k; for (int i = 0; i < 8; i++) k.limbs[i] = base_private_key[i];
@@ -1367,122 +1369,10 @@ kernel void process_batch_incremental(
         }
         for (int i = 0; i < 8; i++) base_private_key[i] = result.limbs[i];
     }
+     */
 }
 
 
-
-
-/*
-kernel void private_to_public_keys(
-    device const uint* base_private_keys     [[buffer(0)]],
-    device uchar*      public_keys           [[buffer(1)]],
-    device bool&       compressed            [[buffer(2)]],
-    constant uint&     batchSize             [[buffer(3)]],
-    constant uint&     keys_per_thread       [[buffer(4)]],
-    uint thread_id                           [[thread_position_in_grid]],
-    uint lid                                 [[thread_position_in_threadgroup]],
-    uint tpg                                 [[threads_per_threadgroup]]
-)
-{
-    if (thread_id >= batchSize) return;
-
-    // In theory it should be faster on threadgroup mem, but it isn't
-    // threadgroup Point tg_g_table[256];
-    // if (lid < 256) tg_g_table[lid] = G_TABLE256[lid];
-    // threadgroup_barrier(mem_flags::mem_threadgroup);
-    
-    int pubKeyLength = compressed ? 33 : 65;
-    
-    // --- 1) Load base private key for this thread (start key k0) ---
-    uint256 k0 = load_private_key(base_private_keys, thread_id);
-
-    // --- 2) First public key via scalar multiply (affine) which is slow ---
-    Point A0 = point_mul(k0, G_TABLE256, G_DOUBLES );
-
-    // --- 3) Lift to Jacobian (Z=1) to allow cheap +G steps ---
-    PointJacobian J;
-    J.infinity = A0.infinity;
-    J.X = A0.x;
-    J.Y = A0.y;
-    // Z = 1
-    #pragma unroll
-    for (int i = 0; i < 8; i++) J.Z.limbs[i] = 0;
-    J.Z.limbs[0] = 1;
-
-    // --- 4) Process the thread's key range in sub-batches ---
-    const uint total = keys_per_thread;
-    uint produced = 0;
-
-    // Thread-local scratch for one sub-batch (lives in registers + stack)
-    thread PointJacobian bufJ[MAX_KEYS_PER_THREAD];
-    thread uint256       Zs[MAX_KEYS_PER_THREAD];
-    thread uint256       invZ[MAX_KEYS_PER_THREAD];
-    thread Point         bufA[MAX_KEYS_PER_THREAD];
-
-    // Affine generator G (for mixed additions)
-    const Point G = G_POINT; // same as G_TABLE256 base point (affine)
-
-    while (produced < total) {
-        // Number of outputs in this sub-batch
-        int n = (int)min((uint)MAX_KEYS_PER_THREAD, total - produced);
-
-        // Save first element of the block
-        bufJ[0] = J;
-        Zs[0]   = J.Z;
-
-        // Build the rest with cheap mixed additions: J = J + G
-        // After this loop, J points to the LAST element in the block.
-        for (int i = 1; i < n; i++) {
-            J = point_add_mixed_jacobian(J, G);
-            bufJ[i] = J;
-            Zs[i]   = J.Z;
-        }
-
-        // Single inversion for the entire block
-        batch_inverse(Zs, invZ, n);
-
-        // Convert to affine (to serialize keys)
-        affine_from_jacobian_batch(bufJ, invZ, bufA, n);
-
-        // Store outputs (compressed + uncompressed)
-        for (int i = 0; i < n; i++) {
-            uint out_idx = thread_id * keys_per_thread + (produced + (uint)i);
-            if (bufA[i].infinity) {
-               
-                #pragma unroll
-                for (int b = 0; b < pubKeyLength; b++) public_keys[out_idx * pubKeyLength + b] = 0;
-               
-            } else {
-                if (compressed) {
-                    store_public_key_compressed  (public_keys, out_idx, bufA[i].x, bufA[i].y);
-                } else {
-                    store_public_key_uncompressed(public_keys, out_idx, bufA[i].x, bufA[i].y);
-                }
-            }
-        }
-
-        produced += (uint)n;
-
-        // FIX: If there’s more work, advance once so the next block
-        // starts at the *next* key (no duplicate boundary element).
-        if (produced < total) {
-            J = point_add_mixed_jacobian(J, G);
-        }
-        // If more to do, advance J by exactly one more +G so the next
-        // sub-batch starts at the *next* key. If we just finished exactly n
-        // adds inside the block, J already sits at the last produced key.
-        // The next loop will save it as first element, so we must NOT add here.
-        // => Do nothing here. The next loop will start from current J and
-        //    its first saved element will be that current J (which is correct).
-        //
-        // If you want each block to be independent you could add a single
-        // extra J=J+G here and reduce the inner loop by one, but current
-        // arrangement already produces contiguous keys without gaps.
-    }
-
-    // No trailing store: everything already written in the loop above.
-}
-*/
  
 // ================ Test Kernels ================
 //#ifdef DEBUG

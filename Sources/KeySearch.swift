@@ -7,6 +7,15 @@ import BigNumber
 
 class KeySearch {
 
+    let maxInFlight = 3  // triple buffering
+    struct BatchSlot {
+        let bloomFilterOutBuffer: MTLBuffer        // bloom filter results (raw)
+        let ripemd160OutBuffer: MTLBuffer          // RIPEMD160 output for that batch
+    }
+
+    var slots: [BatchSlot] = []
+
+
     let bloomFilter: BloomFilter
     let db: DB
     let outputFile: String
@@ -14,25 +23,56 @@ class KeySearch {
     let privKeyBatchSize = Helpers.PRIV_KEY_BATCH_SIZE // Number of base private keys per batch (number of total threads in grid)
     let pubKeyBatchSize =  Helpers.PUB_KEY_BATCH_SIZE // Number of public keys generated per batch
     let ui: UI
+    let startKeyHex: String
+    var currentBaseKey: BInt
     
-    public init(bloomFilter: BloomFilter, database: DB, outputFile: String) {
+    public init(bloomFilter: BloomFilter, database: DB, outputFile: String, startKeyHex: String) {
         self.bloomFilter = bloomFilter
         self.db = database
         self.outputFile = outputFile
         self.ui = UI(batchSize: self.pubKeyBatchSize)
+        self.startKeyHex = startKeyHex
+        self.currentBaseKey = BInt(startKeyHex, radix: 16)!
+        
+        ui.startHexKey = startKeyHex
+        
+
+        // Initialize ring buffer with MTLBuffers
+        slots = (0..<maxInFlight).map { _ in
+            let resultBuffer = device.makeBuffer(
+                length: pubKeyBatchSize * MemoryLayout<UInt32>.stride, // TODO why uint? it is bool??? FIXME
+                options: [.storageModeShared]
+            )!
+            
+            let ripemd160Buffer = device.makeBuffer(
+                length: pubKeyBatchSize * 5 * MemoryLayout<UInt32>.stride,   // 20 bytes per hash
+                options: [.storageModeShared]
+            )!
+            
+            return BatchSlot(
+                bloomFilterOutBuffer: resultBuffer,
+                ripemd160OutBuffer: ripemd160Buffer,
+            )
+        }
+        
     }
     
-    func run(startHexKey: String) throws {
+    func run() throws {
         
         //let startKey = "0000000000000000000000000000000000000000000000000001000000000000"
         
         let commandQueue = device.makeCommandQueue()!
         let keyLength = Properties.compressedKeySearch ? 33 : 65 //   keyLength:  33 = compressed;  65 = uncompressed
         
-        let secp256k1 = try Secp256k1(on:  device, batchSize: privKeyBatchSize, keysPerThread: Properties.KEYS_PER_THREAD, compressed: Properties.compressedKeySearch, startKeyHex: startHexKey)
+        let secp256k1 = try Secp256k1(on:  device, batchSize: privKeyBatchSize, keysPerThread: Properties.KEYS_PER_THREAD, compressed: Properties.compressedKeySearch, startKeyHex: startKeyHex)
         let sha256 = try SHA256(on: device, batchSize: pubKeyBatchSize, inputBuffer: secp256k1.getPublicKeyBuffer(), keyLength: UInt32(keyLength))
         let ripemd160 = try RIPEMD160(on: device, batchSize: pubKeyBatchSize, inputBuffer: sha256.getOutputBuffer())
         // TODO Initialize the bloomfilter from here
+        
+        
+
+           
+        
         
         
         secp256k1.initializeBasePoints()
@@ -51,9 +91,8 @@ class KeySearch {
         let compUncomp = Properties.compressedKeySearch ? "compressed" : "uncompressed"
         print("🚀 Starting \(compUncomp) key search\n")
        
-        ui.startHexKey = startHexKey
         ui.startLiveStats()
-        var nextBasePrivKey = [UInt8](repeating: 0, count: 32)
+       
         
         while true {
             
@@ -72,15 +111,11 @@ class KeySearch {
             let start = DispatchTime.now()
             
             
-            // Get the base private key TODO: make this async
-            memcpy(&nextBasePrivKey, secp256k1.getBasePrivateKeyBuffer().contents(), 32)
-            
             let falsePositiveCnt = checkBloomFilterResults(
                 resultBuffer: bloomFilter.getOutputBuffer(),
-                nextBasePrivKey: nextBasePrivKey,
                 ripemd160Buffer: ripemd160.getOutputBuffer())
           
-            ui.updateStats(totalStartTime: startTotal.uptimeNanoseconds, totalEndTime: DispatchTime.now().uptimeNanoseconds, bfFalsePositiveCnt: falsePositiveCnt, nextBasePrivKey: nextBasePrivKey)
+            ui.updateStats(totalStartTime: startTotal.uptimeNanoseconds, totalEndTime: DispatchTime.now().uptimeNanoseconds, bfFalsePositiveCnt: falsePositiveCnt, currentBaseKey: currentBaseKey)
 
             ui.bloomFilter = Double(DispatchTime.now().uptimeNanoseconds - start.uptimeNanoseconds) / 1_000_000.0
                 
@@ -88,7 +123,7 @@ class KeySearch {
     }
     
     
-    func checkBloomFilterResults(resultBuffer: MTLBuffer, nextBasePrivKey: [UInt8], ripemd160Buffer: MTLBuffer) -> Int {
+    func checkBloomFilterResults(resultBuffer: MTLBuffer, ripemd160Buffer: MTLBuffer) -> Int {
         
        
         let resultsPtr = resultBuffer.contents().bindMemory(to: UInt32.self, capacity: pubKeyBatchSize)
@@ -101,15 +136,12 @@ class KeySearch {
         // Total number of keys produced in one batch = batchSize * KEYS_PER_THREAD
         let totalKeysPerBatch = BInt(privKeyBatchSize) * BInt(Properties.KEYS_PER_THREAD)
 
-        // Convert GPU-updated "next base key" (after process kernel) from LE bytes to BInt
-        let nextBaseKeyHex = Data(nextBasePrivKey.reversed()).hexString
-        let nextBaseKey = BInt(nextBaseKeyHex, radix: 16)!
 
         // Rewind to the start key of the *current* batch.
         // init kernel: base = start + Δk
         // process kernel: base += Δk   (Δk = totalKeysPerBatch)
         // so nextBaseKey = start + 2*Δk  -> start = nextBaseKey - 2*Δk
-        let startKey = nextBaseKey - totalKeysPerBatch - totalKeysPerBatch
+        let startKey = currentBaseKey //+ totalKeysPerBatch + totalKeysPerBatch
 
         for i in 0..<Properties.KEYS_PER_THREAD {                // key "row"
             for threadIdx in 0..<privKeyBatchSize {              // thread "column"
@@ -153,6 +185,7 @@ class KeySearch {
             }
         }
 
+        self.currentBaseKey = currentBaseKey + BInt(pubKeyBatchSize)
         return falsePositiveCnt
     }
 	
