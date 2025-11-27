@@ -100,8 +100,8 @@ class KeySearch {
             let commandBuffer = commandQueue.makeCommandBuffer()!
             secp256k1.appendCommandEncoder(commandBuffer: commandBuffer)
             sha256.appendCommandEncoder(commandBuffer: commandBuffer)
-            ripemd160.appendCommandEncoder(commandBuffer: commandBuffer)
-            bloomFilter.appendCommandEncoder(commandBuffer: commandBuffer, inputBuffer: ripemd160.getOutputBuffer()) // TODO: make this consistent and move inputBuffer to constructor once refactored
+            ripemd160.appendCommandEncoder(commandBuffer: commandBuffer, resultBuffer: slots[0].ripemd160OutBuffer)
+            bloomFilter.appendCommandEncoder(commandBuffer: commandBuffer, inputBuffer: slots[0].ripemd160OutBuffer, resultBuffer: slots[0].bloomFilterOutBuffer) // TODO: make this consistent and move inputBuffer to constructor once refactored
             
             
             // Submit work to GPU
@@ -112,8 +112,8 @@ class KeySearch {
             
             
             let falsePositiveCnt = checkBloomFilterResults(
-                resultBuffer: bloomFilter.getOutputBuffer(),
-                ripemd160Buffer: ripemd160.getOutputBuffer())
+                resultBuffer: slots[0].bloomFilterOutBuffer,
+                ripemd160Buffer: slots[0].ripemd160OutBuffer)
           
             ui.updateStats(totalStartTime: startTotal.uptimeNanoseconds, totalEndTime: DispatchTime.now().uptimeNanoseconds, bfFalsePositiveCnt: falsePositiveCnt, currentBaseKey: currentBaseKey)
 

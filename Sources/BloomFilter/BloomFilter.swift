@@ -33,7 +33,6 @@ public class BloomFilter {
     private let queryPipeline: MTLComputePipelineState
     private let query_threadsPerThreadgroup: MTLSize
     private let query_threadgroupsPerGrid: MTLSize
-    private let queryResultsBuffer: MTLBuffer
     
     
     enum BloomFilterError: Error {
@@ -132,8 +131,6 @@ public class BloomFilter {
         
         
         // Intitialization for query
-        let queryResultsBufferSize = batchSize * MemoryLayout<UInt32>.stride // TODO why uint? it is bool??? FIXME
-        self.queryResultsBuffer = device.makeBuffer(length: queryResultsBufferSize, options: .storageModeShared)!
         self.countU = UInt32(batchSize)
         self.queryPipeline = try Helpers.buildPipelineState(kernelFunctionName: "bloom_query")
         
@@ -184,7 +181,7 @@ public class BloomFilter {
     }
         
     
-    func appendCommandEncoder(commandBuffer: MTLCommandBuffer, inputBuffer: MTLBuffer){
+    func appendCommandEncoder(commandBuffer: MTLCommandBuffer, inputBuffer: MTLBuffer, resultBuffer: MTLBuffer){
         let commandEncoder = commandBuffer.makeComputeCommandEncoder()!
         commandEncoder.setComputePipelineState(queryPipeline)
         commandEncoder.setBuffer(inputBuffer, offset: 0, index: 0)
@@ -192,18 +189,11 @@ public class BloomFilter {
         commandEncoder.setBuffer(bitsBuffer, offset: 0, index: 2)
         commandEncoder.setBytes(&mBits, length: 4, index: 3)
         commandEncoder.setBytes(&kHashes, length: 4, index: 4)
-        commandEncoder.setBuffer(queryResultsBuffer, offset: 0, index: 5)
+        commandEncoder.setBuffer(resultBuffer, offset: 0, index: 5)
         commandEncoder.dispatchThreadgroups(self.query_threadgroupsPerGrid, threadsPerThreadgroup: self.query_threadsPerThreadgroup)
         commandEncoder.endEncoding()
     }
 
-    func getOutputBuffer() -> MTLBuffer {
-        return queryResultsBuffer
-    }
-    
-
-    
-    
     
     public func printThreadConf(){
         print(String(format: "    Bloom Filter: │         %6d │       %6d │             %6d │",

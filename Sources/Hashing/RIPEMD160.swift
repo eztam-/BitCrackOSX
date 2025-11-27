@@ -8,7 +8,6 @@ class RIPEMD160 {
 
     let pipelineState: MTLComputePipelineState
     let inputBuffer: MTLBuffer
-    let outBuffer: MTLBuffer
     let threadsPerThreadgroup: MTLSize
     let threadgroupsPerGrid: MTLSize
 
@@ -19,10 +18,6 @@ class RIPEMD160 {
         self.inputBuffer = inputBuffer
         self.pipelineState = try Helpers.buildPipelineState(kernelFunctionName: "ripemd160_fixed32_kernel")
       
-        // output: 5 uints per message
-        let outWordCountRipemd160 = batchSize * 5
-        self.outBuffer = device.makeBuffer(length: outWordCountRipemd160 * MemoryLayout<UInt32>.stride, options: .storageModeShared)! // TODO storageModePrivate
-        
         (self.threadsPerThreadgroup,  self.threadgroupsPerGrid) = try Helpers.getThreadConfig(
             pipelineState: pipelineState,
             batchSize: batchSize,
@@ -30,11 +25,11 @@ class RIPEMD160 {
     }
     
     
-    func appendCommandEncoder(commandBuffer: MTLCommandBuffer){
+    func appendCommandEncoder(commandBuffer: MTLCommandBuffer, resultBuffer: MTLBuffer){
         let commandEncoder = commandBuffer.makeComputeCommandEncoder()!
         commandEncoder.setComputePipelineState(pipelineState)
         commandEncoder.setBuffer(inputBuffer, offset: 0, index: 0)
-        commandEncoder.setBuffer(outBuffer, offset: 0, index: 1)
+        commandEncoder.setBuffer(resultBuffer, offset: 0, index: 1)
         var n = UInt32(self.batchSize)
         commandEncoder.setBytes(&n, length: MemoryLayout<UInt32>.stride, index: 2)
         commandEncoder.dispatchThreadgroups(threadgroupsPerGrid, threadsPerThreadgroup: threadsPerThreadgroup)
@@ -44,9 +39,6 @@ class RIPEMD160 {
     }
     
     
-    func getOutputBuffer() -> MTLBuffer {
-        return outBuffer
-    }
     
     public func printThreadConf(){
         print(String(format: "    RIPEMD160:    │         %6d │       %6d │             %6d │",
