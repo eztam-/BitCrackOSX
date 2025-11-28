@@ -11,8 +11,9 @@ class KeySearch {
     struct BatchSlot {
         let bloomFilterOutBuffer: MTLBuffer        // bloom filter results (raw)
         let ripemd160OutBuffer: MTLBuffer          // RIPEMD160 output for that batch
+        let semaphore = DispatchSemaphore(value: 1)
     }
-
+    var startTimes: [UInt64] = [0,0,0]
     var slots: [BatchSlot] = []
 
 
@@ -25,6 +26,7 @@ class KeySearch {
     let ui: UI
     let startKeyHex: String
     var currentBaseKey: BInt
+    let keyIncrement: BInt
     
     public init(bloomFilter: BloomFilter, database: DB, outputFile: String, startKeyHex: String) {
         self.bloomFilter = bloomFilter
@@ -33,8 +35,9 @@ class KeySearch {
         self.ui = UI(batchSize: self.pubKeyBatchSize)
         self.startKeyHex = startKeyHex
         self.currentBaseKey = BInt(startKeyHex, radix: 16)!
-        
+        self.keyIncrement = BInt(pubKeyBatchSize)
         ui.startHexKey = startKeyHex
+        
         
 
         // Initialize ring buffer with MTLBuffers
@@ -69,56 +72,64 @@ class KeySearch {
         let ripemd160 = try RIPEMD160(on: device, batchSize: pubKeyBatchSize, inputBuffer: sha256.getOutputBuffer())
         // TODO Initialize the bloomfilter from here
         
-        
-
-           
-        
-        
-        
+    
         secp256k1.initializeBasePoints()
-        
-        try Helpers.printGPUInfo(device: device)
-        
-        if Properties.verbose {
-            print("                  │ Threads per TG │ TGs per Grid │ Thread Exec. Width │")
-            //secp256k1.printThreadConf()
-            sha256.printThreadConf()
-            ripemd160.printThreadConf()
-            bloomFilter.printThreadConf()
-            print("")
-        }
-        
-        let compUncomp = Properties.compressedKeySearch ? "compressed" : "uncompressed"
-        print("🚀 Starting \(compUncomp) key search\n")
-       
+        try printStartupInfos(sha256: sha256, ripemd160: ripemd160, bloomFilter: bloomFilter)
         ui.startLiveStats()
-       
         
+        
+        var batchIndex = 0 // TODO: Could overrun
+
         while true {
+            let slotIndex = batchIndex % maxInFlight
+            startTimes[slotIndex] = DispatchTime.now().uptimeNanoseconds
+            var slot = slots[slotIndex]
+            slot.semaphore.wait()
+
             
-            let startTotal = DispatchTime.now()
+            //let startTotal = DispatchTime.now()
             let commandBuffer = commandQueue.makeCommandBuffer()!
             secp256k1.appendCommandEncoder(commandBuffer: commandBuffer)
             sha256.appendCommandEncoder(commandBuffer: commandBuffer)
-            ripemd160.appendCommandEncoder(commandBuffer: commandBuffer, resultBuffer: slots[0].ripemd160OutBuffer)
-            bloomFilter.appendCommandEncoder(commandBuffer: commandBuffer, inputBuffer: slots[0].ripemd160OutBuffer, resultBuffer: slots[0].bloomFilterOutBuffer) // TODO: make this consistent and move inputBuffer to constructor once refactored
+            ripemd160.appendCommandEncoder(commandBuffer: commandBuffer, resultBuffer: slot.ripemd160OutBuffer)
+            bloomFilter.appendCommandEncoder(commandBuffer: commandBuffer, inputBuffer: slot.ripemd160OutBuffer, resultBuffer: slot.bloomFilterOutBuffer) // TODO: make this consistent and move inputBuffer to constructor once refactored
             
             
-            // Submit work to GPU
-            commandBuffer.commit()
-            commandBuffer.waitUntilCompleted()
-
-            let start = DispatchTime.now()
-            
-            
-            let falsePositiveCnt = checkBloomFilterResults(
-                resultBuffer: slots[0].bloomFilterOutBuffer,
-                ripemd160Buffer: slots[0].ripemd160OutBuffer)
           
-            ui.updateStats(totalStartTime: startTotal.uptimeNanoseconds, totalEndTime: DispatchTime.now().uptimeNanoseconds, bfFalsePositiveCnt: falsePositiveCnt, currentBaseKey: currentBaseKey)
+            // --- Async CPU callback when GPU finishes this batch ---
+            commandBuffer.addCompletedHandler { [weak self] _ in
+                guard let self else { return }
+                let end_ns = DispatchTime.now().uptimeNanoseconds
 
-            ui.bloomFilter = Double(DispatchTime.now().uptimeNanoseconds - start.uptimeNanoseconds) / 1_000_000.0
+                let falsePositiveCnt = self.checkBloomFilterResults(
+                    resultBuffer: slot.bloomFilterOutBuffer,
+                    ripemd160Buffer: slot.ripemd160OutBuffer
+                )
+
+                // Copy the values you need
+                let ui = self.ui
+               
+                let fpCount = falsePositiveCnt
+                let baseKey = self.currentBaseKey
+                // Safe: UI update on main actor, no self capture
                 
+                    ui.updateStats(
+                        totalStartTime: startTimes[slotIndex],
+                        totalEndTime: end_ns,
+                        bfFalsePositiveCnt: fpCount,
+                        currentBaseKey: baseKey
+                    )
+              
+
+                // Now it's safe to mutate self again outside the Task
+                self.currentBaseKey = currentBaseKey + self.keyIncrement
+
+                slot.semaphore.signal()
+            }
+
+            commandBuffer.commit()             // Submit work to GPU
+            batchIndex += 1
+
         }
     }
     
@@ -185,10 +196,27 @@ class KeySearch {
             }
         }
 
-        self.currentBaseKey = currentBaseKey + BInt(pubKeyBatchSize)
+      //  self.currentBaseKey = currentBaseKey + BInt(pubKeyBatchSize)
         return falsePositiveCnt
     }
 	
+    func printStartupInfos(sha256: SHA256, ripemd160: RIPEMD160, bloomFilter: BloomFilter) throws {
+        try Helpers.printGPUInfo(device: device)
+        
+        if Properties.verbose {
+            print("                  │ Threads per TG │ TGs per Grid │ Thread Exec. Width │")
+            //secp256k1.printThreadConf()
+            sha256.printThreadConf()
+            ripemd160.printThreadConf()
+            bloomFilter.printThreadConf()
+            print("")
+        }
+        
+        let compUncomp = Properties.compressedKeySearch ? "compressed" : "uncompressed"
+        print("🚀 Starting \(compUncomp) key search\n")
+    }
+    
+    
     
     func appendToResultFile(text: String) throws {
         let filePath = self.outputFile

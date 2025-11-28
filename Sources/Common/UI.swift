@@ -56,6 +56,7 @@ class UI {
     }
     
     
+    
     @inline(__always)
     private func raw(_ s: String) {
         fputs(s, stdout)
@@ -102,7 +103,7 @@ class UI {
         var statusStr = String(format: "  %.1f MKey/s ", mHashesPerSec)
      
         
-        if self.bfFalePositiveCnt > 10 {
+        if falsePositiveRate > 0.0001 {
             statusStr.append(" ⚠️  Bloom filter FPR is too high and impacts performance! Adjust your settings.")
         }
         
@@ -125,7 +126,7 @@ class UI {
        
         print("\(clearLine())    Current key :   \(currKey)")
         //let nextBasePrivKeyHex = Data(privKey.reversed()).hexString
-        print(String(format: "\(clearLine())    Bloom Filter: %8.3f ms | FPR %.4f%% (%d)", self.bloomFilter, falsePositiveRate, self.bfFalePositiveCnt))
+        print(String(format: "\(clearLine())    Bloom Filter:   %.4f%% FPR (%d)", falsePositiveRate, self.bfFalePositiveCnt))
         print("\(clearLine())    Throughput  : \(statusStr)")
         fflush(stdout)
         

@@ -33,7 +33,7 @@ _________                        __     ____  __.               _________       
                  help: "Path to the database file with .sqlite3 extension.")
         var dbFile: String = "CryptKeySearch.sqlite3"
         
-        mutating func run() {
+        func run() {
             do {
                 print(banner)
                 let db = try DB(deleteAndReCreateDB: true, dbPath: dbFile)
