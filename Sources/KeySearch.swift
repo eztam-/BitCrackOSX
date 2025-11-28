@@ -83,11 +83,10 @@ class KeySearch {
         while true {
             let slotIndex = batchIndex % maxInFlight
             startTimes[slotIndex] = DispatchTime.now().uptimeNanoseconds
-            var slot = slots[slotIndex]
+            let slot = slots[slotIndex]
             slot.semaphore.wait()
 
             
-            //let startTotal = DispatchTime.now()
             let commandBuffer = commandQueue.makeCommandBuffer()!
             secp256k1.appendCommandEncoder(commandBuffer: commandBuffer)
             sha256.appendCommandEncoder(commandBuffer: commandBuffer)
@@ -95,58 +94,34 @@ class KeySearch {
             bloomFilter.appendCommandEncoder(commandBuffer: commandBuffer, inputBuffer: slot.ripemd160OutBuffer, resultBuffer: slot.bloomFilterOutBuffer) // TODO: make this consistent and move inputBuffer to constructor once refactored
             
             
-          
             // --- Async CPU callback when GPU finishes this batch ---
             commandBuffer.addCompletedHandler { [weak self] _ in
                 guard let self else { return }
                 let end_ns = DispatchTime.now().uptimeNanoseconds
-
-                let falsePositiveCnt = self.checkBloomFilterResults(
-                    resultBuffer: slot.bloomFilterOutBuffer,
-                    ripemd160Buffer: slot.ripemd160OutBuffer
-                )
-
-                // Copy the values you need
-                let ui = self.ui
-               
-                let fpCount = falsePositiveCnt
-                let baseKey = self.currentBaseKey
-                // Safe: UI update on main actor, no self capture
                 
-                    ui.updateStats(
-                        totalStartTime: startTimes[slotIndex],
-                        totalEndTime: end_ns,
-                        bfFalsePositiveCnt: fpCount,
-                        currentBaseKey: baseKey
-                    )
-              
-
-                // Now it's safe to mutate self again outside the Task
+                let falsePositiveCnt = self.checkBloomFilterResults(resultBuffer: slot.bloomFilterOutBuffer,ripemd160Buffer: slot.ripemd160OutBuffer )
+                self.ui.updateStats(
+                    totalStartTime: startTimes[slotIndex],
+                    totalEndTime: end_ns,
+                    bfFalsePositiveCnt: falsePositiveCnt,
+                    currentBaseKey:  self.currentBaseKey
+                )
                 self.currentBaseKey = currentBaseKey + self.keyIncrement
-
                 slot.semaphore.signal()
             }
-
-            commandBuffer.commit()             // Submit work to GPU
+            
+            commandBuffer.commit()  // Submit work to GPU
             batchIndex += 1
-
         }
     }
     
     
     func checkBloomFilterResults(resultBuffer: MTLBuffer, ripemd160Buffer: MTLBuffer) -> Int {
         
-       
         let resultsPtr = resultBuffer.contents().bindMemory(to: UInt32.self, capacity: pubKeyBatchSize)
         let bfResults: [Bool] = (0..<pubKeyBatchSize).map { resultsPtr[$0] != 0 }
     
-        
-        
         var falsePositiveCnt = 0
-
-        // Total number of keys produced in one batch = batchSize * KEYS_PER_THREAD
-        let totalKeysPerBatch = BInt(privKeyBatchSize) * BInt(Properties.KEYS_PER_THREAD)
-
 
         // Rewind to the start key of the *current* batch.
         // init kernel: base = start + Δk
@@ -170,7 +145,6 @@ class KeySearch {
                         falsePositiveCnt += 1
                     } else {
                         // IMPORTANT: scalar offset within the batch is still thread-major
-                        // offset = threadIdx * KEYS_PER_THREAD + i
                         let offsetWithinBatch = BInt(threadIdx) * BInt(Properties.KEYS_PER_THREAD) + BInt(i)
 
                         // Actual private key for this hit
