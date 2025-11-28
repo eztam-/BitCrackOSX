@@ -13,7 +13,7 @@ class KeySearch {
         let ripemd160OutBuffer: MTLBuffer          // RIPEMD160 output for that batch
         let semaphore = DispatchSemaphore(value: 1)
     }
-    var startTimes: [UInt64] = [0,0,0]
+    var startTimes: [UInt64]
     var slots: [BatchSlot] = []
 
 
@@ -37,7 +37,7 @@ class KeySearch {
         self.currentBaseKey = BInt(startKeyHex, radix: 16)!
         self.keyIncrement = BInt(pubKeyBatchSize)
         ui.startHexKey = startKeyHex
-        
+        self.startTimes = [UInt64](repeating: 0, count: maxInFlight)
         
 
         // Initialize ring buffer with MTLBuffers
