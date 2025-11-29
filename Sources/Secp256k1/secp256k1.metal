@@ -471,56 +471,74 @@ inline void store_public_key_compressed(device uchar* output, uint index, uint25
 
 
 inline bool is_zero(uint256 a) {
+    uint acc = 0u;
     #pragma unroll
     for (int i = 0; i < 8; i++) {
-        if (a.limbs[i] != 0) return false;
+        acc |= a.limbs[i];
     }
-    return true;
+    return acc == 0u;
 }
 
 inline bool is_equal(uint256 a, uint256 b) {
+    uint acc = 0u;
     #pragma unroll
     for (int i = 0; i < 8; i++) {
-        if (a.limbs[i] != b.limbs[i]) return false;
+        acc |= (a.limbs[i] ^ b.limbs[i]);
     }
-    return true;
+    return acc == 0u;
 }
 
 inline int compare(uint256 a, uint256 b) {
+    // Compare MS limb → LS limb
     #pragma unroll
     for (int i = 7; i >= 0; i--) {
-        if (a.limbs[i] > b.limbs[i]) return 1;
-        if (a.limbs[i] < b.limbs[i]) return -1;
+        uint ai = a.limbs[i];
+        uint bi = b.limbs[i];
+        if (ai > bi) return 1;
+        if (ai < bi) return -1;
     }
     return 0;
 }
 
 
-
 // ================ Field Arithmetic ================
 
-uint256 field_sub(uint256 a, uint256 b) {
+
+
+inline void add_with_carry(uint a, uint b, uint carry_in, thread uint* result, thread uint* carry_out) {
+    ulong sum = (ulong)a + (ulong)b + (ulong)carry_in;
+    *result = (uint)sum;
+    *carry_out = (uint)(sum >> 32);
+}
+
+inline uint256 field_sub(uint256 a, uint256 b) {
     uint256 result;
-    ulong borrow = 0;
+    uint borrow = 0u;
+
     #pragma unroll
     for (int i = 0; i < 8; i++) {
-        ulong ai = (ulong)a.limbs[i];
-        ulong bi = (ulong)b.limbs[i];
-        ulong tmp = ai - bi - borrow;
+        uint ai = a.limbs[i];
+        uint bi = b.limbs[i];
 
-        result.limbs[i] = (uint)tmp;
-        // If ai < bi + borrow, then tmp wrapped around and top bit set
-        borrow = (tmp >> 63) & 1ul; // borrow = 1 if underflow occurred
+        uint temp = bi + borrow;
+        uint new_borrow = (temp < bi) ? 1u : 0u;
+
+        uint diff = ai - temp;
+        if (ai < temp) new_borrow = 1u;
+
+        result.limbs[i] = diff;
+        borrow = new_borrow;
     }
 
-    // If borrow == 1, we underflowed: add modulus back
+    // If borrow, we underflowed: add modulus back
     if (borrow) {
-        ulong carry = 0;
+        uint carry = 0u;
         #pragma unroll
         for (int i = 0; i < 8; i++) {
-            ulong sum = (ulong)result.limbs[i] + (ulong)P[i] + carry;
-            result.limbs[i] = (uint)sum;
-            carry = sum >> 32;
+            uint sum, c_out;
+            add_with_carry(result.limbs[i], P[i], carry, &sum, &c_out);
+            result.limbs[i] = sum;
+            carry = c_out;
         }
     }
 
@@ -539,11 +557,6 @@ inline void mul_32x32(uint a, uint b, thread uint* low, thread uint* high) {
 
 
 
-inline void add_with_carry(uint a, uint b, uint carry_in, thread uint* result, thread uint* carry_out) {
-    ulong sum = (ulong)a + (ulong)b + (ulong)carry_in;
-    *result = (uint)sum;
-    *carry_out = (uint)(sum >> 32);
-}
 
 
 uint256 sub_uint256(uint256 a, uint256 b) {
@@ -568,12 +581,11 @@ uint256 sub_uint256(uint256 a, uint256 b) {
 }
 
 
-// Field addition with modular reduction
-uint256 field_add(uint256 a, uint256 b) {
+inline uint256 field_add(uint256 a, uint256 b) {
     uint256 result;
-    uint carry = 0;
-    
-    // Add a + b with carry propagation
+    uint carry = 0u;
+
+    // Add a + b with carry
     #pragma unroll
     for (int i = 0; i < 8; i++) {
         uint sum, carry_out;
@@ -581,23 +593,20 @@ uint256 field_add(uint256 a, uint256 b) {
         result.limbs[i] = sum;
         carry = carry_out;
     }
-    
-    // If there's a carry out, result >= 2^256
-    // We need to reduce: result = (a + b) - P if (a + b) >= P
-    
+
+    // Build p as uint256
     uint256 p;
     #pragma unroll
-    for (int i = 0; i < 8; i++) {
-        p.limbs[i] = P[i];
-    }
-    
-    // If carry OR result >= P, subtract P
+    for (int i = 0; i < 8; i++) p.limbs[i] = P[i];
+
+    // If carry or result >= p → subtract p
     if (carry || compare(result, p) >= 0) {
         result = sub_uint256(result, p);
     }
-    
+
     return result;
 }
+
 
 
 
@@ -606,52 +615,42 @@ uint256 field_add(uint256 a, uint256 b) {
 // 2^256 ≡ 2^32 + 977 (mod p)
 // =========================================
 inline uint256 reduce_secp256k1_simd(uint512 T) {
-    // Copy to local limbs (thread-private)
-    thread uint limbs[16];
+    uint limbs[16];
+    #pragma unroll
     for (int i = 0; i < 16; ++i) limbs[i] = T.limbs[i];
 
-    // --- two passes maximum ---
     for (int pass = 0; pass < 2; ++pass) {
-        // carry “array” as thread locals
-        thread uint carry[17];
+        uint carry[17];
         #pragma unroll
         for (int i = 0; i < 17; ++i) carry[i] = 0u;
 
-        // Fold each high limb (8..15) down using 2^256 ≡ 2^32 + 977
+        // Fold high limbs
         for (int i = 0; i < 8; ++i) {
             uint c = limbs[8 + i];
-
-            // full-width mask (0xFFFFFFFF or 0x0)
             uint mask = (uint)0 - (uint)(c != 0u);
 
-            // c*977 split
             ulong w = (ulong)c * 977ul;
             uint lo = (uint) w;         lo &= mask;
             uint hi = (uint)(w >> 32);  hi &= mask;
             c &= mask;
 
-            // target k = i
             int k = i;
 
-            // Add lo at limb[k], carry -> carry[k+1] (+hi)
             uint x = limbs[k];
             uint sum = x + lo;
             uint co  = (sum < x);
             limbs[k] = sum;
             carry[k + 1] += hi + co;
 
-            // Add c at limb[k+1], carry -> carry[k+2]
             x   = limbs[k + 1];
             sum = x + c;
             co  = (sum < x);
             limbs[k + 1] = sum;
             carry[k + 2] += co;
 
-            // Clear the high slot we just folded
             limbs[8 + i] = 0u;
         }
 
-        // Linear carry propagation, identical to your original semantics
         ulong acc = 0ul;
         #pragma unroll
         for (int i = 0; i < 16; ++i) {
@@ -659,15 +658,12 @@ inline uint256 reduce_secp256k1_simd(uint512 T) {
             limbs[i] = (uint)acc;
             carry[i + 1] += (uint)(acc >> 32);
         }
-        // (any overflow past limb[15] is safely ignored; bounded by construction)
     }
 
-    // Low 256 bits are the candidate
     uint256 r;
     #pragma unroll
     for (int i = 0; i < 8; ++i) r.limbs[i] = limbs[i];
 
-    // Single conditional subtraction (result < 2p here)
     uint256 P256;
     #pragma unroll
     for (int i = 0; i < 8; ++i) P256.limbs[i] = P[i];
@@ -679,29 +675,27 @@ inline uint256 reduce_secp256k1_simd(uint512 T) {
 
 
 
+
 // Unrolled 8×8 Comba multiplication with wide accumulators.
 inline uint256 field_mul(uint256 a, uint256 b) {
-    // Load limbs into scalars
+    // Load limbs into scalars (helps SROA & register allocation)
     uint a0=a.limbs[0], a1=a.limbs[1], a2=a.limbs[2], a3=a.limbs[3];
     uint a4=a.limbs[4], a5=a.limbs[5], a6=a.limbs[6], a7=a.limbs[7];
     uint b0=b.limbs[0], b1=b.limbs[1], b2=b.limbs[2], b3=b.limbs[3];
     uint b4=b.limbs[4], b5=b.limbs[5], b6=b.limbs[6], b7=b.limbs[7];
 
-    // 128-bit accumulator emulated with two 64-bit lanes
     ulong acc_lo = 0ul;
     ulong acc_hi = 0ul;
 
-    // Helper: add 64-bit with carry into (acc_lo, acc_hi)
     auto add64 = [&](ulong w) {
         ulong prev = acc_lo;
         acc_lo += w;
-        acc_hi += (acc_lo < prev) ? 1ul : 0ul; // carry out of low 64
+        acc_hi += (acc_lo < prev) ? 1ul : 0ul;
     };
 
-    // Helper: emit one 32-bit limb, then logical right shift the 128-bit acc by 32
-    auto emit_and_shr32 = [&](thread uint& out_limb) {
-        out_limb = (uint)acc_lo;                        // low 32 bits
-        acc_lo = (acc_lo >> 32) | (acc_hi << 32);       // 128-bit >> 32
+    auto emit_and_shr32 = [&](thread uint &out_limb) {
+        out_limb = (uint)acc_lo;
+        acc_lo = (acc_lo >> 32) | (acc_hi << 32);
         acc_hi >>= 32;
     };
 
@@ -737,7 +731,7 @@ inline uint256 field_mul(uint256 a, uint256 b) {
     add64((ulong)a4*b2); add64((ulong)a5*b1); add64((ulong)a6*b0);
     emit_and_shr32(prod.limbs[6]);
 
-    // Column 7 (widest)
+    // Column 7
     add64((ulong)a0*b7); add64((ulong)a1*b6); add64((ulong)a2*b5); add64((ulong)a3*b4);
     add64((ulong)a4*b3); add64((ulong)a5*b2); add64((ulong)a6*b1); add64((ulong)a7*b0);
     emit_and_shr32(prod.limbs[7]);
@@ -772,12 +766,12 @@ inline uint256 field_mul(uint256 a, uint256 b) {
     add64((ulong)a7*b7);
     emit_and_shr32(prod.limbs[14]);
 
-    // Column 15 (final carry)
-    // Remaining 32 bits of the accumulator become the top limb.
+    // Column 15
     prod.limbs[15] = (uint)acc_lo;
 
     return reduce_secp256k1_simd(prod);
 }
+
 
 
 
@@ -858,18 +852,15 @@ inline uint256 field_inv(uint256 a) {
     uint256 g1 = a;
     uint256 a2 = field_sqr(a);
 
-    uint256 g3  = field_mul(g1, a2);           // a^3
-    uint256 g5  = field_mul(g3, a2);           // a^5
-    uint256 g7  = field_mul(g5, a2);           // a^7
-    uint256 g9  = field_mul(g7, a2);           // a^9
-    uint256 g11 = field_mul(g9, a2);           // a^11
-    uint256 g13 = field_mul(g11, a2);          // a^13
-    uint256 g15 = field_mul(g13, a2);          // a^15
+    uint256 g3  = field_mul(g1, a2);          // a^3
+    uint256 g5  = field_mul(g3, a2);          // a^5
+    uint256 g7  = field_mul(g5, a2);          // a^7
+    uint256 g9  = field_mul(g7, a2);          // a^9
+    uint256 g11 = field_mul(g9, a2);          // a^11
+    uint256 g13 = field_mul(g11, a2);         // a^13
+    uint256 g15 = field_mul(g13, a2);         // a^15
 
-    // Table lookup without branches
     auto table = [&](uint idx)->uint256 {
-        // idx is odd in [1,15]
-        // Use a small cascade of selects to keep codegen simple
         uint256 r = g1;
         r = (idx==3 ) ? g3  : r;
         r = (idx==5 ) ? g5  : r;
@@ -881,75 +872,63 @@ inline uint256 field_inv(uint256 a) {
         return r;
     };
 
-    // Find top 1 bit of p-2 (it’s 255)
     int i = 255;
     while (i >= 0 && exp_bit_p_minus_2(i) == 0u) --i;
 
-    // Initialize result with first nonzero window
     const int W = 4;
-    uint256 acc; // uninitialized; set on first window
+    uint256 acc;
     bool acc_init = false;
 
     while (i >= 0) {
         if (exp_bit_p_minus_2(i) == 0u) {
-            // square once
             if (acc_init) acc = field_sqr(acc);
             --i;
             continue;
         }
-        // Take up to W bits (must end at i and start with 1)
+
         int l = min(W, i + 1);
         uint win = 0u;
         int used = 1;
-        // force MSB=1
+
         win = 1u;
-        // pull next up to W-1 bits (stop early if zero would make win even)
         for (int k = 1; k < l; ++k) {
             uint b = exp_bit_p_minus_2(i - k);
             uint candidate = (win << 1) | b;
-            if ((candidate & 1u) == 0u) break; // keep odd
+            if ((candidate & 1u) == 0u) break;
             win = candidate;
             used = k + 1;
         }
 
-        // advance: first iteration just seeds acc
         if (!acc_init) {
             acc = table(win);
             acc_init = true;
         } else {
-            // do 'used' squarings
             for (int s = 0; s < used; ++s) acc = field_sqr(acc);
-            // multiply by odd power
             acc = field_mul(acc, table(win));
         }
         i -= used;
     }
-    // acc holds a^(p-2)
+
     return acc;
 }
 
 
-
-// Replace the whole helper with this version
-inline void batch_inverse(thread const uint256* Z,
-                          thread uint256* invZ,
-                          int n)
+inline void batch_inverse(const thread uint256* Z,
+                          thread uint256*       invZ,
+                          int            n)
 {
-    // Fixed-size array instead of alloca
-    thread uint256 prefix[MAX_KEYS_PER_THREAD];
+    uint256 prefix[MAX_KEYS_PER_THREAD];
 
-    // prefix[i] = Z[0]*...*Z[i]
     uint256 acc = Z[0];
     prefix[0] = acc;
+
     for (int i = 1; i < n; i++) {
         acc = field_mul(acc, Z[i]);
         prefix[i] = acc;
     }
 
-    // One inversion
     uint256 invAll = field_inv(prefix[n - 1]);
 
-    // Backward sweep
     uint256 temp = invAll;
     for (int i = n - 1; i >= 1; i--) {
         invZ[i] = field_mul(temp, prefix[i - 1]);
@@ -957,6 +936,7 @@ inline void batch_inverse(thread const uint256* Z,
     }
     invZ[0] = temp;
 }
+
 
 
 
@@ -975,58 +955,51 @@ struct PointJacobian {
 
 
 // Convert Jacobian to affine (requires ONE inversion)
-Point jacobian_to_affine(PointJacobian p) {
+inline Point jacobian_to_affine(PointJacobian p) {
     Point result;
     if (p.infinity) {
         result.infinity = true;
         return result;
     }
-    
-    // Compute Z^-1, Z^-2, Z^-3
-    uint256 z_inv = field_inv(p.Z);           // 1 inversion (expensive)
-    uint256 z_inv_sq = field_sqr(z_inv);      // Z^-2
-    uint256 z_inv_cube = field_mul(z_inv_sq, z_inv);  // Z^-3
-    
-    // x = X/Z^2 = X * Z^-2
+
+    uint256 z_inv      = field_inv(p.Z);
+    uint256 z_inv_sq   = field_sqr(z_inv);
+    uint256 z_inv_cube = field_mul(z_inv_sq, z_inv);
+
     result.x = field_mul(p.X, z_inv_sq);
-    
-    // y = Y/Z^3 = Y * Z^-3
     result.y = field_mul(p.Y, z_inv_cube);
-    
     result.infinity = false;
     return result;
 }
 
 
+
 inline PointJacobian point_double_jacobian(PointJacobian P) {
     if (P.infinity) return P;
 
-    // Y2 = Y^2
     uint256 Y2 = field_sqr(P.Y);
 
-    // S = 4 * X * Y^2
     uint256 S = field_mul(P.X, Y2);
     S = field_add(S, S);  // *2
     S = field_add(S, S);  // *4
 
-    // M = 3 * X^2
     uint256 X2 = field_sqr(P.X);
-    uint256 M  = field_add(field_add(X2, X2), X2);
+    uint256 M  = field_add(field_add(X2, X2), X2); // 3*X^2
 
-    // X3 = M^2 - 2*S
-    uint256 M2 = field_sqr(M);
-    uint256 X3 = field_sub(M2, field_add(S, S));
+    uint256 M2    = field_sqr(M);
+    uint256 twoS  = field_add(S, S);
+    uint256 X3    = field_sub(M2, twoS);
 
-    // Y3 = M*(S - X3) - 8*Y^4
-    uint256 Y4 = field_sqr(Y2);
-    
-    uint256 Y4_2 = field_add(Y4, Y4); // *2
-    uint256 eightY4 = field_add(Y4_2, Y4_2); // *2
-    eightY4 = field_add(eightY4, eightY4);                              // *8
-    uint256 Y3 = field_sub(field_mul(M, field_sub(S, X3)), eightY4);
+    uint256 Y4    = field_sqr(Y2);
+    uint256 Y4_2  = field_add(Y4, Y4);             // *2
+    uint256 fourY4  = field_add(Y4_2, Y4_2);       // *4
+    uint256 eightY4 = field_add(fourY4, fourY4);   // *8
 
-    // Z3 = 2 * Y * Z
-    uint256 Z3 = field_mul(field_add(P.Y, P.Y), P.Z);
+    uint256 temp  = field_sub(S, X3);
+    uint256 Y3    = field_sub(field_mul(M, temp), eightY4);
+
+    uint256 twoY = field_add(P.Y, P.Y);
+    uint256 Z3   = field_mul(twoY, P.Z);
 
     PointJacobian R;
     R.X = X3;
@@ -1037,12 +1010,12 @@ inline PointJacobian point_double_jacobian(PointJacobian P) {
 }
 
 
+
 // Jacobian + Affine (Z2 = 1) : R = P + Q
 // P is Jacobian (X1, Y1, Z1), Q is affine (x2, y2)
 // Handles P or Q at infinity; zero-cost for Z2 since it's 1.
 inline PointJacobian point_add_mixed_jacobian(PointJacobian P, Point Q) {
     if (P.infinity) {
-        // Lift Q to Jacobian (Z=1)
         PointJacobian R;
         R.X = Q.x;
         R.Y = Q.y;
@@ -1054,26 +1027,15 @@ inline PointJacobian point_add_mixed_jacobian(PointJacobian P, Point Q) {
     }
     if (Q.infinity) return P;
 
-    // Z1Z1 = Z1^2
-    uint256 Z1Z1 = field_sqr(P.Z);
+    uint256 Z1Z1    = field_sqr(P.Z);
+    uint256 U2      = field_mul(Q.x, Z1Z1);
+    uint256 Z1_cubed= field_mul(Z1Z1, P.Z);
+    uint256 S2      = field_mul(Q.y, Z1_cubed);
 
-    // U2 = x2 * Z1Z1
-    uint256 U2 = field_mul(Q.x, Z1Z1);
-
-    // Z1^3
-    uint256 Z1_cubed = field_mul(Z1Z1, P.Z);
-
-    // S2 = y2 * Z1^3
-    uint256 S2 = field_mul(Q.y, Z1_cubed);
-
-    // H = U2 - X1
     uint256 H = field_sub(U2, P.X);
-    // r = S2 - Y1
     uint256 r = field_sub(S2, P.Y);
 
-    // If H == 0:
     if (is_zero(H)) {
-        // If r == 0: P == Q -> doubling
         if (is_zero(r)) {
             return point_double_jacobian(P);
         } else {
@@ -1083,21 +1045,20 @@ inline PointJacobian point_add_mixed_jacobian(PointJacobian P, Point Q) {
         }
     }
 
-    // HH = H^2
-    uint256 HH = field_sqr(H);
-    // HHH = H^3
-    uint256 HHH = field_mul(HH, H);
-    // V = X1 * HH
-    uint256 V = field_mul(P.X, HH);
+    uint256 HH   = field_sqr(H);
+    uint256 HHH  = field_mul(HH, H);
+    uint256 V    = field_mul(P.X, HH);
 
-    // X3 = r^2 - H^3 - 2*V
-    uint256 r2 = field_sqr(r);
-    uint256 X3 = field_sub(field_sub(r2, HHH), field_add(V, V));
+    uint256 r2   = field_sqr(r);
+    uint256 twoV = field_add(V, V);
 
-    // Y3 = r*(V - X3) - Y1*HHH
-    uint256 Y3 = field_sub(field_mul(r, field_sub(V, X3)), field_mul(P.Y, HHH));
+    uint256 X3 = field_sub(field_sub(r2, HHH), twoV);
 
-    // Z3 = Z1 * H
+    uint256 V_minus_X3 = field_sub(V, X3);
+    uint256 r_V_X3     = field_mul(r, V_minus_X3);
+    uint256 Y1_HHH     = field_mul(P.Y, HHH);
+    uint256 Y3         = field_sub(r_V_X3, Y1_HHH);
+
     uint256 Z3 = field_mul(P.Z, H);
 
     PointJacobian R;
@@ -1182,24 +1143,27 @@ inline Point point_mul(
 
 
 inline void affine_from_jacobian_batch(
-    thread const PointJacobian* J,   // len n
-    thread const uint256* invZ,      // len n, = 1/Z[i]
-    thread Point* A,                 // out affine, len n
-    int n)
+    thread const PointJacobian* J,
+    thread const uint256*       invZ,
+    thread Point*               A,
+    int                  n)
 {
     for (int i = 0; i < n; i++) {
         if (J[i].infinity) {
             A[i].infinity = true;
             continue;
         }
-        uint256 z1 = invZ[i];             // Z^{-1}
-        uint256 z2 = field_sqr(z1);       // Z^{-2}
-        uint256 z3 = field_mul(z2, z1);   // Z^{-3}
+
+        uint256 z1 = invZ[i];
+        uint256 z2 = field_sqr(z1);
+        uint256 z3 = field_mul(z2, z1);
+
         A[i].x = field_mul(J[i].X, z2);
         A[i].y = field_mul(J[i].Y, z3);
         A[i].infinity = false;
     }
 }
+
 
 
 
