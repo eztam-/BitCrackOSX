@@ -15,18 +15,21 @@ class UI {
     var totalEndTime: UInt64 = 0
     var bfFalePositiveCnt: Int = 0
     var startHexKey: String = ""
-    var currentBaseKey: BInt = BInt.zero
-  
+    var startKey: BInt = BInt.zero
+    var batchCount: Int = 0
+    
     let timer = DispatchSource.makeTimerSource()
     var isFirstRun = true
     private let lock = NSLock()
     
-    private static let STATS_LINES = 6
+    private static let STATS_LINES = 7
     
     private let batchSize: Int
     
-    public init(batchSize: Int){
+    public init(batchSize: Int, startKeyHex: String){
         self.batchSize = batchSize
+        self.startHexKey = startKeyHex
+        self.startKey = BInt(startKeyHex, radix: 16)!
     }
     
     public func startLiveStats(){
@@ -48,11 +51,11 @@ class UI {
         }
     }
     
-    public func updateStats(totalStartTime: UInt64, totalEndTime: UInt64, bfFalsePositiveCnt: Int, currentBaseKey: BInt){
+    public func updateStats(totalStartTime: UInt64, totalEndTime: UInt64, bfFalsePositiveCnt: Int, batchCount: Int){
         self.totalStartTime = totalStartTime
         self.totalEndTime = totalEndTime
         self.bfFalePositiveCnt = bfFalsePositiveCnt
-        self.currentBaseKey = currentBaseKey
+        self.batchCount = batchCount
     }
     
     
@@ -113,10 +116,13 @@ class UI {
         print("")
         print("📊 Live Stats")
         print("\(clearLine())    Start key   :   \(startHexKey.uppercased())")
+       
         
-        var currKey = ""
-        if currentBaseKey > 0 {
-            currKey = currentBaseKey.asString(radix: 16)
+        
+        let currentKey = startKey + batchSize * batchCount
+        var currKey: String = ""
+        if currentKey > 0 {
+            currKey = currentKey.asString(radix: 16)
             // Add trailing zeros if missing
             if currKey.count < 64 {
                 currKey = String(repeating: "0", count: 64 - currKey.count) + currKey
@@ -125,6 +131,7 @@ class UI {
         }
        
         print("\(clearLine())    Current key :   \(currKey)")
+        print("\(clearLine())    Batch Count :   \(batchCount)")
         //let nextBasePrivKeyHex = Data(privKey.reversed()).hexString
         print(String(format: "\(clearLine())    Bloom Filter:   %.4f%% FPR (%d)", falsePositiveRate, self.bfFalePositiveCnt))
         print("\(clearLine())    Throughput  : \(statusStr)")

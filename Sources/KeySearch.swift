@@ -13,7 +13,7 @@ class KeySearch {
         let ripemd160OutBuffer: MTLBuffer          // RIPEMD160 output for that batch
         let semaphore = DispatchSemaphore(value: 1)
     }
-    var startTimes: [UInt64]
+
     var slots: [BatchSlot] = []
 
 
@@ -25,19 +25,19 @@ class KeySearch {
     let pubKeyBatchSize =  Helpers.PUB_KEY_BATCH_SIZE // Number of public keys generated per batch
     let ui: UI
     let startKeyHex: String
-    var currentBaseKey: BInt
+    var startKey: BInt
     let keyIncrement: BInt
     
     public init(bloomFilter: BloomFilter, database: DB, outputFile: String, startKeyHex: String) {
         self.bloomFilter = bloomFilter
         self.db = database
         self.outputFile = outputFile
-        self.ui = UI(batchSize: self.pubKeyBatchSize)
+        self.ui = UI(batchSize: self.pubKeyBatchSize, startKeyHex: startKeyHex)
         self.startKeyHex = startKeyHex
-        self.currentBaseKey = BInt(startKeyHex, radix: 16)!
+        self.startKey = BInt(startKeyHex, radix: 16)!
         self.keyIncrement = BInt(pubKeyBatchSize)
-        ui.startHexKey = startKeyHex
-        self.startTimes = [UInt64](repeating: 0, count: maxInFlight)
+
+       
         
 
         // Initialize ring buffer with MTLBuffers
@@ -75,14 +75,19 @@ class KeySearch {
     
         secp256k1.initializeBasePoints()
         try printStartupInfos(sha256: sha256, ripemd160: ripemd160, bloomFilter: bloomFilter)
+        let ui = self.ui
+        
+       
         ui.startLiveStats()
+     
         
         
         var batchIndex = 0 // TODO: Could overrun
 
+        
         while true {
+            let batchStartNS = DispatchTime.now().uptimeNanoseconds
             let slotIndex = batchIndex % maxInFlight
-            startTimes[slotIndex] = DispatchTime.now().uptimeNanoseconds
             let slot = slots[slotIndex]
             slot.semaphore.wait()
 
@@ -93,30 +98,49 @@ class KeySearch {
             ripemd160.appendCommandEncoder(commandBuffer: commandBuffer, resultBuffer: slot.ripemd160OutBuffer)
             bloomFilter.appendCommandEncoder(commandBuffer: commandBuffer, inputBuffer: slot.ripemd160OutBuffer, resultBuffer: slot.bloomFilterOutBuffer) // TODO: make this consistent and move inputBuffer to constructor once refactored
             
+            // Snapshot the batch index for THIS batch
+             let thisBatchIndex = batchIndex
             
             // --- Async CPU callback when GPU finishes this batch ---
             commandBuffer.addCompletedHandler { [weak self] _ in
-                guard let self else { return }
-                let end_ns = DispatchTime.now().uptimeNanoseconds
+                // Theres no guarantee that CompletedHandlers are executed in the same order of submission (despite the command buffers are always executed in sequence)
+                // So we cannot increment the base key from here
                 
-                let falsePositiveCnt = self.checkBloomFilterResults(resultBuffer: slot.bloomFilterOutBuffer,ripemd160Buffer: slot.ripemd160OutBuffer )
-                self.ui.updateStats(
-                    totalStartTime: startTimes[slotIndex],
+    
+                
+                let falsePositiveCnt = self!.checkBloomFilterResults(resultBuffer: slot.bloomFilterOutBuffer,ripemd160Buffer: slot.ripemd160OutBuffer, batchCount: thisBatchIndex )
+                
+                //print("###### \(slotIndex) \(startTimes[slotIndex]) \(end_ns) \(startTimes[slotIndex] < end_ns)")
+                /*
+                self!.ui.updateStats(
+                    totalStartTime: batchStart,
                     totalEndTime: end_ns,
                     bfFalsePositiveCnt: falsePositiveCnt,
-                    currentBaseKey:  self.currentBaseKey
-                )
-                self.currentBaseKey = currentBaseKey + self.keyIncrement
+                    currentBaseKey:  self!.currentBaseKey
+                )*/
+               // self!.currentBaseKey = self!.currentBaseKey + self!.keyIncrement
                 slot.semaphore.signal()
             }
             
             commandBuffer.commit()  // Submit work to GPU
+            
             batchIndex += 1
+            let batchEndNS = DispatchTime.now().uptimeNanoseconds
+           
+            // TODO make this async
+            ui.updateStats(
+                totalStartTime: batchStartNS,
+                totalEndTime: batchEndNS,
+                bfFalsePositiveCnt: 0,
+                batchCount: batchIndex
+            )
+          
+
         }
     }
     
     
-    func checkBloomFilterResults(resultBuffer: MTLBuffer, ripemd160Buffer: MTLBuffer) -> Int {
+    func checkBloomFilterResults(resultBuffer: MTLBuffer, ripemd160Buffer: MTLBuffer, batchCount: Int) -> Int {
         
         let resultsPtr = resultBuffer.contents().bindMemory(to: UInt32.self, capacity: pubKeyBatchSize)
         let bfResults: [Bool] = (0..<pubKeyBatchSize).map { resultsPtr[$0] != 0 }
@@ -127,7 +151,7 @@ class KeySearch {
         // init kernel: base = start + Δk
         // process kernel: base += Δk   (Δk = totalKeysPerBatch)
         // so nextBaseKey = start + 2*Δk  -> start = nextBaseKey - 2*Δk
-        let startKey = currentBaseKey //+ totalKeysPerBatch + totalKeysPerBatch
+        let startKey = startKey //+ totalKeysPerBatch + totalKeysPerBatch
 
         for i in 0..<Properties.KEYS_PER_THREAD {                // key "row"
             for threadIdx in 0..<privKeyBatchSize {              // thread "column"
@@ -148,11 +172,12 @@ class KeySearch {
                         let offsetWithinBatch = BInt(threadIdx) * BInt(Properties.KEYS_PER_THREAD) + BInt(i)
 
                         // Actual private key for this hit
-                        let privKeyVal = startKey + offsetWithinBatch
+                        let privKeyVal = startKey + keyIncrement * batchCount + offsetWithinBatch
 
                         var privKeyHex = privKeyVal.asString(radix: 16)
                         privKeyHex = String(repeating: "0", count: max(0, 64 - privKeyHex.count)) + privKeyHex
 
+                        
                         ui.printMessage(
                         """
                         --------------------------------------------------------------------------------------
