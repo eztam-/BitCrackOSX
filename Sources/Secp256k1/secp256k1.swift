@@ -38,7 +38,6 @@ public class Secp256k1 {
     private var basePublicPointsBuffer: MTLBuffer
     private let deltaGBuffer: MTLBuffer
     private let publicKeyBuffer: MTLBuffer
-    private var nextBasePointsBuffer: MTLBuffer
     private let compressedFlagBuffer: MTLBuffer
     let startKeyBuffer: MTLBuffer
     
@@ -70,7 +69,6 @@ public class Secp256k1 {
         // Buffers
         self.basePrivateKeyBuffer = device.makeBuffer(length: 8 * MemoryLayout<UInt32>.stride, options: .storageModeShared)!
         self.basePublicPointsBuffer = device.makeBuffer(length: batchSize * MemoryLayout<Point>.stride, options: .storageModePrivate)!
-        self.nextBasePointsBuffer = device.makeBuffer(length: batchSize * MemoryLayout<Point>.stride, options: .storageModePrivate)!
         self.deltaGBuffer = device.makeBuffer(length: MemoryLayout<Point>.stride, options: .storageModeShared)!
         self.publicKeyBuffer = device.makeBuffer(length: batchSize * keysPerThread * publicKeyLength, options: Helpers.getStorageModePrivate())! // needed to be public for testing  only
         
