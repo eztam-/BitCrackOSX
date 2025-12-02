@@ -20,8 +20,6 @@ public class Secp256k1 {
 
     
     private let device: MTLDevice
-
-    private let initPipeline: MTLComputePipelineState
     private let processPipeline: MTLComputePipelineState
 
     private let batchSize: Int
@@ -39,7 +37,7 @@ public class Secp256k1 {
     private let publicKeyBuffer: MTLBuffer
     private let compressedFlagBuffer: MTLBuffer
     private var startKeyBuffer: MTLBuffer?
-    private var basePrivateKeyBuffer: MTLBuffer?
+
     
     private let startKeyHex: String
     let threadsPerThreadgroup: MTLSize
@@ -48,7 +46,6 @@ public class Secp256k1 {
     
     public init(on device: MTLDevice, batchSize: Int, keysPerThread: Int, compressed: Bool, startKeyHex: String) throws {
         self.device = device
-  
         self.batchSize = batchSize
         self.keysPerThread = keysPerThread
         self.compressed = compressed
@@ -56,8 +53,6 @@ public class Secp256k1 {
         self.startKeyHex = startKeyHex
         self.batchSizeU32 = UInt32(batchSize)
         self.keysPerThreadU32 = UInt32(keysPerThread)
-        
-        self.initPipeline = try Helpers.buildPipelineState(kernelFunctionName: "init_base_points")
         self.processPipeline = try Helpers.buildPipelineState(kernelFunctionName: "process_batch_incremental")
 
         (threadsPerThreadgroup, threadgroupsPerGrid) = try Helpers.getThreadConfig(
@@ -67,30 +62,26 @@ public class Secp256k1 {
         )
 
         // Buffers
-        self.basePrivateKeyBuffer = device.makeBuffer(length: 8 * MemoryLayout<UInt32>.stride, options: .storageModeShared)!
         self.basePublicPointsBuffer = device.makeBuffer(length: batchSize * MemoryLayout<Point>.stride, options: .storageModePrivate)!
         self.deltaGBuffer = device.makeBuffer(length: MemoryLayout<Point>.stride, options: .storageModeShared)!
         self.publicKeyBuffer = device.makeBuffer(length: batchSize * keysPerThread * publicKeyLength, options: Helpers.getStorageModePrivate())! // needed to be public for testing  only
-        
         var c = compressed
         self.compressedFlagBuffer = device.makeBuffer(bytes: &c, length: MemoryLayout<Bool>.stride, options: .storageModeShared)!
         
-        
-        
-        let keyLimbs = Helpers.hex256ToUInt32Limbs(startKeyHex) 
-
-        self.startKeyBuffer = device.makeBuffer(
-            bytes: keyLimbs,
-            length: keyLimbs.count * MemoryLayout<UInt32>.stride,
-            options: .storageModeShared
-        )!
     }
 
 
-    public func initializeBasePoints() {
+    public func initializeBasePoints() throws {
         let commandQueue = device.makeCommandQueue()!
         let commandBuffer = commandQueue.makeCommandBuffer()!
         let encoder = commandBuffer.makeComputeCommandEncoder()!
+        let initPipeline = try Helpers.buildPipelineState(kernelFunctionName: "init_base_points")
+        
+        let keyLimbs = Helpers.hex256ToUInt32Limbs(startKeyHex)
+
+        let basePrivateKeyBuffer = device.makeBuffer(length: 8 * MemoryLayout<UInt32>.stride, options: .storageModeShared)!
+        let startKeyBuffer = device.makeBuffer(bytes: keyLimbs, length: keyLimbs.count * MemoryLayout<UInt32>.stride, options: .storageModeShared)!
+        
         encoder.setComputePipelineState(initPipeline)
         encoder.setBytes(&batchSizeU32, length: MemoryLayout<UInt32>.stride, index: 0)
         encoder.setBytes(&keysPerThreadU32, length: MemoryLayout<UInt32>.stride, index: 1)
@@ -103,10 +94,6 @@ public class Secp256k1 {
         encoder.endEncoding()
         commandBuffer.commit()
         commandBuffer.waitUntilCompleted()
-        
-        // Deallocating buffers not required anymore
-        startKeyBuffer = nil
-        basePrivateKeyBuffer = nil
     }
 
 
@@ -119,14 +106,11 @@ public class Secp256k1 {
         commandEncoder.setBytes(&batchSizeU32, length: MemoryLayout<UInt32>.stride, index: 3)
         commandEncoder.setBytes(&keysPerThreadU32, length: MemoryLayout<UInt32>.stride, index: 4)
         commandEncoder.setBuffer(compressedFlagBuffer, offset: 0, index: 5)
-        //commandEncoder.setBuffer(basePrivateKeyBuffer, offset: 0, index: 6)
 
         commandEncoder.dispatchThreadgroups(threadgroupsPerGrid, threadsPerThreadgroup: threadsPerThreadgroup)
         commandEncoder.endEncoding()
     }
 
     public func getPublicKeyBuffer() -> MTLBuffer { publicKeyBuffer }
-    public func getDeltaGBuffer() -> MTLBuffer { deltaGBuffer }
-    public func getBasePrivateKeyBuffer() -> MTLBuffer { basePrivateKeyBuffer! }
-    
+    public func getDeltaGBuffer() -> MTLBuffer { deltaGBuffer }    
 }

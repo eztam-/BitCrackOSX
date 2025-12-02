@@ -68,7 +68,7 @@ class KeySearch {
         // TODO Initialize the bloomfilter from here
         
     
-        secp256k1.initializeBasePoints()
+        try secp256k1.initializeBasePoints()
         try printStartupInfos(sha256: sha256, ripemd160: ripemd160, bloomFilter: bloomFilter)
         let ui = self.ui
         ui.startLiveStats()
