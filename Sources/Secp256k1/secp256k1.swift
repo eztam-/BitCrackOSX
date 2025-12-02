@@ -20,7 +20,6 @@ public class Secp256k1 {
 
     
     private let device: MTLDevice
-    private let commandQueue: MTLCommandQueue
 
     private let initPipeline: MTLComputePipelineState
     private let processPipeline: MTLComputePipelineState
@@ -49,7 +48,7 @@ public class Secp256k1 {
     
     public init(on device: MTLDevice, batchSize: Int, keysPerThread: Int, compressed: Bool, startKeyHex: String) throws {
         self.device = device
-        self.commandQueue = device.makeCommandQueue()!
+  
         self.batchSize = batchSize
         self.keysPerThread = keysPerThread
         self.compressed = compressed
@@ -89,6 +88,7 @@ public class Secp256k1 {
 
 
     public func initializeBasePoints() {
+        let commandQueue = device.makeCommandQueue()!
         let commandBuffer = commandQueue.makeCommandBuffer()!
         let encoder = commandBuffer.makeComputeCommandEncoder()!
         encoder.setComputePipelineState(initPipeline)

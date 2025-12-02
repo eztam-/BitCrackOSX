@@ -26,7 +26,6 @@ public class BloomFilter {
     private let insert_threadsPerThreadgroup: MTLSize
     private let insert_threadgroupsPerGrid: MTLSize
     private var insertItemsBuffer: MTLBuffer
-    private let insertCommandQueue: MTLCommandQueue
     
 
     // Query
@@ -75,9 +74,7 @@ public class BloomFilter {
     public init(expectedInsertions: Int, falsePositiveRate: Double = 0.0001, batchSize: Int) throws {
         self.batchSize = batchSize
         self.device = Helpers.getSharedDevice()
-        self.insertCommandQueue = device.makeCommandQueue()!
-     
-        
+
       //  self.itemU32Length = 20 / 4
         self.itemLengthBytes = 20
         
@@ -157,8 +154,9 @@ public class BloomFilter {
             }
         }
         
-        guard let cmdBuffer = insertCommandQueue.makeCommandBuffer(),
-              let encoder = cmdBuffer.makeComputeCommandEncoder() else { return }
+        let insertCommandQueue = device.makeCommandQueue()!
+        let cmdBuffer = insertCommandQueue.makeCommandBuffer()!
+        let encoder = cmdBuffer.makeComputeCommandEncoder()!
         var countU = UInt32(count)
       
         

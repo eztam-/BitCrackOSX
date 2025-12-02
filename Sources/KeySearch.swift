@@ -79,7 +79,7 @@ class KeySearch {
             let slotIndex = batchIndex % maxInFlight
             let slot = slots[slotIndex]
             slot.semaphore.wait()
-
+            
             let commandBuffer = commandQueue.makeCommandBuffer()!
             secp256k1.appendCommandEncoder(commandBuffer: commandBuffer)
             sha256.appendCommandEncoder(commandBuffer: commandBuffer)
@@ -98,9 +98,9 @@ class KeySearch {
                 self!.ui.bfFalePositiveCnt = falsePositiveCnt
                 slot.semaphore.signal()
             }
-            
+   
             commandBuffer.commit()  // Submit work to GPU
-            
+
             batchIndex += 1
             let batchEndNS = DispatchTime.now().uptimeNanoseconds
            
