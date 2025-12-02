@@ -81,8 +81,10 @@ public class BloomFilter {
       //  self.itemU32Length = 20 / 4
         self.itemLengthBytes = 20
         
-        // This is a dirty fix, for the issue, that the bloomfilter causes too many false positifes, but only for small datasets
-        let numInsertions = expectedInsertions < 100000 ? expectedInsertions * 5 : expectedInsertions
+        // This is a very dirty fix, for the issue, that the bloomfilter causes too many false positifes, but only for small datasets
+        var numInsertions = expectedInsertions < 100000 ? expectedInsertions * 10 : expectedInsertions
+        numInsertions = expectedInsertions < 1000 ? expectedInsertions * 100 : numInsertions
+        numInsertions = expectedInsertions < 100 ? expectedInsertions * 1000 : numInsertions
         
         // Match Swift implementation exactly
         let m = ceil(-(Double(numInsertions) * log(falsePositiveRate)) / pow(log(2.0), 2.0))
@@ -127,7 +129,6 @@ public class BloomFilter {
             pipelineState: insertPipeline,
             batchSize: batchSize,
             threadsPerThreadgroupMultiplier: 16)
-        
         
         
         // Intitialization for query

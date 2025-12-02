@@ -51,13 +51,11 @@ class UI {
         }
     }
     
-    public func updateStats(totalStartTime: UInt64, totalEndTime: UInt64, bfFalsePositiveCnt: Int, batchCount: Int){
+    public func updateStats(totalStartTime: UInt64, totalEndTime: UInt64, batchCount: Int){
         self.totalStartTime = totalStartTime
         self.totalEndTime = totalEndTime
-        self.bfFalePositiveCnt = bfFalsePositiveCnt
         self.batchCount = batchCount
     }
-    
     
     
     @inline(__always)

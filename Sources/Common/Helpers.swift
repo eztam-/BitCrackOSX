@@ -162,6 +162,7 @@ public class Helpers{
         let hasUnifiedMemory = device.hasUnifiedMemory
         let memoryMB = device.recommendedMaxWorkingSetSize / (1024 * 1024)
 
+
         print("""
         
         ⚡ GPU Information

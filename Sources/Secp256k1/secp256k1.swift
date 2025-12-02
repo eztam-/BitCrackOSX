@@ -34,12 +34,13 @@ public class Secp256k1 {
     private let compressed: Bool
     private let publicKeyLength: Int
 
-    private var basePrivateKeyBuffer: MTLBuffer
+
     private var basePublicPointsBuffer: MTLBuffer
     private let deltaGBuffer: MTLBuffer
     private let publicKeyBuffer: MTLBuffer
     private let compressedFlagBuffer: MTLBuffer
-    let startKeyBuffer: MTLBuffer
+    private var startKeyBuffer: MTLBuffer?
+    private var basePrivateKeyBuffer: MTLBuffer?
     
     private let startKeyHex: String
     let threadsPerThreadgroup: MTLSize
@@ -102,6 +103,10 @@ public class Secp256k1 {
         encoder.endEncoding()
         commandBuffer.commit()
         commandBuffer.waitUntilCompleted()
+        
+        // Deallocating buffers not required anymore
+        startKeyBuffer = nil
+        basePrivateKeyBuffer = nil
     }
 
 
@@ -122,6 +127,6 @@ public class Secp256k1 {
 
     public func getPublicKeyBuffer() -> MTLBuffer { publicKeyBuffer }
     public func getDeltaGBuffer() -> MTLBuffer { deltaGBuffer }
-    public func getBasePrivateKeyBuffer() -> MTLBuffer { basePrivateKeyBuffer }
+    public func getBasePrivateKeyBuffer() -> MTLBuffer { basePrivateKeyBuffer! }
     
 }

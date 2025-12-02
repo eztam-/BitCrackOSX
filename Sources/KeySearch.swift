@@ -13,10 +13,7 @@ class KeySearch {
         let ripemd160OutBuffer: MTLBuffer          // RIPEMD160 output for that batch
         let semaphore = DispatchSemaphore(value: 1)
     }
-
     var slots: [BatchSlot] = []
-
-
     let bloomFilter: BloomFilter
     let db: DB
     let outputFile: String
@@ -37,8 +34,6 @@ class KeySearch {
         self.startKey = BInt(startKeyHex, radix: 16)!
         self.keyIncrement = BInt(pubKeyBatchSize)
 
-       
-        
 
         // Initialize ring buffer with MTLBuffers
         slots = (0..<maxInFlight).map { _ in
@@ -76,22 +71,15 @@ class KeySearch {
         secp256k1.initializeBasePoints()
         try printStartupInfos(sha256: sha256, ripemd160: ripemd160, bloomFilter: bloomFilter)
         let ui = self.ui
-        
-       
         ui.startLiveStats()
-     
-        
-        
         var batchIndex = 0 // TODO: Could overrun
 
-        
         while true {
             let batchStartNS = DispatchTime.now().uptimeNanoseconds
             let slotIndex = batchIndex % maxInFlight
             let slot = slots[slotIndex]
             slot.semaphore.wait()
 
-            
             let commandBuffer = commandQueue.makeCommandBuffer()!
             secp256k1.appendCommandEncoder(commandBuffer: commandBuffer)
             sha256.appendCommandEncoder(commandBuffer: commandBuffer)
@@ -106,19 +94,8 @@ class KeySearch {
                 // Theres no guarantee that CompletedHandlers are executed in the same order of submission (despite the command buffers are always executed in sequence)
                 // So we cannot increment the base key from here
                 
-    
-                
                 let falsePositiveCnt = self!.checkBloomFilterResults(resultBuffer: slot.bloomFilterOutBuffer,ripemd160Buffer: slot.ripemd160OutBuffer, batchCount: thisBatchIndex )
-                
-                //print("###### \(slotIndex) \(startTimes[slotIndex]) \(end_ns) \(startTimes[slotIndex] < end_ns)")
-                /*
-                self!.ui.updateStats(
-                    totalStartTime: batchStart,
-                    totalEndTime: end_ns,
-                    bfFalsePositiveCnt: falsePositiveCnt,
-                    currentBaseKey:  self!.currentBaseKey
-                )*/
-               // self!.currentBaseKey = self!.currentBaseKey + self!.keyIncrement
+                self!.ui.bfFalePositiveCnt = falsePositiveCnt
                 slot.semaphore.signal()
             }
             
@@ -131,11 +108,8 @@ class KeySearch {
             ui.updateStats(
                 totalStartTime: batchStartNS,
                 totalEndTime: batchEndNS,
-                bfFalsePositiveCnt: 0,
                 batchCount: batchIndex
             )
-          
-
         }
     }
     
@@ -194,8 +168,6 @@ class KeySearch {
                 }
             }
         }
-
-      //  self.currentBaseKey = currentBaseKey + BInt(pubKeyBatchSize)
         return falsePositiveCnt
     }
 	
@@ -216,7 +188,6 @@ class KeySearch {
     }
     
     
-    
     func appendToResultFile(text: String) throws {
         let filePath = self.outputFile
         let url = URL(fileURLWithPath: filePath)
@@ -234,12 +205,4 @@ class KeySearch {
     
     
 }
-
-
-
-
-
-
-
-
 
