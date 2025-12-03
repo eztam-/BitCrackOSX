@@ -4,7 +4,7 @@ import Metal
 /// SHA256 batch compute wrapper using a small constants buffer.
 /// inputBuffer: device-private buffer with concatenated messages
 /// outputBuffer: device-private buffer with 8 * batchSize uint32 words
-class SHA256 {
+class Hashing {
 
     let device: MTLDevice
 
@@ -64,15 +64,4 @@ class SHA256 {
     }
 
 
-    // Debug helper
-    public func printThreadConf() {
-        print(
-            String(
-                format: "    SHA256:       │         %6d │       %6d │             %6d │",
-                threadsPerThreadgroup.width,
-                threadgroupsPerGrid.width,
-                pipelineState.threadExecutionWidth
-            )
-        )
-    }
 }

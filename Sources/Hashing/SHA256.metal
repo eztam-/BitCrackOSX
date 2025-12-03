@@ -1,22 +1,9 @@
-//
-//  SHA256.metal
-//  OsxBitCrack
-//
-//  Created by Mat on 18.10.2025.
-//
-
 #include <metal_stdlib>
 using namespace metal;
 
-// Maximum allowed message length in bytes per-message
-// Keep reasonable; increase if you need longer messages.
-#define MAX_MSG_BYTES 1024  // TODO: Better remove this check? 
-
-// For conversion to little-endian
-#define BYTESWAP32(x) (((x & 0x000000FFu) << 24u) | \
-                       ((x & 0x0000FF00u) << 8u)  | \
-                       ((x & 0x00FF0000u) >> 8u)  | \
-                       ((x & 0xFF000000u) >> 24u))
+// ==========================
+// SHA-256 SECTION
+// ==========================
 
 // SHA-256 constants
 constant uint K[64] = {
@@ -53,33 +40,23 @@ inline uint sigma1(uint x) {
     return rotr(x,17) ^ rotr(x,19) ^ (x >> 10);
 }
 
-
-
 struct SHA256Constants {
     uint numMessages;
     uint messageSize;
 };
 
-kernel void sha256_batch_kernel(
-    const device uchar*         messages       [[ buffer(0) ]],
-    device uint*                outHashes      [[ buffer(1) ]],
-    constant SHA256Constants    &c             [[ buffer(2) ]],
-    uint                        gid            [[ thread_position_in_grid ]]
+
+inline void sha256(
+    const device uchar* messages,
+    uint offset,
+    uint msgLen,
+    thread uint outState[8]
 )
 {
-    
-    if (gid >= c.numMessages) return;
-    
-    // read offset and length
-    //MsgMeta m = metas[gid];
-    uint offset = gid * c.messageSize;
-
-
     // compute number of 512-bit blocks after padding
-    // padding: 1 byte 0x80, then zeroes, then 8-byte big-endian length (bits)
-    uint64_t bitLen = (uint64_t)c.messageSize * 8ull;
-    uint paddedLen = (uint)((((c.messageSize + 9) + 63) / 64) * 64); // in bytes
-    uint numBlocks = paddedLen / 64;
+    uint64_t bitLen = (uint64_t)msgLen * 8ull;
+    uint paddedLen  = (uint)((((msgLen + 9) + 63) / 64) * 64);
+    uint numBlocks  = paddedLen / 64;
 
     // initial hash values
     uint a0 = 0x6a09e667u;
@@ -91,31 +68,38 @@ kernel void sha256_batch_kernel(
     uint g0 = 0x1f83d9abu;
     uint h0 = 0x5be0cd19u;
 
-    // Work buffer
     uint W[64];
 
-    for (uint blockIdx = 0; blockIdx < numBlocks; ++blockIdx) {
-        // Build W[0..15] from 64 bytes (big-endian)
+    for (uint blockIdx = 0; blockIdx < numBlocks; ++blockIdx)
+    {
         uint baseByteIndex = blockIdx * 64;
+
+        // Build W[0..15]
         for (uint t = 0; t < 16; ++t) {
             uint w = 0u;
+
             for (uint j = 0; j < 4; ++j) {
                 uint globalByteIndex = baseByteIndex + t*4 + j;
                 uchar b = 0u;
-                if (globalByteIndex < c.messageSize) {
+
+                if (globalByteIndex < msgLen) {
                     b = messages[offset + globalByteIndex];
-                } else if (globalByteIndex == c.messageSize) {
+                }
+                else if (globalByteIndex == msgLen) {
                     b = 0x80u;
-                } else if (globalByteIndex >= (paddedLen - 8)) {
-                    // last 8 bytes: big-endian bit length
-                    uint idxFromEnd = globalByteIndex - (paddedLen - 8); // 0..7
-                    uint shift = (7 - idxFromEnd) * 8;
+                }
+                else if (globalByteIndex >= (paddedLen - 8)) {
+                    uint idxFromEnd = globalByteIndex - (paddedLen - 8);
+                    uint shift = (7u - idxFromEnd) * 8u;
                     b = (uchar)((bitLen >> shift) & 0xFFu);
-                } else {
+                }
+                else {
                     b = 0u;
                 }
+
                 w = (w << 8) | (uint)b;
             }
+
             W[t] = w;
         }
 
@@ -126,34 +110,34 @@ kernel void sha256_batch_kernel(
             W[t] = W[t-16] + s0 + W[t-7] + s1;
         }
 
-        // Initialize working vars
+        // Working variables
         uint a = a0;
         uint b = b0;
-        uint c = c0;
+        uint c_ = c0;
         uint d = d0;
         uint e = e0;
         uint f = f0;
         uint g = g0;
         uint h = h0;
 
-        // Main compression
+        // Compression
         for (uint t = 0; t < 64; ++t) {
             uint T1 = h + Sigma1(e) + Ch(e,f,g) + K[t] + W[t];
-            uint T2 = Sigma0(a) + Maj(a,b,c);
+            uint T2 = Sigma0(a) + Maj(a,b,c_);
             h = g;
             g = f;
             f = e;
             e = d + T1;
-            d = c;
-            c = b;
+            d = c_;
+            c_ = b;
             b = a;
             a = T1 + T2;
         }
 
-        // Add this chunk's hash to result so far:
+        // Add to state
         a0 += a;
         b0 += b;
-        c0 += c;
+        c0 += c_;
         d0 += d;
         e0 += e;
         f0 += f;
@@ -161,29 +145,13 @@ kernel void sha256_batch_kernel(
         h0 += h;
     }
 
-    // write final hash to out buffer: 8 uints per message
-    uint dstIndex = gid * 8u;
-    
-    // big-endian
-    /*
-    outHashes[dstIndex + 0u] = a0;
-    outHashes[dstIndex + 1u] = b0;
-    outHashes[dstIndex + 2u] = c0;
-    outHashes[dstIndex + 3u] = d0;
-    outHashes[dstIndex + 4u] = e0;
-    outHashes[dstIndex + 5u] = f0;
-    outHashes[dstIndex + 6u] = g0;
-    outHashes[dstIndex + 7u] = h0;
-    */
-     
-    // little-endian
-    outHashes[dstIndex + 0u] = BYTESWAP32(a0);
-    outHashes[dstIndex + 1u] = BYTESWAP32(b0);
-    outHashes[dstIndex + 2u] = BYTESWAP32(c0);
-    outHashes[dstIndex + 3u] = BYTESWAP32(d0);
-    outHashes[dstIndex + 4u] = BYTESWAP32(e0);
-    outHashes[dstIndex + 5u] = BYTESWAP32(f0);
-    outHashes[dstIndex + 6u] = BYTESWAP32(g0);
-    outHashes[dstIndex + 7u] = BYTESWAP32(h0);
-
+    // Output 8 final words (still big-endian word values)
+    outState[0] = a0;
+    outState[1] = b0;
+    outState[2] = c0;
+    outState[3] = d0;
+    outState[4] = e0;
+    outState[5] = f0;
+    outState[6] = g0;
+    outState[7] = h0;
 }
