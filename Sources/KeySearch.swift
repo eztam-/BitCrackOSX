@@ -64,12 +64,12 @@ class KeySearch {
         
         let secp256k1 = try Secp256k1(on:  device, batchSize: privKeyBatchSize, keysPerThread: Properties.KEYS_PER_THREAD, compressed: Properties.compressedKeySearch, startKeyHex: startKeyHex)
         let sha256 = try SHA256(on: device, batchSize: pubKeyBatchSize, inputBuffer: secp256k1.getPublicKeyBuffer(), keyLength: UInt32(keyLength))
-        let ripemd160 = try RIPEMD160(on: device, batchSize: pubKeyBatchSize, inputBuffer: sha256.getOutputBuffer())
+       // let ripemd160 = try RIPEMD160(on: device, batchSize: pubKeyBatchSize, inputBuffer: sha256.getOutputBuffer())
         // TODO Initialize the bloomfilter from here
         
     
         try secp256k1.initializeBasePoints()
-        try printStartupInfos(sha256: sha256, ripemd160: ripemd160, bloomFilter: bloomFilter)
+
         let ui = self.ui
         ui.startLiveStats()
         var batchIndex = 0 // TODO: Could overrun
@@ -82,8 +82,8 @@ class KeySearch {
             
             let commandBuffer = commandQueue.makeCommandBuffer()!
             secp256k1.appendCommandEncoder(commandBuffer: commandBuffer)
-            sha256.appendCommandEncoder(commandBuffer: commandBuffer)
-            ripemd160.appendCommandEncoder(commandBuffer: commandBuffer, resultBuffer: slot.ripemd160OutBuffer)
+            sha256.appendCommandEncoder(commandBuffer: commandBuffer, resultBuffer: slot.ripemd160OutBuffer)
+           // ripemd160.appendCommandEncoder(commandBuffer: commandBuffer, resultBuffer: slot.ripemd160OutBuffer)
             bloomFilter.appendCommandEncoder(commandBuffer: commandBuffer, inputBuffer: slot.ripemd160OutBuffer, resultBuffer: slot.bloomFilterOutBuffer) // TODO: make this consistent and move inputBuffer to constructor once refactored
             
             // Snapshot the batch index for THIS batch
@@ -170,23 +170,6 @@ class KeySearch {
         }
         return falsePositiveCnt
     }
-	
-    func printStartupInfos(sha256: SHA256, ripemd160: RIPEMD160, bloomFilter: BloomFilter) throws {
-        try Helpers.printGPUInfo(device: device)
-        
-        if Properties.verbose {
-            print("                  │ Threads per TG │ TGs per Grid │ Thread Exec. Width │")
-            //secp256k1.printThreadConf()
-            sha256.printThreadConf()
-            ripemd160.printThreadConf()
-            bloomFilter.printThreadConf()
-            print("")
-        }
-        
-        let compUncomp = Properties.compressedKeySearch ? "compressed" : "uncompressed"
-        print("🚀 Starting \(compUncomp) key search\n")
-    }
-    
     
     func appendToResultFile(text: String) throws {
         let filePath = self.outputFile
