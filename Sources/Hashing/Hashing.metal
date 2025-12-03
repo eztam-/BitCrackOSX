@@ -120,7 +120,7 @@ constant uint K_RIGHT[5] = { 0x50A28BE6u, 0x5C4DD124u, 0x6D703EF3u, 0x7A6D76E9u,
 //
 // inWords[0..7] : 8 little-endian words (e.g. BYTESWAP32 of SHA-256 state words)
 // outWords[0..4]: RIPEMD-160 output words (little-endian, standard RIPEMD ordering)
-inline void ripemd160_from32_be(const thread uint inWords[8],
+inline void ripemd160(const thread uint inWords[8],
                              thread uint outWords[5])
 {
     // Build X[0..15] for a single padded block:
@@ -258,32 +258,19 @@ inline void ripemd160_from32_be(const thread uint inWords[8],
     #undef RSTEP
 }
 
-// ==========================
-// Combined Kernel: SHA-256 -> RIPEMD-160
-// ==========================
-//
-// Input:
-//   buffer(0): messages (uchar*), numMessages * messageSize bytes
-//   buffer(2): SHA256Constants { numMessages, messageSize }
-//
-// Output:
-//   buffer(1): outHashes — 5 uint per message = RIPEMD-160(SHA256(msg))
-//
-kernel void sha256_ripemd160_batch_kernel(
-    const device uchar*         messages       [[ buffer(0) ]],
-    device uint*                outHashes      [[ buffer(1) ]],  // 5 uint per msg
-    constant SHA256Constants&   c              [[ buffer(2) ]],
-    uint                        gid            [[ thread_position_in_grid ]]
+
+
+inline void sha256(
+    const device uchar* messages,
+    uint offset,
+    uint msgLen,
+    thread uint outState[8]
 )
 {
-    if (gid >= c.numMessages) return;
-
-    uint offset = gid * c.messageSize;
-
     // compute number of 512-bit blocks after padding
-    uint64_t bitLen   = (uint64_t)c.messageSize * 8ull;
-    uint paddedLen    = (uint)((((c.messageSize + 9) + 63) / 64) * 64); // in bytes
-    uint numBlocks    = paddedLen / 64;
+    uint64_t bitLen = (uint64_t)msgLen * 8ull;
+    uint paddedLen  = (uint)((((msgLen + 9) + 63) / 64) * 64);
+    uint numBlocks  = paddedLen / 64;
 
     // initial hash values
     uint a0 = 0x6a09e667u;
@@ -297,27 +284,36 @@ kernel void sha256_ripemd160_batch_kernel(
 
     uint W[64];
 
-    for (uint blockIdx = 0; blockIdx < numBlocks; ++blockIdx) {
+    for (uint blockIdx = 0; blockIdx < numBlocks; ++blockIdx)
+    {
         uint baseByteIndex = blockIdx * 64;
-        // W[0..15]
+
+        // Build W[0..15]
         for (uint t = 0; t < 16; ++t) {
             uint w = 0u;
+
             for (uint j = 0; j < 4; ++j) {
                 uint globalByteIndex = baseByteIndex + t*4 + j;
                 uchar b = 0u;
-                if (globalByteIndex < c.messageSize) {
+
+                if (globalByteIndex < msgLen) {
                     b = messages[offset + globalByteIndex];
-                } else if (globalByteIndex == c.messageSize) {
+                }
+                else if (globalByteIndex == msgLen) {
                     b = 0x80u;
-                } else if (globalByteIndex >= (paddedLen - 8)) {
-                    uint idxFromEnd = globalByteIndex - (paddedLen - 8); // 0..7
-                    uint shift = (7 - idxFromEnd) * 8;
+                }
+                else if (globalByteIndex >= (paddedLen - 8)) {
+                    uint idxFromEnd = globalByteIndex - (paddedLen - 8);
+                    uint shift = (7u - idxFromEnd) * 8u;
                     b = (uchar)((bitLen >> shift) & 0xFFu);
-                } else {
+                }
+                else {
                     b = 0u;
                 }
+
                 w = (w << 8) | (uint)b;
             }
+
             W[t] = w;
         }
 
@@ -328,7 +324,7 @@ kernel void sha256_ripemd160_batch_kernel(
             W[t] = W[t-16] + s0 + W[t-7] + s1;
         }
 
-        // Working vars
+        // Working variables
         uint a = a0;
         uint b = b0;
         uint c_ = c0;
@@ -338,6 +334,7 @@ kernel void sha256_ripemd160_batch_kernel(
         uint g = g0;
         uint h = h0;
 
+        // Compression
         for (uint t = 0; t < 64; ++t) {
             uint T1 = h + Sigma1(e) + Ch(e,f,g) + K[t] + W[t];
             uint T2 = Sigma0(a) + Maj(a,b,c_);
@@ -351,6 +348,7 @@ kernel void sha256_ripemd160_batch_kernel(
             a = T1 + T2;
         }
 
+        // Add to state
         a0 += a;
         b0 += b;
         c0 += c_;
@@ -361,27 +359,54 @@ kernel void sha256_ripemd160_batch_kernel(
         h0 += h;
     }
 
-    // Convert SHA-256 state to standard 32-byte hash (little-endian words)
-    uint shaWords[8] = {
-        a0, b0, c0, d0, e0, f0, g0, h0  // NO endian swap
-    };
-
-    
-    
-    // Now immediately compute RIPEMD-160(SHA256(msg)) in the same thread
-    uint ripemdOut[5];
-    ripemd160_from32_be(shaWords, ripemdOut);
-
-
-    // Write RIPEMD-160 result: 5 uints per message
-    uint dstIndex = gid * 5u;
-    outHashes[dstIndex + 0u] = ripemdOut[0];
-    outHashes[dstIndex + 1u] = ripemdOut[1];
-    outHashes[dstIndex + 2u] = ripemdOut[2];
-    outHashes[dstIndex + 3u] = ripemdOut[3];
-    outHashes[dstIndex + 4u] = ripemdOut[4];
-
-    // If you ALSO want to expose the 8 SHA256 words,
-    // you can either add a second output buffer, or pack them after the 5 words,
-    // e.g. 13 uints per message.
+    // Output 8 final words (still big-endian word values)
+    outState[0] = a0;
+    outState[1] = b0;
+    outState[2] = c0;
+    outState[3] = d0;
+    outState[4] = e0;
+    outState[5] = f0;
+    outState[6] = g0;
+    outState[7] = h0;
 }
+
+
+// ==========================
+// Combined Kernel: SHA-256 -> RIPEMD-160
+// ==========================
+//
+// Input:
+//   buffer(0): messages (uchar*), numMessages * messageSize bytes
+//   buffer(2): SHA256Constants { numMessages, messageSize }
+//
+// Output:
+//   buffer(1): outHashes — 5 uint per message = RIPEMD-160(SHA256(msg))
+//
+kernel void sha256_ripemd160_batch_kernel(
+    const device uchar*         messages       [[ buffer(0) ]],
+    device uint*                outHashes      [[ buffer(1) ]],
+    constant SHA256Constants&   c              [[ buffer(2) ]],
+    uint                        gid            [[ thread_position_in_grid ]]
+)
+{
+    if (gid >= c.numMessages) return;
+
+    uint offset = gid * c.messageSize;
+
+    // ---- SHA-256 ----
+    uint shaState[8];
+    sha256(messages, offset, c.messageSize, shaState);
+
+    // ---- RIPEMD-160(SHA256(msg)) ----
+    uint ripemdOut[5];
+    ripemd160(shaState, ripemdOut);
+
+    // ---- store output ----
+    uint dst = gid * 5u;
+    outHashes[dst + 0] = ripemdOut[0];
+    outHashes[dst + 1] = ripemdOut[1];
+    outHashes[dst + 2] = ripemdOut[2];
+    outHashes[dst + 3] = ripemdOut[3];
+    outHashes[dst + 4] = ripemdOut[4];
+}
+
