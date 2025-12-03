@@ -27,11 +27,6 @@ public class BloomFilter {
     private let insert_threadgroupsPerGrid: MTLSize
     private var insertItemsBuffer: MTLBuffer
     
-
-    // Query
-    private let queryPipeline: MTLComputePipelineState
-    private let query_threadsPerThreadgroup: MTLSize
-    private let query_threadgroupsPerGrid: MTLSize
     
     
     enum BloomFilterError: Error {
@@ -130,12 +125,7 @@ public class BloomFilter {
         
         // Intitialization for query
         self.countU = UInt32(batchSize)
-        self.queryPipeline = try Helpers.buildPipelineState(kernelFunctionName: "bloom_query")
-        
-        (self.query_threadsPerThreadgroup,  self.query_threadgroupsPerGrid) = try Helpers.getThreadConfig(
-            pipelineState: queryPipeline,
-            batchSize: batchSize,
-            threadsPerThreadgroupMultiplier: 16)
+       
         
     }
     
@@ -180,24 +170,20 @@ public class BloomFilter {
     }
         
     
-    func appendCommandEncoder(commandBuffer: MTLCommandBuffer, inputBuffer: MTLBuffer, resultBuffer: MTLBuffer){
-        let commandEncoder = commandBuffer.makeComputeCommandEncoder()!
-        commandEncoder.setComputePipelineState(queryPipeline)
-        commandEncoder.setBuffer(inputBuffer, offset: 0, index: 0)
-        commandEncoder.setBytes(&countU, length: 4, index: 1)
-        commandEncoder.setBuffer(bitsBuffer, offset: 0, index: 2)
-        commandEncoder.setBytes(&mBits, length: 4, index: 3)
-        commandEncoder.setBytes(&kHashes, length: 4, index: 4)
-        commandEncoder.setBuffer(resultBuffer, offset: 0, index: 5)
-        commandEncoder.dispatchThreadgroups(self.query_threadgroupsPerGrid, threadsPerThreadgroup: self.query_threadsPerThreadgroup)
-        commandEncoder.endEncoding()
+    public func getBitsBuffer() -> MTLBuffer {
+            return bitsBuffer
     }
-
     
-    public func printThreadConf(){
-        print(String(format: "    Bloom Filter: │         %6d │       %6d │             %6d │",
-                     query_threadsPerThreadgroup.width,
-                     query_threadgroupsPerGrid.width,
-                     queryPipeline.threadExecutionWidth))
+    public func getMbits() -> UInt32 {
+            return mBits
     }
+    
+    
+    public func getKhashes() -> UInt32 {
+            return kHashes
+    }
+    
+    
+    
+
 }

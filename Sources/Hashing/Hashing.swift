@@ -29,7 +29,7 @@ class Hashing {
 
         // Build compute pipeline
         self.pipelineState = try Helpers.buildPipelineState(
-            kernelFunctionName: "sha256_ripemd160_batch_kernel"
+            kernelFunctionName: "sha256_ripemd160_bloom_query_kernel"
         )
 
         // Constants buffer: SHA256Constants { uint numMessages; uint messageSize; }
@@ -43,6 +43,8 @@ class Hashing {
         ptr[0] = UInt32(batchSize) // numMessages
         ptr[1] = keyLength         // messageSize (33 or 65)
 
+        
+        
         // Thread configuration
         (self.threadsPerThreadgroup, self.threadgroupsPerGrid) =
             try Helpers.getThreadConfig(
@@ -52,16 +54,51 @@ class Hashing {
             )
     }
 
+    
+    // Inputs:
+    //   buffer(0): messages          (uchar*), numMessages * messageSize bytes
+    //   buffer(1): bits              (const uint*), bloom filter bit array
+    //   buffer(2): SHA256Constants   { numMessages, messageSize }
+    //   buffer(3): m_bits            (uint) number of bits in bloom filter
+    //   buffer(4): k_hashes          (uint) number of hash functions
+    //
+    // Output:
+    //   buffer(5): results           (uint*), 0 or 1 per message
+    //
     /// Encode SHA256 kernel for this batch into the given command buffer.
-    func appendCommandEncoder(commandBuffer: MTLCommandBuffer, resultBuffer: MTLBuffer) {
+    func appendCommandEncoder(commandBuffer: MTLCommandBuffer, bloomResultBuffer: MTLBuffer, bloomFilter: BloomFilter, hash160OutBuffer: MTLBuffer) {
         let encoder = commandBuffer.makeComputeCommandEncoder()!
         encoder.setComputePipelineState(pipelineState)
         encoder.setBuffer(inputBuffer, offset: 0, index: 0)
-        encoder.setBuffer(resultBuffer, offset: 0, index: 1)
+        encoder.setBuffer(bloomFilter.getBitsBuffer(), offset: 0, index: 1)
         encoder.setBuffer(constantsBuffer, offset: 0, index: 2)
+        var mbits = bloomFilter.getMbits()
+        encoder.setBytes(&mbits,  length: 4, index: 3)
+        var kHashes = bloomFilter.getKhashes()
+        encoder.setBytes(&kHashes, length: 4, index: 4)
+        encoder.setBuffer(bloomResultBuffer, offset: 0, index: 5)
+        encoder.setBuffer(hash160OutBuffer, offset: 0, index: 6)
+
         encoder.dispatchThreadgroups(threadgroupsPerGrid,threadsPerThreadgroup: threadsPerThreadgroup)
         encoder.endEncoding()
     }
 
+
+    /**
+     func appendCommandEncoder(commandBuffer: MTLCommandBuffer, inputBuffer: MTLBuffer, resultBuffer: MTLBuffer){
+         let commandEncoder = commandBuffer.makeComputeCommandEncoder()!
+         commandEncoder.setComputePipelineState(queryPipeline)
+         commandEncoder.setBuffer(inputBuffer, offset: 0, index: 0)
+         commandEncoder.setBytes(&countU, length: 4, index: 1)
+         commandEncoder.setBuffer(bitsBuffer, offset: 0, index: 2)
+         commandEncoder.setBytes(&mBits, length: 4, index: 3)
+         commandEncoder.setBytes(&kHashes, length: 4, index: 4)
+         commandEncoder.setBuffer(resultBuffer, offset: 0, index: 5)
+         commandEncoder.dispatchThreadgroups(self.query_threadgroupsPerGrid, threadsPerThreadgroup: self.query_threadsPerThreadgroup)
+         commandEncoder.endEncoding()
+     }
+
+     */
+   
 
 }
