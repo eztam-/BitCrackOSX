@@ -13,11 +13,10 @@ public class BloomFilter {
     // Bloom Filter configuration TODO: cleanup
     private var countU: UInt32
     private var mBits: UInt32
-    private var kHashes: UInt32
     
     private let bitsBuffer: MTLBuffer
     private let bitCount: Int
-    private let hashCount: Int
+
     private let itemLengthBytes: Int
     
     
@@ -93,7 +92,7 @@ public class BloomFilter {
         }
         
         
-        self.hashCount = k
+   
         
         let wordCount = (bitCount + 31) / 32
         let bufferSize = wordCount * MemoryLayout<UInt32>.stride
@@ -101,7 +100,6 @@ public class BloomFilter {
        
         print("    Expected insertions: \(numInsertions)")
         print("    Bit count: \(bitCount) bits (\(bufferSize / 1024) KB)")
-        print("    Hash functions: \(hashCount)")
         print("    Target FPR: \(falsePositiveRate)")
         
         let bits = device.makeBuffer(length: bufferSize, options: .storageModeShared)!
@@ -110,7 +108,7 @@ public class BloomFilter {
         
        // self.itemLenU = UInt32(itemU32Length)
         self.mBits = UInt32(bitCount)
-        self.kHashes = UInt32(hashCount)
+       
         
         
         
@@ -155,7 +153,7 @@ public class BloomFilter {
         encoder.setBytes(&countU, length: 4, index: 1)
         encoder.setBuffer(bitsBuffer, offset: 0, index: 2)
         encoder.setBytes(&mBits, length: 4, index: 3)
-        encoder.setBytes(&kHashes, length: 4, index: 4)
+
         
        
         encoder.dispatchThreadgroups(insert_threadgroupsPerGrid, threadsPerThreadgroup: insert_threadsPerThreadgroup)
@@ -179,11 +177,6 @@ public class BloomFilter {
     }
     
     
-    public func getKhashes() -> UInt32 {
-            return kHashes
-    }
-    
-    
-    
+ 
 
 }

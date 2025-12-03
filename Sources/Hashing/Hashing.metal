@@ -7,6 +7,8 @@ using namespace metal;
 #include "BloomFilter.metal"   // or wherever you put fmix32 + hash_pair_fnv_words
 
 
+constant const uint NUMBER_HASHES = 20;
+
 // Fused: SHA-256 -> RIPEMD-160 -> Bloom query
 //
 // Inputs:
@@ -14,20 +16,18 @@ using namespace metal;
 //   buffer(1): bits              (uint*)    bloom filter bit array
 //   buffer(2): SHA256Constants   { numMessages, messageSize }
 //   buffer(3): m_bits            (uint)     bloom bit count
-//   buffer(4): k_hashes          (uint)     number of bloom hash functions
 //
 // Outputs:
-//   buffer(5): bloomResults      (uint*)    0 or 1 per message
-//   buffer(6): outRipemd160      (uint*)    5 uints per message
+//   buffer(4): bloomResults      (uint*)    0 or 1 per message
+//   buffer(5): outRipemd160      (uint*)    5 uints per message
 //
 kernel void sha256_ripemd160_bloom_query_kernel(
     const device uchar*         messages       [[ buffer(0) ]],
     const device uint*          bits           [[ buffer(1) ]],
     constant SHA256Constants&   c              [[ buffer(2) ]],
     constant uint&              m_bits         [[ buffer(3) ]],
-    constant uint&              k_hashes       [[ buffer(4) ]],
-    device uint*                bloomResults   [[ buffer(5) ]],
-    device uint*                outRipemd160   [[ buffer(6) ]],
+    device uint*                bloomResults   [[ buffer(4) ]],
+    device uint*                outRipemd160   [[ buffer(5) ]],
     uint                        gid            [[ thread_position_in_grid ]]
 )
 {
@@ -58,7 +58,7 @@ kernel void sha256_ripemd160_bloom_query_kernel(
     uint h1, h2;
     hash_pair_fnv_words(ripemdOut, 5u, h1, h2);  // 5x uint32 = 20 bytes
 
-    for (uint i = 0; i < k_hashes; i++) {
+    for (uint i = 0; i < NUMBER_HASHES; i++) {
         ulong combined = (ulong)h1 + (ulong)i * (ulong)h2;
         uint bit_idx = (uint)(combined % (ulong)m_bits);
 
@@ -83,7 +83,6 @@ kernel void bloom_insert(
     constant uint &item_count      [[buffer(1)]],
     device atomic_uint *bits       [[buffer(2)]],
     constant uint &m_bits          [[buffer(3)]],
-    constant uint &k_hashes        [[buffer(4)]],
     uint gid [[thread_position_in_grid]])
 {
     if (gid >= item_count) return;
@@ -93,7 +92,7 @@ kernel void bloom_insert(
     uint h1, h2;
     hash_pair_fnv(key, 5, h1, h2); // RIPEMD160 hash is 5 UInt32 long
     
-    for (uint i = 0; i < k_hashes; i++) {
+    for (uint i = 0; i < NUMBER_HASHES; i++) {
         // Matching Swift: (h1 + i * h2) % m_bits
         ulong combined = (ulong)h1 + (ulong)i * (ulong)h2;
         uint bit_idx = (uint)(combined % (ulong)m_bits);
