@@ -37,7 +37,7 @@ final class Secp256k1Tests: TestBase {
 
         let startKeyHex = Helpers.generateRandom256BitHex()
 
-        let secp = try Secp256k1(
+        let secp = try BitcrackMetalEngine(
             on: device,
             batchSize: batchSize,
             keysPerThread: keysPerThread,

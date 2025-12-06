@@ -46,19 +46,20 @@ struct SHA256Constants {
 };
 
 
-inline void sha256(
-    const device uchar* messages,
-    uint offset,
+
+
+
+
+inline void sha256_bytes(
+    thread const uchar* msg,
     uint msgLen,
     thread uint outState[8]
 )
 {
-    // compute number of 512-bit blocks after padding
     uint64_t bitLen = (uint64_t)msgLen * 8ull;
     uint paddedLen  = (uint)((((msgLen + 9) + 63) / 64) * 64);
     uint numBlocks  = paddedLen / 64;
 
-    // initial hash values
     uint a0 = 0x6a09e667u;
     uint b0 = 0xbb67ae85u;
     uint c0 = 0x3c6ef372u;
@@ -74,22 +75,22 @@ inline void sha256(
     {
         uint baseByteIndex = blockIdx * 64;
 
-        // Build W[0..15]
+        // W[0..15]
         for (uint t = 0; t < 16; ++t) {
             uint w = 0u;
 
             for (uint j = 0; j < 4; ++j) {
-                uint globalByteIndex = baseByteIndex + t*4 + j;
+                uint globalByteIndex = baseByteIndex + t*4u + j;
                 uchar b = 0u;
 
                 if (globalByteIndex < msgLen) {
-                    b = messages[offset + globalByteIndex];
+                    b = msg[globalByteIndex];
                 }
                 else if (globalByteIndex == msgLen) {
                     b = 0x80u;
                 }
-                else if (globalByteIndex >= (paddedLen - 8)) {
-                    uint idxFromEnd = globalByteIndex - (paddedLen - 8);
+                else if (globalByteIndex >= (paddedLen - 8u)) {
+                    uint idxFromEnd = globalByteIndex - (paddedLen - 8u);
                     uint shift = (7u - idxFromEnd) * 8u;
                     b = (uchar)((bitLen >> shift) & 0xFFu);
                 }
@@ -103,14 +104,12 @@ inline void sha256(
             W[t] = w;
         }
 
-        // Extend W
         for (uint t = 16; t < 64; ++t) {
             uint s0 = sigma0(W[t-15]);
             uint s1 = sigma1(W[t-2]);
             W[t] = W[t-16] + s0 + W[t-7] + s1;
         }
 
-        // Working variables
         uint a = a0;
         uint b = b0;
         uint c_ = c0;
@@ -120,7 +119,6 @@ inline void sha256(
         uint g = g0;
         uint h = h0;
 
-        // Compression
         for (uint t = 0; t < 64; ++t) {
             uint T1 = h + Sigma1(e) + Ch(e,f,g) + K[t] + W[t];
             uint T2 = Sigma0(a) + Maj(a,b,c_);
@@ -134,7 +132,6 @@ inline void sha256(
             a = T1 + T2;
         }
 
-        // Add to state
         a0 += a;
         b0 += b;
         c0 += c_;
@@ -145,7 +142,6 @@ inline void sha256(
         h0 += h;
     }
 
-    // Output 8 final words (still big-endian word values)
     outState[0] = a0;
     outState[1] = b0;
     outState[2] = c0;
@@ -155,3 +151,6 @@ inline void sha256(
     outState[6] = g0;
     outState[7] = h0;
 }
+
+
+
