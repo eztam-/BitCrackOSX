@@ -166,6 +166,7 @@ class KeySearch {
                 if addresses.isEmpty {
                     falsePositiveCnt += 1
                 } else {
+
                     // Calculating the private key
                     let batchIndex = batchCount - 1  // because hashes are for previous batch
                     let privKeyVal = startKey + BInt(batchIndex) * BInt(Properties.TOTAL_POINTS) + BInt(i)
@@ -191,50 +192,7 @@ class KeySearch {
             }
         }
             
-            /*
-            // key "row"
-            for threadIdx in 0..<privKeyBatchSize {              // thread "column"
-                // New storage order (coalesced): [key][thread]
-                let pubKeyIndex = i * privKeyBatchSize + threadIdx
-
-                if bfResults[pubKeyIndex] {
-                    // Read 20-byte RIPEMD160 for this pub key
-                    var pubKeyHash = [UInt8](repeating: 0, count: 20)
-                    memcpy(&pubKeyHash, ripemd160Buffer.contents().advanced(by: pubKeyIndex * 20), 20)
-                    let pubKeyHashHex = Data(pubKeyHash).hexString
-                    let addresses = try! db.getAddresses(for: pubKeyHashHex)
-
-                    if addresses.isEmpty {
-                        falsePositiveCnt += 1
-                    } else {
-                        // IMPORTANT: scalar offset within the batch is still thread-major
-                        let offsetWithinBatch = BInt(threadIdx) * BInt(Properties.KEYS_PER_THREAD) + BInt(i)
-
-                        // Actual private key for this hit
-                        let privKeyVal = startKey + keyIncrement * batchCount + offsetWithinBatch
-
-                        var privKeyHex = privKeyVal.asString(radix: 16)
-                        privKeyHex = String(repeating: "0", count: max(0, 64 - privKeyHex.count)) + privKeyHex
-
-                        
-                        ui.printMessage(
-                        """
-                        --------------------------------------------------------------------------------------
-                        💰 Private key found: \(privKeyHex)
-                           For addresses:
-                            \(addresses.map { $0.address }.joined(separator: "\n    "))
-                        --------------------------------------------------------------------------------------
-                        """)
-                       
-                        try! appendToResultFile(
-                            text: "Found private key: \(privKeyHex) for addresses: \(addresses.map(\.address).joined(separator: ", ")) \n"
-                        )
-                    }
-                }
-            }
-             
-        }
-             */
+         
         return falsePositiveCnt
     }
     
@@ -265,8 +223,6 @@ class KeySearch {
         let y = yPtr[index]
 
         //Helpers.printLimbs(limbs: [x.limbs.0,x.limbs.1,x.limbs.2,x.limbs.3,x.limbs.4,x.limbs.5,x.limbs.6,x.limbs.7] )
-        
-    
         
         print("Public Key Point[\(index)] X=\(uint256ToHex2(x)) Y=\(uint256ToHex2(y))")
     }
