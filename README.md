@@ -189,10 +189,10 @@ After initialization:
 - No HASH160 results exist yet
 This ensures that initialization remains lightweight and optimized.
 
-###2. Stepping Kernel
+### 2. Stepping Kernel
 Each launch of the stepping kernel performs two operations:
 
-####A. Hash the current batch of points
+#### A. Hash the current batch of points
 For every point:
 - Generate the public key (compressed or uncompressed)
 - Compute SHA-256
@@ -201,7 +201,7 @@ For every point:
 - Write results to output buffers
 These hash results always correspond to the current batch, i.e., the values in xPtr/yPtr before stepping occurs.
 
-####B. Advance all points by ΔG
+#### B. Advance all points by ΔG
 After hashing, the kernel applies the batch-add algorithm:
 `P_next = P_current + ΔG`
 The updated points (P_next) are written back to xPtr/yPtr, becoming the starting points for the next batch.
@@ -209,7 +209,7 @@ This creates an intentional one-batch offset:
 - Hash output → Batch N
 - Updated xPtr/yPtr → Batch N+
 
-###3. Why this model is used
+### 3. Why this model is used
 This behavior mirrors the original CUDA BitCrack implementation and is chosen because it:
 - Maximizes GPU arithmetic reuse
 - Keeps the inner loop simple and pipeline-friendly
@@ -217,7 +217,7 @@ This behavior mirrors the original CUDA BitCrack implementation and is chosen be
 - Ensures each stepping pass performs a full batch of search work
 Because the initialization kernel does not hash batch 0, the first stepping kernel hashes batch 0, then advances the points to batch 1.
 
-###Summary
+### Summary
 - Initialization sets up batch 0 but does not hash it.
 - Each stepping kernel launch performs:
   1. Hash current points → produces results for batch N
