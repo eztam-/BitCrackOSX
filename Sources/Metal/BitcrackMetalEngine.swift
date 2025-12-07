@@ -25,8 +25,8 @@ public class BitcrackMetalEngine {
    // private let hashPipeline: MTLComputePipelineState
     
   //  private var batchSizeU32: UInt32
-    private let keysPerThread: Int
-    private var keysPerThreadU32: UInt32
+    //private let keysPerThread: Int
+   // private var keysPerThreadU32: UInt32
     
     
     private let compressed: Bool
@@ -45,14 +45,14 @@ public class BitcrackMetalEngine {
         let lastPrivBuffer: MTLBuffer
     }
     
-    public init(on device: MTLDevice, keysPerThread: Int, compressed: Bool, startKeyHex: String) throws {
+    public init(on device: MTLDevice, compressed: Bool, startKeyHex: String) throws {
         self.device = device
-        self.keysPerThread = keysPerThread
+    //    self.keysPerThread = keysPerThread
         self.compressed = compressed
         self.publicKeyLength = compressed ? 33 : 65
         self.startKeyHex = startKeyHex
         //self.batchSizeU32 = UInt32(batchSize)
-        self.keysPerThreadU32 = UInt32(keysPerThread)
+   //     self.keysPerThreadU32 = UInt32(keysPerThread)
         
         self.initPipeline = try Helpers.buildPipelineState(kernelFunctionName: "init_points_bitcrack_style")
         self.stepPipeline = try Helpers.buildPipelineState(kernelFunctionName: "step_points_bitcrack_style")
@@ -231,69 +231,6 @@ public class BitcrackMetalEngine {
     }
     
 
-
-
-/*
-
-    struct SHA256ConstantsSwift {
-           var numMessages: UInt32
-           var messageSize: UInt32
-           // add any other fields your Metal version has
-       }
-
-       func runHashBloomKernel(messagesBuffer: MTLBuffer,
-                               numMessages: Int,
-                               messageSize: Int,
-                               bloomBitsBuffer: MTLBuffer,
-                               mBits: UInt32,
-                               bloomResultsBuffer: MTLBuffer,
-                               outRipemd160Buffer: MTLBuffer,
-                               commandBuffer: MTLCommandBuffer) throws {
-
-           var c = SHA256ConstantsSwift(
-               numMessages: UInt32(numMessages),
-               messageSize: UInt32(messageSize)
-           )
-
-         
-        let encoder = commandBuffer.makeComputeCommandEncoder()!
-
-           encoder.setComputePipelineState(hashPipeline)
-
-           // buffer(0): messages
-           encoder.setBuffer(messagesBuffer, offset: 0, index: 0)
-
-           // buffer(1): bits
-           encoder.setBuffer(bloomBitsBuffer, offset: 0, index: 1)
-
-           // buffer(2): SHA256Constants
-           encoder.setBytes(&c,
-                            length: MemoryLayout<SHA256ConstantsSwift>.stride,
-                            index: 2)
-
-           // buffer(3): m_bits
-           var mBitsLocal = mBits
-           encoder.setBytes(&mBitsLocal,
-                            length: MemoryLayout<UInt32>.stride,
-                            index: 3)
-
-           // buffer(4): bloomResults
-           encoder.setBuffer(bloomResultsBuffer, offset: 0, index: 4)
-
-           // buffer(5): outRipemd160
-           encoder.setBuffer(outRipemd160Buffer, offset: 0, index: 5)
-
-           let threadsPerThreadgroup = min(hashPipeline.maxTotalThreadsPerThreadgroup,
-                                           numMessages)
-           let tgSize = MTLSize(width: threadsPerThreadgroup, height: 1, depth: 1)
-           let grid = MTLSize(width: numMessages, height: 1, depth: 1)
-
-           encoder.dispatchThreads(grid, threadsPerThreadgroup: tgSize)
-           encoder.endEncoding()
-           commandBuffer.commit()
-           commandBuffer.waitUntilCompleted()
-       }
-*/
 }
 
 

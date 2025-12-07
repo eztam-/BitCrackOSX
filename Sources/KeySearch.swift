@@ -33,8 +33,8 @@ class KeySearch {
         self.outputFile = outputFile
         self.startKeyHex = startKeyHex
         self.startKey = BInt(startKeyHex, radix: 16)!
-        self.totalPoints = 1 << 20   // example
-        self.pubKeyBatchSize = Int(totalPoints)
+        self.totalPoints = UInt32(Properties.TOTAL_POINTS)
+        self.pubKeyBatchSize = Int(Properties.TOTAL_POINTS)
         self.keyIncrement = BInt(pubKeyBatchSize)
         self.ui = UI(batchSize: self.pubKeyBatchSize, startKeyHex: startKeyHex)
         
@@ -59,31 +59,29 @@ class KeySearch {
     }
     
     func run() throws {
+    
+  
         let commandQueue = device.makeCommandQueue()!
         let keyLength = 33
-        let secp256k1 = try BitcrackMetalEngine(on:  device, keysPerThread: Properties.KEYS_PER_THREAD, compressed: Properties.compressedKeySearch, startKeyHex: startKeyHex)
+        let secp256k1 = try BitcrackMetalEngine(on:  device, compressed: Properties.compressedKeySearch, startKeyHex: startKeyHex)
         
         // 1. Allocate point set
 
         let gridSize    = 256               // must divide GPU well; <= totalPoints
         let pointSet = secp256k1.makePointSet(totalPoints: totalPoints, gridSize: gridSize)
-        
        
-       // let startKeyLE1 = Helpers.hex256ToUInt32Limbs(startKeyHex)
-        //Helpers.printLimbs(limbs: startKeyLE1)
+        
+        let startKeyLE =  Helpers.hex256ToUInt32Limbs(startKeyHex)
+       
 
-        let startKeyLE = Helpers.hex256ToLittleEndianLimbs(startKeyHex)!
-        Helpers.printLimbs(limbs: startKeyLE)
-
-        // 2. Run init with your starting private key (8 limbs, little-endian)
-       // let startKeyLE: [UInt32] = [
-        //    0, 0, 0, 0, 0, 0, 0, 1  // example: 1
-       // ]
+        
         
         try secp256k1.runInitKernel(pointSet: pointSet, startKeyLE: startKeyLE, commandBuffer: commandQueue.makeCommandBuffer()!)
-
+        
+        
+        dumpPoint(0, pointSet: pointSet)
         // 3. Now you can repeatedly step:
-        for batchCount in 0..<Int.max{ // TODO
+        for batchCount in 1..<Int.max{ // TODO
             let commandBuffer = commandQueue.makeCommandBuffer()!
 
             try secp256k1.appendStepKernel(pointSet: pointSet, commandBuffer: commandBuffer,bloomFilter: bloomFilter,
@@ -93,10 +91,23 @@ class KeySearch {
             
             commandBuffer.commit()
             commandBuffer.waitUntilCompleted()
+            
+            // TMP DEBUG
+            dumpPoint(0, pointSet: pointSet)
+            var pubKeyHash = [UInt8](repeating: 0, count: 20)
+            memcpy(&pubKeyHash, slots[0].ripemd160OutBuffer.contents().advanced(by: 0 * 20), 20)
+            let pubKeyHashHex = Data(pubKeyHash).hexString
+            print(pubKeyHash)
+            // END TMP DEBUG
+
+            
+            
+            
             checkBloomFilterResults(resultBuffer: slots[0].bloomFilterOutBuffer, ripemd160Buffer: slots[0].ripemd160OutBuffer, batchCount: batchCount)
 
             // Optionally: use x/y from pointSet.xBuffer/yBuffer +
             // your hash & Bloom kernel to test for hits.
+           
         }
         
         
@@ -116,6 +127,7 @@ class KeySearch {
         // so nextBaseKey = start + 2*Δk  -> start = nextBaseKey - 2*Δk
         let startKey = startKey //+ totalKeysPerBatch + totalKeysPerBatch
 
+        
         for i in 0..<pubKeyBatchSize {
             
             if bfResults[i] {
@@ -126,7 +138,7 @@ class KeySearch {
                 let addresses = try! db.getAddresses(for: pubKeyHashHex)
                 
                 ui.printMessage(pubKeyHashHex)
-
+                print(pubKeyHashHex)
                 
                 if addresses.isEmpty {
                     falsePositiveCnt += 1
@@ -213,5 +225,63 @@ class KeySearch {
     }
     
     
-}
+    func dumpPoint(_ index: Int, pointSet: BitcrackMetalEngine.PointSet) {
+        let xPtr = pointSet.xBuffer.contents()
+            .bindMemory(to: BitcrackMetalEngine.UInt256.self, capacity: Int(pointSet.totalPoints))
+
+        let yPtr = pointSet.yBuffer.contents()
+            .bindMemory(to: BitcrackMetalEngine.UInt256.self, capacity: Int(pointSet.totalPoints))
+
+        let x = xPtr[index]
+        let y = yPtr[index]
+
+        //Helpers.printLimbs(limbs: [x.limbs.0,x.limbs.1,x.limbs.2,x.limbs.3,x.limbs.4,x.limbs.5,x.limbs.6,x.limbs.7] )
+        
+    
+        
+        print("Point[\(index)].x = \(uint256ToHex2(x))")
+        print("Point[\(index)].y = \(uint256ToHex2(y))")
+    }
+    
+    
+    
+    func uint256ToHex(leLimbs: [UInt32]) -> String {
+        precondition(leLimbs.count == 8)
+        var s = ""
+        for i in (0..<8).reversed() {           // MS limb first
+            s += String(format: "%08x", leLimbs[i])
+        }
+        return s
+    }
+    
+    
+    func uint256ToHex2(_ v:  BitcrackMetalEngine.UInt256) -> String {
+        let arr = [v.limbs.0, v.limbs.1, v.limbs.2, v.limbs.3,
+                   v.limbs.4, v.limbs.5, v.limbs.6, v.limbs.7]
+        return arr.reversed().map { String(format: "%08x", $0) }.joined()
+    }
+
+    func limbsToHex(_ v: BitcrackMetalEngine.UInt256) -> String {
+        let limbs = [v.limbs.0, v.limbs.1, v.limbs.2, v.limbs.3,
+                     v.limbs.4, v.limbs.5, v.limbs.6, v.limbs.7]
+
+        // limbs[0] = least significant → move to the end
+        var bytes: [UInt8] = []
+
+        for limb in limbs.reversed() {   // reverse to big-endian word order
+            bytes.append(UInt8((limb >> 24) & 0xFF))
+            bytes.append(UInt8((limb >> 16) & 0xFF))
+            bytes.append(UInt8((limb >>  8) & 0xFF))
+            bytes.append(UInt8((limb      ) & 0xFF))
+        }
+
+        return bytes.map { String(format:"%02x", $0) }.joined()
+    }
+
+    
+  
+    }
+
+    
+
 

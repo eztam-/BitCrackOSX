@@ -53,10 +53,10 @@ public class Helpers{
     // (otherwise the last one might be just partially used).
     // This might also be a nice way, to chose larger batch sized for faster GPUs (TBC)
     // Keep this private since each of the cimpute classes should get it per init(). This allows test cases to work with smaller batch sizes
-    public static let PRIV_KEY_BATCH_SIZE = Helpers.getSharedDevice().maxThreadsPerThreadgroup.width * 256
+    //public static let PRIV_KEY_BATCH_SIZE = Helpers.getSharedDevice().maxThreadsPerThreadgroup.width * 256
     
     // Everything before the secps26k1 EC calculation is PRIV_KEY_BATCH_SIZE aeverything after is PUB_KEY_BATCH_SIZE
-    public static let PUB_KEY_BATCH_SIZE = PRIV_KEY_BATCH_SIZE * Properties.KEYS_PER_THREAD
+    //public static let PUB_KEY_BATCH_SIZE = PRIV_KEY_BATCH_SIZE * Properties.KEYS_PER_THREAD
     
     
     
