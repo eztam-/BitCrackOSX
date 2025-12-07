@@ -3,15 +3,10 @@ import Metal
 
 struct Properties{
     
-    // How many keys each thread calculates per batch.
-    // Tune: 256, 512, 1024, ... depending on registers/occupancy.
-    // Each thread will process KEYS_PER_THREAD keys at a time
-    // The key generator will only generate the start key used by each thread and therefore increments by KEYS_PER_THREAD
-    // ATTENTION!!! This value cann not be higher than secp256k1.MAX_KEYS_PER_THREAD but it could be lower (I couldn't find a way to set this correctly at runtime)
-    //              best would be to set bot to the same value provided as cmd arg
-    public static let KEYS_PER_THREAD: Int = 128
-    
+
     public static let APP_COMMAND_NAME = "keysearch"
+    
+    public static let TOTAL_POINTS: Int =  1024 * 1024 // 1 << 20
     
     nonisolated(unsafe) public static var verbose: Bool = false
     
@@ -24,5 +19,9 @@ struct Properties{
     //    options.mathMode = .fast
     //    return options
     // }
+    
+    
+    
+
 }
 

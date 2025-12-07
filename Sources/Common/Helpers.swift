@@ -53,10 +53,10 @@ public class Helpers{
     // (otherwise the last one might be just partially used).
     // This might also be a nice way, to chose larger batch sized for faster GPUs (TBC)
     // Keep this private since each of the cimpute classes should get it per init(). This allows test cases to work with smaller batch sizes
-    public static let PRIV_KEY_BATCH_SIZE = Helpers.getSharedDevice().maxThreadsPerThreadgroup.width * 256
+    //public static let PRIV_KEY_BATCH_SIZE = Helpers.getSharedDevice().maxThreadsPerThreadgroup.width * 256
     
     // Everything before the secps26k1 EC calculation is PRIV_KEY_BATCH_SIZE aeverything after is PUB_KEY_BATCH_SIZE
-    public static let PUB_KEY_BATCH_SIZE = PRIV_KEY_BATCH_SIZE * Properties.KEYS_PER_THREAD
+    //public static let PUB_KEY_BATCH_SIZE = PRIV_KEY_BATCH_SIZE * Properties.KEYS_PER_THREAD
     
     
     
@@ -211,6 +211,48 @@ public class Helpers{
         return (threadsPerTGSize, threadgroupsPerGrid)
     }
     
+    
+    public static func hex256ToLittleEndianLimbs(_ hex: String) -> [UInt32]? {
+        // Normalize: remove "0x" prefix and lowercase
+        let cleaned = hex.trimmingCharacters(in: .whitespacesAndNewlines)
+                          .replacingOccurrences(of: "0x", with: "")
+                          .lowercased()
+        
+        // Must be exactly 64 hex chars (256 bits)
+        guard cleaned.count == 64 else {
+            print("Error: Hex string must be exactly 64 hex characters (256 bits).")
+            return nil
+        }
+
+        // Convert to bytes (big-endian hex string)
+        var bytes = [UInt8]()
+        bytes.reserveCapacity(32)
+
+        var idx = cleaned.startIndex
+        for _ in 0..<32 {
+            let next = cleaned.index(idx, offsetBy: 2)
+            guard let byte = UInt8(cleaned[idx..<next], radix: 16) else { return nil }
+            bytes.append(byte)
+            idx = next
+        }
+
+        // Now convert to 8 UInt32 limbs (little-endian)
+        var limbs = [UInt32]()
+        limbs.reserveCapacity(8)
+
+        // Every 4 bytes → 1 limb, but reverse the chunks for little-endian
+        for i in stride(from: 0, to: 32, by: 4) {
+            let b0 = UInt32(bytes[i])
+            let b1 = UInt32(bytes[i+1])
+            let b2 = UInt32(bytes[i+2])
+            let b3 = UInt32(bytes[i+3])
+            let limb = b0 | (b1 << 8) | (b2 << 16) | (b3 << 24)
+            limbs.append(limb)
+        }
+
+        return limbs
+    }
+
     
 
     public static func buildPipelineState(kernelFunctionName: String) throws -> MTLComputePipelineState {

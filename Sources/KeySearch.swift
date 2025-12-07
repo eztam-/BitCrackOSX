@@ -14,36 +14,39 @@ class KeySearch {
         let semaphore = DispatchSemaphore(value: 1)
     }
     var slots: [BatchSlot] = []
+    
     let bloomFilter: BloomFilter
     let db: DB
     let outputFile: String
     let device = Helpers.getSharedDevice()
-    let privKeyBatchSize = Helpers.PRIV_KEY_BATCH_SIZE // Number of base private keys per batch (number of total threads in grid)
-    let pubKeyBatchSize =  Helpers.PUB_KEY_BATCH_SIZE // Number of public keys generated per batch
+    let pubKeyBatchSize: Int //=  Helpers.PUB_KEY_BATCH_SIZE // Number of public keys generated per batch
     let ui: UI
     let startKeyHex: String
     var startKey: BInt
     let keyIncrement: BInt
+    let totalPoints: UInt32
+    
     
     public init(bloomFilter: BloomFilter, database: DB, outputFile: String, startKeyHex: String) {
         self.bloomFilter = bloomFilter
         self.db = database
         self.outputFile = outputFile
-        self.ui = UI(batchSize: self.pubKeyBatchSize, startKeyHex: startKeyHex)
         self.startKeyHex = startKeyHex
         self.startKey = BInt(startKeyHex, radix: 16)!
+        self.totalPoints = UInt32(Properties.TOTAL_POINTS)
+        self.pubKeyBatchSize = Int(Properties.TOTAL_POINTS)
         self.keyIncrement = BInt(pubKeyBatchSize)
-
-
+        self.ui = UI(batchSize: self.pubKeyBatchSize, startKeyHex: startKeyHex)
+        
         // Initialize ring buffer with MTLBuffers
         slots = (0..<maxInFlight).map { _ in
             let resultBuffer = device.makeBuffer(
-                length: pubKeyBatchSize * MemoryLayout<UInt32>.stride, // TODO why uint? it is bool??? FIXME
+                length: Int(totalPoints) * MemoryLayout<UInt32>.stride, // TODO why uint? it is bool??? FIXME
                 options: [.storageModeShared]
             )!
             
             let ripemd160Buffer = device.makeBuffer(
-                length: pubKeyBatchSize * 5 * MemoryLayout<UInt32>.stride,   // 20 bytes per hash
+                length: Int(totalPoints) * 5 * MemoryLayout<UInt32>.stride,   // 20 bytes per hash
                 options: [.storageModeShared]
             )!
             
@@ -56,61 +59,58 @@ class KeySearch {
     }
     
     func run() throws {
-        
-        //let startKey = "0000000000000000000000000000000000000000000000000001000000000000"
-        
-        let commandQueue = device.makeCommandQueue()!
-        let keyLength = Properties.compressedKeySearch ? 33 : 65 //   keyLength:  33 = compressed;  65 = uncompressed
-        
-        let secp256k1 = try Secp256k1(on:  device, batchSize: privKeyBatchSize, keysPerThread: Properties.KEYS_PER_THREAD, compressed: Properties.compressedKeySearch, startKeyHex: startKeyHex)
-        let sha256 = try SHA256(on: device, batchSize: pubKeyBatchSize, inputBuffer: secp256k1.getPublicKeyBuffer(), keyLength: UInt32(keyLength))
-        let ripemd160 = try RIPEMD160(on: device, batchSize: pubKeyBatchSize, inputBuffer: sha256.getOutputBuffer())
-        // TODO Initialize the bloomfilter from here
-        
     
-        try secp256k1.initializeBasePoints()
-        try printStartupInfos(sha256: sha256, ripemd160: ripemd160, bloomFilter: bloomFilter)
-        let ui = self.ui
-        ui.startLiveStats()
-        var batchIndex = 0 // TODO: Could overrun
+  
+        let commandQueue = device.makeCommandQueue()!
+        let keyLength = 33
+        let secp256k1 = try BitcrackMetalEngine(on:  device, compressed: Properties.compressedKeySearch, startKeyHex: startKeyHex)
+        
+        // 1. Allocate point set
 
-        while true {
-            let batchStartNS = DispatchTime.now().uptimeNanoseconds
-            let slotIndex = batchIndex % maxInFlight
-            let slot = slots[slotIndex]
-            slot.semaphore.wait()
-            
+        let gridSize    = 256               // must divide GPU well; <= totalPoints
+        let pointSet = secp256k1.makePointSet(totalPoints: totalPoints, gridSize: gridSize)
+       
+        
+        let startKeyLE =  Helpers.hex256ToUInt32Limbs(startKeyHex)
+       
+
+        
+        
+        try secp256k1.runInitKernel(pointSet: pointSet, startKeyLE: startKeyLE, commandBuffer: commandQueue.makeCommandBuffer()!)
+        
+        
+        dumpPoint(0, pointSet: pointSet)
+        // 3. Now you can repeatedly step:
+        for batchCount in 1..<Int.max{ // TODO
             let commandBuffer = commandQueue.makeCommandBuffer()!
-            secp256k1.appendCommandEncoder(commandBuffer: commandBuffer)
-            sha256.appendCommandEncoder(commandBuffer: commandBuffer)
-            ripemd160.appendCommandEncoder(commandBuffer: commandBuffer, resultBuffer: slot.ripemd160OutBuffer)
-            bloomFilter.appendCommandEncoder(commandBuffer: commandBuffer, inputBuffer: slot.ripemd160OutBuffer, resultBuffer: slot.bloomFilterOutBuffer) // TODO: make this consistent and move inputBuffer to constructor once refactored
-            
-            // Snapshot the batch index for THIS batch
-             let thisBatchIndex = batchIndex
-            
-            // --- Async CPU callback when GPU finishes this batch ---
-            commandBuffer.addCompletedHandler { [weak self] _ in
-                // Theres no guarantee that CompletedHandlers are executed in the same order of submission (despite the command buffers are always executed in sequence)
-                // So we cannot increment the base key from here
-                
-                let falsePositiveCnt = self!.checkBloomFilterResults(resultBuffer: slot.bloomFilterOutBuffer,ripemd160Buffer: slot.ripemd160OutBuffer, batchCount: thisBatchIndex )
-                self!.ui.bfFalePositiveCnt = falsePositiveCnt
-                slot.semaphore.signal()
-            }
-   
-            commandBuffer.commit()  // Submit work to GPU
 
-            batchIndex += 1
-            let batchEndNS = DispatchTime.now().uptimeNanoseconds
+            try secp256k1.appendStepKernel(pointSet: pointSet, commandBuffer: commandBuffer,bloomFilter: bloomFilter,
+                                           bloomFilterResultBuffer: slots[0].bloomFilterOutBuffer,
+                                           hash160OutBuffer: slots[0].ripemd160OutBuffer)
+
+            
+            commandBuffer.commit()
+            commandBuffer.waitUntilCompleted()
+            
+            // TMP DEBUG
+            dumpPoint(0, pointSet: pointSet)
+            var pubKeyHash = [UInt8](repeating: 0, count: 20)
+            memcpy(&pubKeyHash, slots[0].ripemd160OutBuffer.contents().advanced(by: 0 * 20), 20)
+            let pubKeyHashHex = Data(pubKeyHash).hexString
+            print("HASH160: \(pubKeyHashHex)")
+            // END TMP DEBUG
+
+            
+            
+            
+            checkBloomFilterResults(resultBuffer: slots[0].bloomFilterOutBuffer, ripemd160Buffer: slots[0].ripemd160OutBuffer, batchCount: batchCount)
+
+            // Optionally: use x/y from pointSet.xBuffer/yBuffer +
+            // your hash & Bloom kernel to test for hits.
            
-            // TODO make this async
-            ui.updateStats(
-                totalStartTime: batchStartNS,
-                totalEndTime: batchEndNS,
-                batchCount: batchIndex
-            )
         }
+        
+        
     }
     
     
@@ -127,7 +127,43 @@ class KeySearch {
         // so nextBaseKey = start + 2*Δk  -> start = nextBaseKey - 2*Δk
         let startKey = startKey //+ totalKeysPerBatch + totalKeysPerBatch
 
-        for i in 0..<Properties.KEYS_PER_THREAD {                // key "row"
+        
+        for i in 0..<pubKeyBatchSize {
+            
+            if bfResults[i] {
+                // Read 20-byte RIPEMD160 for this pub key
+                var pubKeyHash = [UInt8](repeating: 0, count: 20)
+                memcpy(&pubKeyHash, ripemd160Buffer.contents().advanced(by: i * 20), 20)
+                let pubKeyHashHex = Data(pubKeyHash).hexString
+                let addresses = try! db.getAddresses(for: pubKeyHashHex)
+                
+                ui.printMessage(pubKeyHashHex)
+                print(pubKeyHashHex)
+                
+                if addresses.isEmpty {
+                    falsePositiveCnt += 1
+                } else {
+                    let privKeyHex =  "TODO: IMPLEMENT ME"
+                    ui.printMessage(
+                    """
+                    --------------------------------------------------------------------------------------
+                    💰 Private key found: \(privKeyHex) 
+                       For addresses:
+                        \(addresses.map { $0.address }.joined(separator: "\n    "))
+                    --------------------------------------------------------------------------------------
+                    """)
+                    
+                     try! appendToResultFile(
+                        text: "Found private key: \(privKeyHex) for addresses: \(addresses.map(\.address).joined(separator: ", ")) \n"
+                     )
+                    
+                }
+                
+            }
+        }
+            
+            /*
+            // key "row"
             for threadIdx in 0..<privKeyBatchSize {              // thread "column"
                 // New storage order (coalesced): [key][thread]
                 let pubKeyIndex = i * privKeyBatchSize + threadIdx
@@ -167,26 +203,11 @@ class KeySearch {
                     }
                 }
             }
+             
         }
+             */
         return falsePositiveCnt
     }
-	
-    func printStartupInfos(sha256: SHA256, ripemd160: RIPEMD160, bloomFilter: BloomFilter) throws {
-        try Helpers.printGPUInfo(device: device)
-        
-        if Properties.verbose {
-            print("                  │ Threads per TG │ TGs per Grid │ Thread Exec. Width │")
-            //secp256k1.printThreadConf()
-            sha256.printThreadConf()
-            ripemd160.printThreadConf()
-            bloomFilter.printThreadConf()
-            print("")
-        }
-        
-        let compUncomp = Properties.compressedKeySearch ? "compressed" : "uncompressed"
-        print("🚀 Starting \(compUncomp) key search\n")
-    }
-    
     
     func appendToResultFile(text: String) throws {
         let filePath = self.outputFile
@@ -204,5 +225,63 @@ class KeySearch {
     }
     
     
-}
+    func dumpPoint(_ index: Int, pointSet: BitcrackMetalEngine.PointSet) {
+        let xPtr = pointSet.xBuffer.contents()
+            .bindMemory(to: BitcrackMetalEngine.UInt256.self, capacity: Int(pointSet.totalPoints))
+
+        let yPtr = pointSet.yBuffer.contents()
+            .bindMemory(to: BitcrackMetalEngine.UInt256.self, capacity: Int(pointSet.totalPoints))
+
+        let x = xPtr[index]
+        let y = yPtr[index]
+
+        //Helpers.printLimbs(limbs: [x.limbs.0,x.limbs.1,x.limbs.2,x.limbs.3,x.limbs.4,x.limbs.5,x.limbs.6,x.limbs.7] )
+        
+    
+        
+        print("Point[\(index)].x = \(uint256ToHex2(x))")
+        print("Point[\(index)].y = \(uint256ToHex2(y))")
+    }
+    
+    
+    
+    func uint256ToHex(leLimbs: [UInt32]) -> String {
+        precondition(leLimbs.count == 8)
+        var s = ""
+        for i in (0..<8).reversed() {           // MS limb first
+            s += String(format: "%08x", leLimbs[i])
+        }
+        return s
+    }
+    
+    
+    func uint256ToHex2(_ v:  BitcrackMetalEngine.UInt256) -> String {
+        let arr = [v.limbs.0, v.limbs.1, v.limbs.2, v.limbs.3,
+                   v.limbs.4, v.limbs.5, v.limbs.6, v.limbs.7]
+        return arr.reversed().map { String(format: "%08x", $0) }.joined()
+    }
+
+    func limbsToHex(_ v: BitcrackMetalEngine.UInt256) -> String {
+        let limbs = [v.limbs.0, v.limbs.1, v.limbs.2, v.limbs.3,
+                     v.limbs.4, v.limbs.5, v.limbs.6, v.limbs.7]
+
+        // limbs[0] = least significant → move to the end
+        var bytes: [UInt8] = []
+
+        for limb in limbs.reversed() {   // reverse to big-endian word order
+            bytes.append(UInt8((limb >> 24) & 0xFF))
+            bytes.append(UInt8((limb >> 16) & 0xFF))
+            bytes.append(UInt8((limb >>  8) & 0xFF))
+            bytes.append(UInt8((limb      ) & 0xFF))
+        }
+
+        return bytes.map { String(format:"%02x", $0) }.joined()
+    }
+
+    
+  
+    }
+
+    
+
 

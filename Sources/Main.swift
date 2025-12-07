@@ -100,7 +100,7 @@ _________                        __     ____  __.               _________       
                 print(banner)
              
                 let db = try DB(dbPath: dbFile)
-                let bloomFilter = try BloomFilter(db: db, batchSize: Helpers.PUB_KEY_BATCH_SIZE) // TODO: bad access of BATCH_SIZE in KeySearch
+                let bloomFilter = try BloomFilter(db: db, batchSize: Properties.TOTAL_POINTS) // TODO: bad access of BATCH_SIZE in KeySearch
                 if startKey == "RANDOM" {
                     startKey = Helpers.randomHex256(in: ("1", "FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFEBAAEDCE6AF48A03BBFD25E8CD0364140")) // Max range for BTC keys
                 }
