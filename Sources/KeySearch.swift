@@ -67,13 +67,13 @@ class KeySearch {
         
         // 1. Allocate point set
 
-        let gridSize    = 256               // must divide GPU well; <= totalPoints
-        let pointSet = secp256k1.makePointSet(totalPoints: totalPoints, gridSize: gridSize)
+        
+        let pointSet = secp256k1.makePointSet(totalPoints: totalPoints, gridSize: Properties.GRID_SIZE)
        
         
         let startKeyLE =  Helpers.hex256ToUInt32Limbs(startKeyHex)
        
-
+        ui.startLiveStats()
         
         
         try secp256k1.runInitKernel(pointSet: pointSet, startKeyLE: startKeyLE, commandBuffer: commandQueue.makeCommandBuffer()!)
@@ -82,31 +82,55 @@ class KeySearch {
         dumpPoint(0, pointSet: pointSet)
         // 3. Now you can repeatedly step:
         for batchCount in 1..<Int.max{ // TODO
+            
+            let batchStartNS = DispatchTime.now().uptimeNanoseconds
+            let slotIndex = batchCount % maxInFlight
+            let slot = slots[slotIndex]
+            slot.semaphore.wait()
+            
+            
             let commandBuffer = commandQueue.makeCommandBuffer()!
 
             try secp256k1.appendStepKernel(pointSet: pointSet, commandBuffer: commandBuffer,bloomFilter: bloomFilter,
-                                           bloomFilterResultBuffer: slots[0].bloomFilterOutBuffer,
-                                           hash160OutBuffer: slots[0].ripemd160OutBuffer)
+                                           bloomFilterResultBuffer: slot.bloomFilterOutBuffer,
+                                           hash160OutBuffer: slot.ripemd160OutBuffer)
 
             
+            // --- Async CPU callback when GPU finishes this batch ---
+            commandBuffer.addCompletedHandler { [weak self] _ in
+                   // Theres no guarantee that CompletedHandlers are executed in the same order of submission (despite the command buffers are always executed in sequence)
+                   // So we cannot increment the base key from here
+                   
+                   let falsePositiveCnt = self!.checkBloomFilterResults(resultBuffer: slot.bloomFilterOutBuffer,ripemd160Buffer: slot.ripemd160OutBuffer, batchCount: batchCount )
+                   self!.ui.bfFalePositiveCnt = falsePositiveCnt
+                   slot.semaphore.signal()
+            }
+            
+            
             commandBuffer.commit()
-            commandBuffer.waitUntilCompleted()
+            //commandBuffer.waitUntilCompleted()
             
             // TMP DEBUG
-            dumpPoint(0, pointSet: pointSet)
-            var pubKeyHash = [UInt8](repeating: 0, count: 20)
-            memcpy(&pubKeyHash, slots[0].ripemd160OutBuffer.contents().advanced(by: 0 * 20), 20)
-            let pubKeyHashHex = Data(pubKeyHash).hexString
-            print("HASH160: \(pubKeyHashHex)")
+            //dumpPoint(0, pointSet: pointSet)
+            //var pubKeyHash = [UInt8](repeating: 0, count: 20)
+            //memcpy(&pubKeyHash, slots[0].ripemd160OutBuffer.contents().advanced(by: 0 * 20), 20)
+            //let pubKeyHashHex = Data(pubKeyHash).hexString
+            //print("HASH160: \(pubKeyHashHex)")
             // END TMP DEBUG
 
             
             
             
-            checkBloomFilterResults(resultBuffer: slots[0].bloomFilterOutBuffer, ripemd160Buffer: slots[0].ripemd160OutBuffer, batchCount: batchCount)
+            //checkBloomFilterResults(resultBuffer: slots[0].bloomFilterOutBuffer, ripemd160Buffer: slots[0].ripemd160OutBuffer, batchCount: batchCount)
 
-            // Optionally: use x/y from pointSet.xBuffer/yBuffer +
-            // your hash & Bloom kernel to test for hits.
+            let batchEndNS = DispatchTime.now().uptimeNanoseconds
+                    
+             // TODO make this async
+             ui.updateStats(
+                 totalStartTime: batchStartNS,
+                 totalEndTime: batchEndNS,
+                 batchCount: batchCount
+             )
            
         }
         
@@ -131,19 +155,25 @@ class KeySearch {
         for i in 0..<pubKeyBatchSize {
             
             if bfResults[i] {
+               
                 // Read 20-byte RIPEMD160 for this pub key
                 var pubKeyHash = [UInt8](repeating: 0, count: 20)
                 memcpy(&pubKeyHash, ripemd160Buffer.contents().advanced(by: i * 20), 20)
                 let pubKeyHashHex = Data(pubKeyHash).hexString
                 let addresses = try! db.getAddresses(for: pubKeyHashHex)
                 
-                ui.printMessage(pubKeyHashHex)
-                print(pubKeyHashHex)
                 
                 if addresses.isEmpty {
                     falsePositiveCnt += 1
                 } else {
-                    let privKeyHex =  "TODO: IMPLEMENT ME"
+
+                    // Calculating the private key
+                    let batchIndex = batchCount - 1  // because hashes are for previous batch
+                    let privKeyVal = startKey + BInt(batchIndex) * BInt(Properties.TOTAL_POINTS) + BInt(i)
+
+                    var privKeyHex = privKeyVal.asString(radix: 16)
+                    privKeyHex = String(repeating: "0", count: max(0, 64 - privKeyHex.count)) + privKeyHex
+                    
                     ui.printMessage(
                     """
                     --------------------------------------------------------------------------------------
@@ -160,52 +190,10 @@ class KeySearch {
                 }
                 
             }
-        }
-            
-            /*
-            // key "row"
-            for threadIdx in 0..<privKeyBatchSize {              // thread "column"
-                // New storage order (coalesced): [key][thread]
-                let pubKeyIndex = i * privKeyBatchSize + threadIdx
-
-                if bfResults[pubKeyIndex] {
-                    // Read 20-byte RIPEMD160 for this pub key
-                    var pubKeyHash = [UInt8](repeating: 0, count: 20)
-                    memcpy(&pubKeyHash, ripemd160Buffer.contents().advanced(by: pubKeyIndex * 20), 20)
-                    let pubKeyHashHex = Data(pubKeyHash).hexString
-                    let addresses = try! db.getAddresses(for: pubKeyHashHex)
-
-                    if addresses.isEmpty {
-                        falsePositiveCnt += 1
-                    } else {
-                        // IMPORTANT: scalar offset within the batch is still thread-major
-                        let offsetWithinBatch = BInt(threadIdx) * BInt(Properties.KEYS_PER_THREAD) + BInt(i)
-
-                        // Actual private key for this hit
-                        let privKeyVal = startKey + keyIncrement * batchCount + offsetWithinBatch
-
-                        var privKeyHex = privKeyVal.asString(radix: 16)
-                        privKeyHex = String(repeating: "0", count: max(0, 64 - privKeyHex.count)) + privKeyHex
-
-                        
-                        ui.printMessage(
-                        """
-                        --------------------------------------------------------------------------------------
-                        💰 Private key found: \(privKeyHex)
-                           For addresses:
-                            \(addresses.map { $0.address }.joined(separator: "\n    "))
-                        --------------------------------------------------------------------------------------
-                        """)
-                       
-                        try! appendToResultFile(
-                            text: "Found private key: \(privKeyHex) for addresses: \(addresses.map(\.address).joined(separator: ", ")) \n"
-                        )
-                    }
-                }
-            }
              
         }
-             */
+            
+         
         return falsePositiveCnt
     }
     
@@ -237,10 +225,7 @@ class KeySearch {
 
         //Helpers.printLimbs(limbs: [x.limbs.0,x.limbs.1,x.limbs.2,x.limbs.3,x.limbs.4,x.limbs.5,x.limbs.6,x.limbs.7] )
         
-    
-        
-        print("Point[\(index)].x = \(uint256ToHex2(x))")
-        print("Point[\(index)].y = \(uint256ToHex2(y))")
+        print("Public Key Point[\(index)] X=\(uint256ToHex2(x)) Y=\(uint256ToHex2(y))")
     }
     
     

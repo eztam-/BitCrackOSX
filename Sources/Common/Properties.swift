@@ -6,7 +6,9 @@ struct Properties{
 
     public static let APP_COMMAND_NAME = "keysearch"
     
-    public static let TOTAL_POINTS: Int =  1024 * 1024 // 1 << 20
+    public static let TOTAL_POINTS: Int =  1024 * 1024 * 64 // 1 << 20
+    
+    public static let GRID_SIZE    = 1024 * 128             // must divide GPU well; <= totalPoints
     
     nonisolated(unsafe) public static var verbose: Bool = false
     
