@@ -14,11 +14,11 @@ class KeySearch {
         let semaphore = DispatchSemaphore(value: 1)
     }
     var slots: [BatchSlot] = []
+    
     let bloomFilter: BloomFilter
     let db: DB
     let outputFile: String
     let device = Helpers.getSharedDevice()
-   // let privKeyBatchSize = Helpers.PRIV_KEY_BATCH_SIZE // Number of base private keys per batch (number of total threads in grid)
     let pubKeyBatchSize: Int //=  Helpers.PUB_KEY_BATCH_SIZE // Number of public keys generated per batch
     let ui: UI
     let startKeyHex: String
