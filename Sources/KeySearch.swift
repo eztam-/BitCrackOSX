@@ -166,11 +166,13 @@ class KeySearch {
                 if addresses.isEmpty {
                     falsePositiveCnt += 1
                 } else {
+                    // Calculating the private key
+                    let batchIndex = batchCount - 1  // because hashes are for previous batch
+                    let privKeyVal = startKey + BInt(batchIndex) * BInt(Properties.TOTAL_POINTS) + BInt(i)
+
+                    var privKeyHex = privKeyVal.asString(radix: 16)
+                    privKeyHex = String(repeating: "0", count: max(0, 64 - privKeyHex.count)) + privKeyHex
                     
-                    
-                    
-                    
-                    let privKeyHex =  "TODO: IMPLEMENT ME"
                     ui.printMessage(
                     """
                     --------------------------------------------------------------------------------------
