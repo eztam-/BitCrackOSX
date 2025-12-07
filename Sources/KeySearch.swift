@@ -79,7 +79,7 @@ class KeySearch {
         try secp256k1.runInitKernel(pointSet: pointSet, startKeyLE: startKeyLE, commandBuffer: commandQueue.makeCommandBuffer()!)
         
         
-        dumpPoint(0, pointSet: pointSet)
+        //dumpPoint(0, pointSet: pointSet)
         // 3. Now you can repeatedly step:
         for batchCount in 1..<Int.max{ // TODO
             

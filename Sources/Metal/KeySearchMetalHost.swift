@@ -52,24 +52,19 @@ public class KeySearchMetalHost {
     func makePointSet(totalPoints: UInt32,
                       gridSize: Int) -> PointSet {
         // x / y arrays: one UInt256 per point
-        let xBuffer = device.makeBuffer(length: Int(totalPoints) * MemoryLayout<UInt256>.stride,
-                                        options: .storageModeShared)!
-        let yBuffer = device.makeBuffer(length: Int(totalPoints) * MemoryLayout<UInt256>.stride,
-                                        options: .storageModeShared)!
+        let xBuffer = device.makeBuffer(length: Int(totalPoints) * MemoryLayout<UInt256>.stride, options: .storageModePrivate)!
+        let yBuffer = device.makeBuffer(length: Int(totalPoints) * MemoryLayout<UInt256>.stride, options: .storageModePrivate)!
         
         // chain size: ceil(totalPoints / gridSize) * gridSize
         let batches = (Int(totalPoints) + gridSize - 1) / gridSize
         let chainCount = batches * gridSize
-        let chainBuffer = device.makeBuffer(length: chainCount * MemoryLayout<UInt256>.stride,
-                                            options: .storageModeShared)!
+        let chainBuffer = device.makeBuffer(length: chainCount * MemoryLayout<UInt256>.stride, options: .storageModeShared)!
         
         // single Point for ΔG
-        let deltaGBuffer = device.makeBuffer(length: MemoryLayout<Point>.stride,
-                                             options: .storageModeShared)!
+        let deltaGBuffer = device.makeBuffer(length: MemoryLayout<Point>.stride, options: .storageModeShared)!
         
         // 8 limbs (UInt32) for last private key
-        let lastPrivBuffer = device.makeBuffer(length: 8 * MemoryLayout<UInt32>.stride,
-                                               options: .storageModeShared)!
+        let lastPrivBuffer = device.makeBuffer(length: 8 * MemoryLayout<UInt32>.stride, options: .storageModeShared)! // TODO: do we still need this since we calculate the priv key on CPU?
         
         return PointSet(
             totalPoints: totalPoints,
