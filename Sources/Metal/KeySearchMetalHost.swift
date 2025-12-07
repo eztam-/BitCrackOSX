@@ -1,7 +1,7 @@
 import Metal
 import Foundation
 
-public class BitcrackMetalEngine {
+public class KeySearchMetalHost {
     
     
     // Metal layout mirrors (match your Metal structs exactly)
@@ -22,17 +22,9 @@ public class BitcrackMetalEngine {
     private let device: MTLDevice
     private let initPipeline: MTLComputePipelineState
     private let stepPipeline: MTLComputePipelineState
-   // private let hashPipeline: MTLComputePipelineState
-    
-  //  private var batchSizeU32: UInt32
-    //private let keysPerThread: Int
-   // private var keysPerThreadU32: UInt32
-    
-    
+
     private let compressed: Bool
     private let publicKeyLength: Int
-    
-    
     private let startKeyHex: String
     
     public struct PointSet {

@@ -91,9 +91,7 @@ public class BloomFilter {
             self.bitCount = Int(m)
         }
         
-        
-   
-        
+
         let wordCount = (bitCount + 31) / 32
         let bufferSize = wordCount * MemoryLayout<UInt32>.stride
         
@@ -108,9 +106,6 @@ public class BloomFilter {
         
        // self.itemLenU = UInt32(itemU32Length)
         self.mBits = UInt32(bitCount)
-       
-        
-        
         
         // Intitialization for insert
         insertItemsBuffer = device.makeBuffer(length: bufferSize, options: .storageModeShared)!
@@ -119,7 +114,6 @@ public class BloomFilter {
             pipelineState: insertPipeline,
             batchSize: batchSize,
             threadsPerThreadgroupMultiplier: 16)
-        
         
         // Intitialization for query
         self.countU = UInt32(batchSize)
@@ -163,11 +157,8 @@ public class BloomFilter {
         
         cmdBuffer.commit()
         cmdBuffer.waitUntilCompleted()
-        
-        
     }
         
-    
     public func getBitsBuffer() -> MTLBuffer {
             return bitsBuffer
     }
@@ -176,7 +167,4 @@ public class BloomFilter {
             return mBits
     }
     
-    
- 
-
 }

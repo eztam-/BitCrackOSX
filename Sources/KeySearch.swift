@@ -63,7 +63,7 @@ class KeySearch {
   
         let commandQueue = device.makeCommandQueue()!
         let keyLength = 33
-        let secp256k1 = try BitcrackMetalEngine(on:  device, compressed: Properties.compressedKeySearch, startKeyHex: startKeyHex)
+        let secp256k1 = try KeySearchMetalHost(on:  device, compressed: Properties.compressedKeySearch, startKeyHex: startKeyHex)
         
         // 1. Allocate point set
 
@@ -213,12 +213,12 @@ class KeySearch {
     }
     
     
-    func dumpPoint(_ index: Int, pointSet: BitcrackMetalEngine.PointSet) {
+    func dumpPoint(_ index: Int, pointSet: KeySearchMetalHost.PointSet) {
         let xPtr = pointSet.xBuffer.contents()
-            .bindMemory(to: BitcrackMetalEngine.UInt256.self, capacity: Int(pointSet.totalPoints))
+            .bindMemory(to: KeySearchMetalHost.UInt256.self, capacity: Int(pointSet.totalPoints))
 
         let yPtr = pointSet.yBuffer.contents()
-            .bindMemory(to: BitcrackMetalEngine.UInt256.self, capacity: Int(pointSet.totalPoints))
+            .bindMemory(to: KeySearchMetalHost.UInt256.self, capacity: Int(pointSet.totalPoints))
 
         let x = xPtr[index]
         let y = yPtr[index]
@@ -240,13 +240,13 @@ class KeySearch {
     }
     
     
-    func uint256ToHex2(_ v:  BitcrackMetalEngine.UInt256) -> String {
+    func uint256ToHex2(_ v:  KeySearchMetalHost.UInt256) -> String {
         let arr = [v.limbs.0, v.limbs.1, v.limbs.2, v.limbs.3,
                    v.limbs.4, v.limbs.5, v.limbs.6, v.limbs.7]
         return arr.reversed().map { String(format: "%08x", $0) }.joined()
     }
 
-    func limbsToHex(_ v: BitcrackMetalEngine.UInt256) -> String {
+    func limbsToHex(_ v: KeySearchMetalHost.UInt256) -> String {
         let limbs = [v.limbs.0, v.limbs.1, v.limbs.2, v.limbs.3,
                      v.limbs.4, v.limbs.5, v.limbs.6, v.limbs.7]
 
