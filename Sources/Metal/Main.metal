@@ -700,6 +700,40 @@ kernel void sha256_test_kernel(
 }
 
 
+// ==========================================================
+// Test kernel for HASH160 = RIPEMD160(SHA256(pubkey))
+// This uses EXACT SAME CODE as your step kernel.
+// ==========================================================
+kernel void test_hash160_kernel(
+    device const uchar*    pubkeyBytes   [[ buffer(0) ]],
+    constant uint&         pubkeyLen     [[ buffer(1) ]],
+    device uint*           outRiWords    [[ buffer(2) ]],  // 5×uint32
+    uint                   tid           [[ thread_position_in_grid ]]
+) {
+    if (tid != 0) return;
+
+    // 1. Copy input into thread memory (sha256_bytes expects thread pointer)
+    thread uchar pkLocal[128];
+    uint len = pubkeyLen;
+    if (len > 128) len = 128;
+
+    for (uint i = 0; i < len; i++) {
+        pkLocal[i] = pubkeyBytes[i];
+    }
+
+    // 2. SHA256(pubkey)
+    uint shaState[8];
+    sha256_bytes(pkLocal, len, shaState);
+
+    // 3. RIPEMD160(SHA256)
+    uint ripemdOut[5];
+    ripemd160(shaState, ripemdOut);
+
+    // 4. Write out raw RIPEMD160 state words (your kernel does the same)
+    for (uint i = 0; i < 5; i++) {
+        outRiWords[i] = ripemdOut[i];
+    }
+}
 
 
 //#endif

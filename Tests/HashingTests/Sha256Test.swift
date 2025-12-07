@@ -2,17 +2,12 @@ import Foundation
 import Metal
 import Testing
 
-// Helper: bytes -> hex string
-extension Data {
-    var hexString: String {
-        map { String(format: "%02x", $0) }.joined()
-    }
-}
+
 
 class Sha256Test: TestBase{
     
     init() {
-        super.init(kernelFunctionName: "sha256_test_kernel") // dummy
+        super.init(kernelFunctionName: "sha256_test_kernel")
     }
     
     @Test func runSha256Test() throws {

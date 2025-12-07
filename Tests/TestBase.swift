@@ -11,7 +11,6 @@ extension String {
     }
 }
 
-
 /**
  Base super class for tests
  */
