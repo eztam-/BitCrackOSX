@@ -169,6 +169,62 @@ host-endian --> RIPEMD160 --> host-endian<br>
 
 
 
+
+
+## Stepping Model — Initialization, Hashing, and Batch Progression
+The application follows a two-stage GPU processing model designed for maximum throughput:
+1. Initialization (init_points_* kernel)
+2. Repeated stepping (step_points_* kernel)
+This design produces a characteristic and intentional pattern where each stepping pass hashes the current batch of points and then advances them to the next batch.
+
+### 1. Initialization Kernel
+The initialization kernel:
+- Computes all starting public key points for the grid
+- Computes the constant group-step increment ΔG = totalPoints × G
+- Prepares chain buffers needed for efficient batch EC addition
+**Important:**
+The init kernel does not perform any hashing.
+After initialization:
+- xPtr/yPtr contain the points for batch 0
+- No HASH160 results exist yet
+This ensures that initialization remains lightweight and optimized.
+
+###2. Stepping Kernel
+Each launch of the stepping kernel performs two operations:
+####A. Hash the current batch of points
+For every point:
+- Generate the public key (compressed or uncompressed)
+- Compute SHA-256
+- Compute RIPEMD-160
+- Perform Bloom filter queries
+- Write results to output buffers
+These hash results always correspond to the current batch, i.e., the values in xPtr/yPtr before stepping occurs.
+####B. Advance all points by ΔG
+After hashing, the kernel applies the batch-add algorithm:
+`P_next = P_current + ΔG`
+The updated points (P_next) are written back to xPtr/yPtr, becoming the starting points for the next batch.
+This creates an intentional one-batch offset:
+- Hash output → Batch N
+- Updated xPtr/yPtr → Batch N+1
+###3. Why this model is used
+This behavior mirrors the original CUDA BitCrack implementation and is chosen because it:
+- Maximizes GPU arithmetic reuse
+- Keeps the inner loop simple and pipeline-friendly
+- Avoids expensive hashing during initialization
+- Ensures each stepping pass performs a full batch of search work
+Because the initialization kernel does not hash batch 0, the first stepping kernel hashes batch 0, then advances the points to batch 1.
+
+###Summary
+- Initialization sets up batch 0 but does not hash it.
+- Each stepping kernel launch performs:
+  1. Hash current points → produces results for batch N
+  2. Add ΔG → updates points to batch N+1
+Therefore after each kernel execution:
+- HASH160 results correspond to batch N,
+- xPtr/yPtr contain the public key points for batch N+1.
+This one-batch shift is intentional and an inherent part of the BitCrack GPU algorithm design.
+
+
 ## Disclaimer
 
 This software was developed **solely for educational purposes and solving Bitcoin puzzles**.  

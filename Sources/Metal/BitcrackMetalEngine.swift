@@ -47,19 +47,13 @@ public class BitcrackMetalEngine {
     
     public init(on device: MTLDevice, compressed: Bool, startKeyHex: String) throws {
         self.device = device
-    //    self.keysPerThread = keysPerThread
         self.compressed = compressed
         self.publicKeyLength = compressed ? 33 : 65
         self.startKeyHex = startKeyHex
-        //self.batchSizeU32 = UInt32(batchSize)
-   //     self.keysPerThreadU32 = UInt32(keysPerThread)
+
         
         self.initPipeline = try Helpers.buildPipelineState(kernelFunctionName: "init_points_bitcrack_style")
         self.stepPipeline = try Helpers.buildPipelineState(kernelFunctionName: "step_points_bitcrack_style")
-        //self.hashPipeline = try Helpers.buildPipelineState(kernelFunctionName: "sha256_ripemd160_bloom_query_kernel")
-        
-    
-
     }
     
     
