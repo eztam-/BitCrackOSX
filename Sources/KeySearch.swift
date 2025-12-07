@@ -97,7 +97,7 @@ class KeySearch {
             var pubKeyHash = [UInt8](repeating: 0, count: 20)
             memcpy(&pubKeyHash, slots[0].ripemd160OutBuffer.contents().advanced(by: 0 * 20), 20)
             let pubKeyHashHex = Data(pubKeyHash).hexString
-            print(pubKeyHash)
+            print("HASH160: \(pubKeyHashHex)")
             // END TMP DEBUG
 
             
