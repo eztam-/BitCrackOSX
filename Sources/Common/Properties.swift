@@ -6,7 +6,7 @@ struct Properties{
 
     public static let APP_COMMAND_NAME = "keysearch"
     
-    public static let TOTAL_POINTS: Int = 1 << 20   // example
+    public static let TOTAL_POINTS: Int =  1024 * 1024 // 1 << 20
     
     nonisolated(unsafe) public static var verbose: Bool = false
     
