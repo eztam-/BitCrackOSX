@@ -1,126 +1,113 @@
-import Metal
-import Foundation
 import Testing
+import Metal
+import CryptoKit   // For SHA256
+// Add your own RIPEMD160 implementation (CryptoKit doesn't include it)
 
-extension Data {
-    var hex: String { map { String(format: "%02x", $0) }.joined() }
-}
+final class HashKernelTests: TestBase {
 
-extension Data {
-    /// Initialize Data from a hexadecimal string.
-    /// Example: Data(hex: "deadbeef")
-    init?(hex: String) {
-        let len = hex.count
-        if len % 2 != 0 { return nil }
-
-        var data = Data()
-        data.reserveCapacity(len / 2)
-
-        var index = hex.startIndex
-        for _ in 0..<(len / 2) {
-            let nextIndex = hex.index(index, offsetBy: 2)
-            guard nextIndex <= hex.endIndex else { return nil }
-            let byteString = hex[index..<nextIndex]
-            guard let byte = UInt8(byteString, radix: 16) else { return nil }
-            data.append(byte)
-            index = nextIndex
-        }
-        self = data
-    }
-}
-
-
-// Helper: bytes -> hex string
-extension Data {
-    var hexString: String {
-        map { String(format: "%02x", $0) }.joined()
-    }
-}
-
-
-
-class Sha256Ripemd160Test: TestBase{
-    
    
     
     init() {
-        super.init(kernelFunctionName: "test_hash160_kernel") 
+        super.init(kernelFunctionName: "test_hash_kernel")
     }
     
     
-    @Test func runTest() throws{
-        
-        
-        // Test pubkey (compressed)
-        let pubkeyHex = "039fb8987e3cb30a1174b7d64de26347166841051854696930396502714f6bcf4b"
-        let pubkey = Data(hex: pubkeyHex)!   // Add your own hex → Data helper
-        let pubkeyLen = UInt32(pubkey.count)
 
-        // Expected HASH160
-        let expectedHash160 = "dc53039e721d0d4315c37786b2db113dbaf2e49e"
+    @Test func testBitCrackHashKernel() throws {
 
+        //----------------------------------------------------------------------
+        // 1. Create a known compressed public key for testing
+        //    This is a real Bitcoin compressed pubkey.
+        //----------------------------------------------------------------------
+        let pubkeyHex = "0279be667ef9dcbbac55a06295ce870b07029bfcdb2dce28d959f2815b16f81798"
+        let pubkeyBytes = Array<UInt8>(hex: pubkeyHex)
         
-        
-        // ------------------------------------------------------------
-        // METAL SETUP
-        // ------------------------------------------------------------
-        
-        let queue = device.makeCommandQueue()!
-        
-        // Buffers
-        let pubkeyBuffer = pubkey.withUnsafeBytes { rawPtr in
-            device.makeBuffer(bytes: rawPtr.baseAddress!,
-                              length: pubkey.count,
-                              options: [])!
-        }
-        
-        var lenCopy = pubkeyLen
-        let lenBuffer = device.makeBuffer(bytes: &lenCopy,
-                                          length: MemoryLayout<UInt32>.size,
+
+        //----------------------------------------------------------------------
+        // 2. Build buffers
+        //----------------------------------------------------------------------
+        let pubkeyBuf = device.makeBuffer(bytes: pubkeyBytes,
+                                          length: 33,
                                           options: [])!
-        
-        let outputBuffer = device.makeBuffer(length: MemoryLayout<UInt32>.size * 5,
-                                             options: [])!
-        
-        // ------------------------------------------------------------
-        // DISPATCH KERNEL
-        // ------------------------------------------------------------
-        let cmd = queue.makeCommandBuffer()!
-        let encoder = cmd.makeComputeCommandEncoder()!
+
+        let shaBuf    = device.makeBuffer(length: 8 * MemoryLayout<UInt32>.size, options: [])!
+        let rmdTmpBuf = device.makeBuffer(length: 5 * MemoryLayout<UInt32>.size, options: [])!
+        let hashBuf   = device.makeBuffer(length: 5 * MemoryLayout<UInt32>.size, options: [])!
+
+
+        //----------------------------------------------------------------------
+        // 4. Encode dispatch
+        //----------------------------------------------------------------------
+        let commandBuffer = commandQueue.makeCommandBuffer()!
+        let encoder = commandBuffer.makeComputeCommandEncoder()!
+
         encoder.setComputePipelineState(super.pipelineState)
-        encoder.setBuffer(pubkeyBuffer, offset: 0, index: 0)
-        encoder.setBuffer(lenBuffer, offset: 0, index: 1)
-        encoder.setBuffer(outputBuffer, offset: 0, index: 2)
-        
-        // 1 thread only
-        encoder.dispatchThreads(MTLSize(width: 1, height: 1, depth: 1),
-                                threadsPerThreadgroup: MTLSize(width: 1, height: 1, depth: 1))
+        encoder.setBuffer(pubkeyBuf, offset: 0, index: 0)
+        encoder.setBuffer(shaBuf,    offset: 0, index: 1)
+        encoder.setBuffer(rmdTmpBuf, offset: 0, index: 2)
+        encoder.setBuffer(hashBuf,   offset: 0, index: 3)
+
+        let threads = MTLSize(width: 1, height: 1, depth: 1)
+        encoder.dispatchThreads(threads,
+            threadsPerThreadgroup: MTLSize(width: 1, height: 1, depth: 1))
+
         encoder.endEncoding()
-        cmd.commit()
-        cmd.waitUntilCompleted()
-        
-        // ------------------------------------------------------------
-        // READ RESULT
-        // ------------------------------------------------------------
-        let riWordsPtr = outputBuffer.contents().bindMemory(to: UInt32.self, capacity: 5)
-        let riWords = (0..<5).map { riWordsPtr[$0] }
-        
-        // Convert 5×UInt32 → 20 bytes (little-endian per RIPEMD-160 spec)
-        var hash160Bytes = [UInt8]()
-        hash160Bytes.reserveCapacity(20)
-        
-        for w in riWords {
-            hash160Bytes.append(UInt8(w & 0xff))
-            hash160Bytes.append(UInt8((w >> 8) & 0xff))
-            hash160Bytes.append(UInt8((w >> 16) & 0xff))
-            hash160Bytes.append(UInt8((w >> 24) & 0xff))
+        commandBuffer.commit()
+        commandBuffer.waitUntilCompleted()
+
+        //----------------------------------------------------------------------
+        // 5. CPU Reference Hash160 (Bitcoin Standard)
+        //----------------------------------------------------------------------
+        // CPU SHA256
+
+        //----------------------------------------------------------------------
+        // 6. Read GPU output
+        //----------------------------------------------------------------------
+        let gpuWords = hashBuf.contents().bindMemory(to: UInt32.self,
+                                                     capacity: 5)
+        var gpuBytes = Data()
+        for i in 0..<5 {
+            let w = gpuWords[i]
+            // BitCrack’s final output uses endian()
+            gpuBytes.append(contentsOf: [
+                UInt8((w >> 24) & 0xff),
+                UInt8((w >> 16) & 0xff),
+                UInt8((w >> 8)  & 0xff),
+                UInt8((w      ) & 0xff),
+            ])
         }
-        
-        let hash160Hex = Data(hash160Bytes).hex
-        print("GPU HASH160 = \(hash160Hex)")
-        print("EXPECTED    = \(expectedHash160)")
-        
-        assert(hash160Hex == expectedHash160)
-        
+
+        //----------------------------------------------------------------------
+        // 7. Compare CPU and GPU results
+        //----------------------------------------------------------------------
+        let expected = "751e76e8199196d454941c45d1b3a323f1433bd6"
+        print("GPU HASH160 :", gpuBytes.hexString)
+        print("Expected    :", expected)
+
+        assert(gpuBytes.hexString == expected)
     }
 }
+
+//
+// Helper: Hex decode
+//
+extension Array where Element == UInt8 {
+    init(hex: String) {
+        self = []
+        var buffer: UInt8?
+        for c in hex {
+            guard let v = c.hexDigitValue else { continue }
+            if let b = buffer {
+                self.append(UInt8(b << 4) | UInt8(v))
+                buffer = nil
+            } else {
+                buffer = UInt8(v)
+            }
+        }
+    }
+}
+
+//
+// Helper: Data → hex string
+//
+

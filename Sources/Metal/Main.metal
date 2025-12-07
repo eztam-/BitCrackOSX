@@ -229,34 +229,39 @@ kernel void step_points_bitcrack_style(
     for (iForward = gid; iForward < totalPoints; iForward += dim)
     {
         // ----- 1) Hash this point's public key -----
-        bool useCompressed = (compression != 0u);
-        uchar pk[65];
-        uint  pkLen = useCompressed ? 33u : 65u;
+       // bool useCompressed = (compression != 0u);
+       // uchar pk[65];
+       // uint  pkLen = useCompressed ? 33u : 65u;
+
+        // ----- 1) Hash this point's public key -----
 
         uint256 x = xPtr[iForward];
         uint256 y = yPtr[iForward];
 
-        if (useCompressed) {
-            make_compressed_pubkey(x, y, pk);
-        } else {
-            make_uncompressed_pubkey(x, y, pk);
-        }
+        uint yParity = (y.limbs[0] & 1u);
 
         uint shaState[8];
-        sha256_bytes(pk, pkLen, shaState);
 
+        sha256PublicKeyCompressed(x.limbs, yParity, shaState);
+
+        //
+        // BitCrack RIPEMD160 pipeline (MUST COPY EXACTLY)
+        //
+        uint ripemdTmp[5];
         uint ripemdOut[5];
-        ripemd160(shaState, ripemdOut);
 
+        ripemd160sha256NoFinal(shaState, ripemdTmp);
+        ripemd160FinalRound(ripemdTmp, ripemdOut);
+
+        //
         // Store RIPEMD-160
-        {
-            uint base = iForward * 5u;
-            outRipemd160[base + 0u] = ripemdOut[0];
-            outRipemd160[base + 1u] = ripemdOut[1];
-            outRipemd160[base + 2u] = ripemdOut[2];
-            outRipemd160[base + 3u] = ripemdOut[3];
-            outRipemd160[base + 4u] = ripemdOut[4];
-        }
+        //
+        uint base = iForward * 5u;
+        outRipemd160[base + 0u] = ripemdOut[0];
+        outRipemd160[base + 1u] = ripemdOut[1];
+        outRipemd160[base + 2u] = ripemdOut[2];
+        outRipemd160[base + 3u] = ripemdOut[3];
+        outRipemd160[base + 4u] = ripemdOut[4];
 
         // ----- 2) Bloom query -----
         uint h1, h2;
@@ -512,6 +517,7 @@ kernel void test_field_sub(
 // buffer(1): constant uint& inputLength
 // buffer(2): device uint* output (8 words)
 // =======================================
+/*
 kernel void sha256_test_kernel(
     device const uchar*   input      [[buffer(0)]],
     constant uint&        inputLen   [[buffer(1)]],
@@ -537,19 +543,20 @@ kernel void sha256_test_kernel(
 
     uint state[8];
     // Call your existing SHA-256 implementation (unchanged)
-    sha256_bytes(localMsg, len, state);
+    sha256PublicKeyCompressed(localMsg, len, state);
 
     // Write result to output buffer
     for (uint i = 0; i < 8u; ++i) {
         outState[i] = state[i];
     }
 }
-
+*/
 
 // ==========================================================
 // Test kernel for HASH160 = RIPEMD160(SHA256(pubkey))
 // This uses EXACT SAME CODE as your step kernel.
 // ==========================================================
+/*
 kernel void test_hash160_kernel(
     device const uchar*    pubkeyBytes   [[ buffer(0) ]],
     constant uint&         pubkeyLen     [[ buffer(1) ]],
@@ -569,7 +576,7 @@ kernel void test_hash160_kernel(
 
     // 2. SHA256(pubkey)
     uint shaState[8];
-    sha256_bytes(pkLocal, len, shaState);
+    sha256PublicKeyCompressed(pkLocal, len, shaState);
 
     // 3. RIPEMD160(SHA256)
     uint ripemdOut[5];
@@ -581,6 +588,85 @@ kernel void test_hash160_kernel(
     }
 }
 
+*/
 
 //#endif
 
+
+// =========================================================
+// TEST KERNEL
+// =========================================================
+// Inputs:
+//   buffer(0): compressed public key (33 bytes, uint8_t)
+// Outputs:
+//   buffer(1): sha256 state (8 × uint32)
+//   buffer(2): ripemd160 intermediate (5 × uint32)
+//   buffer(3): final hash160 (5 × uint32)
+//
+// Run with thread_count = 1
+// =========================================================
+
+kernel void test_hash_kernel(
+    const device uint8_t*   pubkey33   [[buffer(0)]],
+    device uint*            outSHA256  [[buffer(1)]],
+    device uint*            outRMDtmp  [[buffer(2)]],
+    device uint*            outHASH160 [[buffer(3)]],
+    uint                    tid        [[thread_position_in_grid]]
+)
+{
+    if (tid != 0) return;
+
+    // ----------------------------------------
+    // 1. Load compressed public key into limbs
+    // ----------------------------------------
+    // BitCrack format:
+    //   x = 32 bytes = 8×uint, big-endian per limb
+    //   prefix = pubkey33[0] (0x02 or 0x03)
+    //
+    // pubkey33 layout:
+    //   [0] prefix
+    //   [1..32] X coordinate
+    //
+    // BitCrack SHA256PublicKeyCompressed expects:
+    //   uint x[8]  (big-endian 32-bit words)
+    //   uint yParity = prefix & 1
+
+    uint x[8];
+
+    for (uint i = 0; i < 8; i++) {
+        x[i] =
+            (uint(pubkey33[1 + i*4 + 0]) << 24) |
+            (uint(pubkey33[1 + i*4 + 1]) << 16) |
+            (uint(pubkey33[1 + i*4 + 2]) << 8 ) |
+            (uint(pubkey33[1 + i*4 + 3])      );
+    }
+
+    uint yParity = pubkey33[0] & 1;
+
+    // ----------------------------------------
+    // 2. Run BitCrack SHA-256
+    // ----------------------------------------
+    uint shaState[8];
+    sha256PublicKeyCompressed(x, yParity, shaState);
+
+    for (uint i = 0; i < 8; i++)
+        outSHA256[i] = shaState[i];
+
+    // ----------------------------------------
+    // 3. Run BitCrack RIPEMD160 (p1+p2)
+    // ----------------------------------------
+    uint rmdTmp[5];
+    ripemd160sha256NoFinal(shaState, rmdTmp);
+
+    for (uint i = 0; i < 5; i++)
+        outRMDtmp[i] = rmdTmp[i];
+
+    // ----------------------------------------
+    // 4. Run BitCrack final mixing
+    // ----------------------------------------
+    uint hash160[5];
+    ripemd160FinalRound(rmdTmp, hash160);
+
+    for (uint i = 0; i < 5; i++)
+        outHASH160[i] = hash160[i];
+}

@@ -1,200 +1,246 @@
 #include <metal_stdlib>
 using namespace metal;
 
-
-// ==========================
-// RIPEMD-160 SECTION
-// (adapted to work on an in-register 32-byte message: 8 uint words)
-// ==========================
-
-inline uint rol(uint x, uint n) {
-    return (x << n) | (x >> (32u - n));
-}
-
-// RIPEMD-160 primitive functions
-inline uint F1(uint x, uint y, uint z) { return x ^ y ^ z; }
-inline uint F2(uint x, uint y, uint z) { return (z ^ (x & (y ^ z))); }
-inline uint F3(uint x, uint y, uint z) { return ((x | ~y) ^ z); }
-inline uint F4(uint x, uint y, uint z) { return (y ^ (z & (x ^ y))); }
-inline uint F5(uint x, uint y, uint z) { return (x ^ (y | ~z)); }
-
-// Rotation counts for left / right lines
-constant uint LEFT_ROT[80] = {
-    11,14,15,12,5,8,7,9,11,13,14,15,6,7,9,8,
-    7,6,8,13,11,9,7,15,7,12,15,9,11,7,13,12,
-    11,13,6,7,14,9,13,15,14,8,13,6,5,12,7,5,
-    11,12,14,15,14,15,9,8,9,14,5,6,8,6,5,12,
-    9,15,5,11,6,8,13,12,5,12,13,14,11,8,5,6
+constant uint RIPEMD160_IV[5] = {
+    0x67452301u, 0xefcdab89u, 0x98badcfeu, 0x10325476u, 0xc3d2e1f0u
 };
 
-constant uint RIGHT_ROT[80] = {
-    8,9,9,11,13,15,15,5,7,7,8,11,14,14,12,6,
-    9,13,15,7,12,8,9,11,7,7,12,7,6,15,13,11,
-    9,7,15,11,8,6,6,14,12,13,5,14,13,13,7,5,
-    15,5,8,11,14,14,6,14,6,9,12,9,12,5,15,8,
-    8,5,12,9,12,5,14,6,8,13,6,5,15,13,11,11
+constant uint K_RMD[8] = {
+    0x5a827999u, 0x6ed9eba1u, 0x8f1bbcdcu, 0xa953fd4eu,
+    0x7a6d76e9u, 0x6d703ef3u, 0x5c4dd124u, 0x50a28be6u
 };
 
-constant uint LEFT_IDX[80] = {
-    0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,
-    7,4,13,1,10,6,15,3,12,0,9,5,2,14,11,8,
-    3,10,14,4,9,15,8,1,2,7,0,6,13,11,5,12,
-    1,9,11,10,0,8,12,4,13,3,7,15,14,5,6,2,
-    4,0,5,9,7,12,2,10,14,1,3,8,11,6,15,13
-};
+inline uint rotl(uint x, uint n) { return (x << n) | (x >> (32u - n)); }
 
-constant uint RIGHT_IDX[80] = {
-    5,14,7,0,9,2,11,4,13,6,15,8,1,10,3,12,
-    6,11,3,7,0,13,5,10,14,15,8,12,4,9,1,2,
-    15,5,1,3,7,14,6,9,11,8,12,2,10,0,4,13,
-    8,6,4,1,3,11,15,0,5,12,2,13,9,7,10,14,
-    12,15,10,4,1,5,8,7,6,2,13,14,0,3,9,11
-};
+// BitCrack primitive functions
+#define F(x,y,z) ((x) ^ (y) ^ (z))
+#define G(x,y,z) (((x)&(y)) | (~(x)&(z)))
+#define H(x,y,z) (((x)|~(y)) ^ (z))
+#define I(x,y,z) (((x)&(z)) | ((y)&~(z)))
+#define J(x,y,z) ((x) ^ ((y)|~(z)))
 
-// Left-side additive constants per round
-constant uint K_LEFT[5]  = { 0x00000000u, 0x5A827999u, 0x6ED9EBA1u, 0x8F1BBCDCu, 0xA953FD4Eu };
-// Right-side additive constants per round
-constant uint K_RIGHT[5] = { 0x50A28BE6u, 0x5C4DD124u, 0x6D703EF3u, 0x7A6D76E9u, 0x00000000u };
+#define FF(a,b,c,d,e,m,s) { a += F(b,c,d) + (m); a = rotl(a,s) + (e); c = rotl(c,10u); }
+#define GG(a,b,c,d,e,m,s) { a += G(b,c,d) + (m) + K_RMD[0]; a = rotl(a,s) + (e); c = rotl(c,10u); }
+#define HH(a,b,c,d,e,m,s) { a += H(b,c,d) + (m) + K_RMD[1]; a = rotl(a,s) + (e); c = rotl(c,10u); }
+#define II(a,b,c,d,e,m,s) { a += I(b,c,d) + (m) + K_RMD[2]; a = rotl(a,s) + (e); c = rotl(c,10u); }
+#define JJ(a,b,c,d,e,m,s) { a += J(b,c,d) + (m) + K_RMD[3]; a = rotl(a,s) + (e); c = rotl(c,10u); }
 
-// Compute RIPEMD-160 for a fixed 32-byte message provided as 8 little-endian uints.
-//
-// inWords[0..7] : 8 little-endian words (e.g. BYTESWAP32 of SHA-256 state words)
-// outWords[0..4]: RIPEMD-160 output words (little-endian, standard RIPEMD ordering)
-inline void ripemd160(const thread uint inWords[8],
-                             thread uint outWords[5])
+#define FFF(a,b,c,d,e,m,s) { a += F(b,c,d) + (m); a = rotl(a,s) + (e); c = rotl(c,10u); }
+#define GGG(a,b,c,d,e,m,s) { a += G(b,c,d) + (m) + K_RMD[4]; a = rotl(a,s) + (e); c = rotl(c,10u); }
+#define HHH(a,b,c,d,e,m,s) { a += H(b,c,d) + (m) + K_RMD[5]; a = rotl(a,s) + (e); c = rotl(c,10u); }
+#define III(a,b,c,d,e,m,s) { a += I(b,c,d) + (m) + K_RMD[6]; a = rotl(a,s) + (e); c = rotl(c,10u); }
+#define JJJ(a,b,c,d,e,m,s) { a += J(b,c,d) + (m) + K_RMD[7]; a = rotl(a,s) + (e); c = rotl(c,10u); }
+
+// Convert SHA256 output word from big-endian to little-endian
+inline uint swap32(uint x)
 {
-    // Build X[0..15] for a single padded block:
-    //  - X[0..7]  = message words (32-byte msg)
-    //  - X[8]     = 0x00000080
-    //  - X[9..13] = 0
-    //  - X[14]    = 32 * 8 = 256
-    //  - X[15]    = 0
-    uint X[16];
-
-    for (uint w = 0; w < 8u; ++w) {
-        // SHA256 produces big-endian words.
-        // RIPEMD expects little-endian words.
-        // Convert here, ONCE, automatically:
-        X[w] = ((inWords[w] >> 24) & 0x000000FFu) |
-               ((inWords[w] >> 8)  & 0x0000FF00u) |
-               ((inWords[w] << 8)  & 0x00FF0000u) |
-               ((inWords[w] << 24) & 0xFF000000u);
-    }
-    X[8]  = 0x00000080u;
-    X[9]  = 0u;
-    X[10] = 0u;
-    X[11] = 0u;
-    X[12] = 0u;
-    X[13] = 0u;
-    X[14] = 256u; // 32 bytes * 8 = 256
-    X[15] = 0u;
-
-    // Initialize working variables (RIPEMD-160 initial state)
-    uint h0 = 0x67452301u;
-    uint h1 = 0xEFCDAB89u;
-    uint h2 = 0x98BADCFEu;
-    uint h3 = 0x10325476u;
-    uint h4 = 0xC3D2E1F0u;
-
-    uint a = h0, b = h1, c = h2, d = h3, e = h4;
-    uint aa = h0, bb = h1, cc = h2, dd = h3, ee = h4;
-
-    #define LSTEP(i, f, Kidx) \
-        do { \
-            uint tmp = a + f(b,c,d) + X[LEFT_IDX[i]] + K_LEFT[Kidx]; \
-            tmp = rol(tmp, LEFT_ROT[i]); \
-            tmp += e; \
-            a = e; \
-            e = d; \
-            d = rol(c, 10u); \
-            c = b; \
-            b = tmp; \
-        } while (0)
-
-    #define RSTEP(i, f, Kidx) \
-        do { \
-            uint tmp2 = aa + f(bb,cc,dd) + X[RIGHT_IDX[i]] + K_RIGHT[Kidx]; \
-            tmp2 = rol(tmp2, RIGHT_ROT[i]); \
-            tmp2 += ee; \
-            aa = ee; \
-            ee = dd; \
-            dd = rol(cc, 10u); \
-            cc = bb; \
-            bb = tmp2; \
-        } while (0)
-
-    // 80 rounds, grouped as in your original code
-
-    // Round 1 (0..15)
-    LSTEP(0,  F1, 0);  LSTEP(1,  F1, 0);  LSTEP(2,  F1, 0);  LSTEP(3,  F1, 0);
-    LSTEP(4,  F1, 0);  LSTEP(5,  F1, 0);  LSTEP(6,  F1, 0);  LSTEP(7,  F1, 0);
-    LSTEP(8,  F1, 0);  LSTEP(9,  F1, 0);  LSTEP(10, F1, 0);  LSTEP(11, F1, 0);
-    LSTEP(12, F1, 0);  LSTEP(13, F1, 0);  LSTEP(14, F1, 0);  LSTEP(15, F1, 0);
-
-    RSTEP(0, F5, 0);   RSTEP(1, F5, 0);   RSTEP(2, F5, 0);   RSTEP(3, F5, 0);
-    RSTEP(4, F5, 0);   RSTEP(5, F5, 0);   RSTEP(6, F5, 0);   RSTEP(7, F5, 0);
-    RSTEP(8, F5, 0);   RSTEP(9, F5, 0);   RSTEP(10,F5, 0);   RSTEP(11,F5, 0);
-    RSTEP(12,F5, 0);   RSTEP(13,F5, 0);   RSTEP(14,F5, 0);   RSTEP(15,F5, 0);
-
-    // Round 2 (16..31)
-    LSTEP(16, F2, 1);  LSTEP(17, F2, 1);  LSTEP(18, F2, 1);  LSTEP(19, F2, 1);
-    LSTEP(20, F2, 1);  LSTEP(21, F2, 1);  LSTEP(22, F2, 1);  LSTEP(23, F2, 1);
-    LSTEP(24, F2, 1);  LSTEP(25, F2, 1);  LSTEP(26, F2, 1);  LSTEP(27, F2, 1);
-    LSTEP(28, F2, 1);  LSTEP(29, F2, 1);  LSTEP(30, F2, 1);  LSTEP(31, F2, 1);
-
-    RSTEP(16, F4, 1);  RSTEP(17, F4, 1);  RSTEP(18, F4, 1);  RSTEP(19, F4, 1);
-    RSTEP(20, F4, 1);  RSTEP(21, F4, 1);  RSTEP(22, F4, 1);  RSTEP(23, F4, 1);
-    RSTEP(24, F4, 1);  RSTEP(25, F4, 1);  RSTEP(26, F4, 1);  RSTEP(27, F4, 1);
-    RSTEP(28, F4, 1);  RSTEP(29, F4, 1);  RSTEP(30, F4, 1);  RSTEP(31, F4, 1);
-
-    // Round 3 (32..47)
-    LSTEP(32, F3, 2);  LSTEP(33, F3, 2);  LSTEP(34, F3, 2);  LSTEP(35, F3, 2);
-    LSTEP(36, F3, 2);  LSTEP(37, F3, 2);  LSTEP(38, F3, 2);  LSTEP(39, F3, 2);
-    LSTEP(40, F3, 2);  LSTEP(41, F3, 2);  LSTEP(42, F3, 2);  LSTEP(43, F3, 2);
-    LSTEP(44, F3, 2);  LSTEP(45, F3, 2);  LSTEP(46, F3, 2);  LSTEP(47, F3, 2);
-
-    RSTEP(32, F3, 2);  RSTEP(33, F3, 2);  RSTEP(34, F3, 2);  RSTEP(35, F3, 2);
-    RSTEP(36, F3, 2);  RSTEP(37, F3, 2);  RSTEP(38, F3, 2);  RSTEP(39, F3, 2);
-    RSTEP(40, F3, 2);  RSTEP(41, F3, 2);  RSTEP(42, F3, 2);  RSTEP(43, F3, 2);
-    RSTEP(44, F3, 2);  RSTEP(45, F3, 2);  RSTEP(46, F3, 2);  RSTEP(47, F3, 2);
-
-    // Round 4 (48..63)
-    LSTEP(48, F4, 3);  LSTEP(49, F4, 3);  LSTEP(50, F4, 3);  LSTEP(51, F4, 3);
-    LSTEP(52, F4, 3);  LSTEP(53, F4, 3);  LSTEP(54, F4, 3);  LSTEP(55, F4, 3);
-    LSTEP(56, F4, 3);  LSTEP(57, F4, 3);  LSTEP(58, F4, 3);  LSTEP(59, F4, 3);
-    LSTEP(60, F4, 3);  LSTEP(61, F4, 3);  LSTEP(62, F4, 3);  LSTEP(63, F4, 3);
-
-    RSTEP(48, F2, 3);  RSTEP(49, F2, 3);  RSTEP(50, F2, 3);  RSTEP(51, F2, 3);
-    RSTEP(52, F2, 3);  RSTEP(53, F2, 3);  RSTEP(54, F2, 3);  RSTEP(55, F2, 3);
-    RSTEP(56, F2, 3);  RSTEP(57, F2, 3);  RSTEP(58, F2, 3);  RSTEP(59, F2, 3);
-    RSTEP(60, F2, 3);  RSTEP(61, F2, 3);  RSTEP(62, F2, 3);  RSTEP(63, F2, 3);
-
-    // Round 5 (64..79)
-    LSTEP(64, F5, 4);  LSTEP(65, F5, 4);  LSTEP(66, F5, 4);  LSTEP(67, F5, 4);
-    LSTEP(68, F5, 4);  LSTEP(69, F5, 4);  LSTEP(70, F5, 4);  LSTEP(71, F5, 4);
-    LSTEP(72, F5, 4);  LSTEP(73, F5, 4);  LSTEP(74, F5, 4);  LSTEP(75, F5, 4);
-    LSTEP(76, F5, 4);  LSTEP(77, F5, 4);  LSTEP(78, F5, 4);  LSTEP(79, F5, 4);
-
-    RSTEP(64, F1, 4);  RSTEP(65, F1, 4);  RSTEP(66, F1, 4);  RSTEP(67, F1, 4);
-    RSTEP(68, F1, 4);  RSTEP(69, F1, 4);  RSTEP(70, F1, 4);  RSTEP(71, F1, 4);
-    RSTEP(72, F1, 4);  RSTEP(73, F1, 4);  RSTEP(74, F1, 4);  RSTEP(75, F1, 4);
-    RSTEP(76, F1, 4);  RSTEP(77, F1, 4);  RSTEP(78, F1, 4);  RSTEP(79, F1, 4);
-
-    // Final combination
-    uint t = h1 + c + dd;
-    h1 = h2 + d + ee;
-    h2 = h3 + e + aa;
-    h3 = h4 + a + bb;
-    h4 = h0 + b + cc;
-    h0 = t;
-
-    outWords[0] = h0;
-    outWords[1] = h1;
-    outWords[2] = h2;
-    outWords[3] = h3;
-    outWords[4] = h4;
-
-    #undef LSTEP
-    #undef RSTEP
+    return (x << 24) |
+           ((x << 8)  & 0x00ff0000u) |
+           ((x >> 8)  & 0x0000ff00u) |
+           (x >> 24);
 }
 
+
+inline void ripemd160p1(thread const uint xIn[8], thread uint digest[5])
+{
+    uint a = RIPEMD160_IV[0];
+    uint b = RIPEMD160_IV[1];
+    uint c = RIPEMD160_IV[2];
+    uint d = RIPEMD160_IV[3];
+    uint e = RIPEMD160_IV[4];
+
+    uint x[16];
+
+    //for (uint i = 0; i < 8; i++)
+    //    x[i] = xIn[i];   // NO swap here
+    
+    for (uint i = 0; i < 8; i++)
+        x[i] = swap32(xIn[i]);
+
+    x[8]  = 128u;
+    x[9]  = 0u;
+    x[10] = 0u;
+    x[11] = 0u;
+    x[12] = 0u;
+    x[13] = 0u;
+    x[14] = 256u;   // 32 bytes * 8
+    x[15] = 0u;
+
+    // ---- Round 1 ----
+    FF(a,b,c,d,e,x[0],11);  FF(e,a,b,c,d,x[1],14);
+    FF(d,e,a,b,c,x[2],15);  FF(c,d,e,a,b,x[3],12);
+    FF(b,c,d,e,a,x[4],5);   FF(a,b,c,d,e,x[5],8);
+    FF(e,a,b,c,d,x[6],7);   FF(d,e,a,b,c,x[7],9);
+    FF(c,d,e,a,b,128u,11);  FF(b,c,d,e,a,0u,13);
+    FF(a,b,c,d,e,0u,14);    FF(e,a,b,c,d,0u,15);
+    FF(d,e,a,b,c,0u,6);     FF(c,d,e,a,b,0u,7);
+    FF(b,c,d,e,a,256u,9);   FF(a,b,c,d,e,0u,8);
+
+    // ---- Round 2 ----
+    GG(e,a,b,c,d,x[7],7);   GG(d,e,a,b,c,x[4],6);
+    GG(c,d,e,a,b,0u,8);     GG(b,c,d,e,a,x[1],13);
+    GG(a,b,c,d,e,0u,11);    GG(e,a,b,c,d,x[6],9);
+    GG(d,e,a,b,c,0u,7);     GG(c,d,e,a,b,x[3],15);
+    GG(b,c,d,e,a,0u,7);     GG(a,b,c,d,e,x[0],12);
+    GG(e,a,b,c,d,0u,15);    GG(d,e,a,b,c,x[5],9);
+    GG(c,d,e,a,b,x[2],11);  GG(b,c,d,e,a,256u,7);
+    GG(a,b,c,d,e,0u,13);    GG(e,a,b,c,d,128u,12);
+
+    // ---- Round 3 ----
+    HH(d,e,a,b,c,x[3],11);  HH(c,d,e,a,b,0u,13);
+    HH(b,c,d,e,a,256u,6);   HH(a,b,c,d,e,x[4],7);
+    HH(e,a,b,c,d,0u,14);    HH(d,e,a,b,c,0u,9);
+    HH(c,d,e,a,b,128u,13);  HH(b,c,d,e,a,x[1],15);
+    HH(a,b,c,d,e,x[2],14);  HH(e,a,b,c,d,x[7],8);
+    HH(d,e,a,b,c,x[0],13);  HH(c,d,e,a,b,x[6],6);
+    HH(b,c,d,e,a,0u,5);     HH(a,b,c,d,e,0u,12);
+    HH(e,a,b,c,d,x[5],7);   HH(d,e,a,b,c,0u,5);
+
+    // ---- Round 4 ----
+    II(c,d,e,a,b,x[1],11);  II(b,c,d,e,a,0u,12);
+    II(a,b,c,d,e,0u,14);    II(e,a,b,c,d,0u,15);
+    II(d,e,a,b,c,x[0],14);  II(c,d,e,a,b,128u,15);
+    II(b,c,d,e,a,0u,9);     II(a,b,c,d,e,x[4],8);
+    II(e,a,b,c,d,0u,9);     II(d,e,a,b,c,x[3],14);
+    II(c,d,e,a,b,x[7],5);   II(b,c,d,e,a,0u,6);
+    II(a,b,c,d,e,256u,8);   II(e,a,b,c,d,x[5],6);
+    II(d,e,a,b,c,x[6],5);   II(c,d,e,a,b,x[2],12);
+
+    // ---- Round 5 ----
+    JJ(b,c,d,e,a,x[4],9);   JJ(a,b,c,d,e,x[0],15);
+    JJ(e,a,b,c,d,x[5],5);   JJ(d,e,a,b,c,0u,11);
+    JJ(c,d,e,a,b,x[7],6);   JJ(b,c,d,e,a,0u,8);
+    JJ(a,b,c,d,e,x[2],13);  JJ(e,a,b,c,d,0u,12);
+    JJ(d,e,a,b,c,256u,5);   JJ(c,d,e,a,b,x[1],12);
+    JJ(b,c,d,e,a,x[3],13);  JJ(a,b,c,d,e,128u,14);
+    JJ(e,a,b,c,d,0u,11);    JJ(d,e,a,b,c,x[6],8);
+    JJ(c,d,e,a,b,0u,5);     JJ(b,c,d,e,a,0u,6);
+
+    digest[0] = c;
+    digest[1] = d;
+    digest[2] = e;
+    digest[3] = a;
+    digest[4] = b;
+}
+
+
+
+inline void ripemd160p2(thread const uint xIn[8], thread uint digest[5])
+{
+    uint a = RIPEMD160_IV[0];
+    uint b = RIPEMD160_IV[1];
+    uint c = RIPEMD160_IV[2];
+    uint d = RIPEMD160_IV[3];
+    uint e = RIPEMD160_IV[4];
+
+    uint x[16];
+
+    //for (uint i = 0; i < 8; i++)
+    //    x[i] = xIn[i];   // NO swap here
+    
+    for (uint i = 0; i < 8; i++)
+        x[i] = swap32(xIn[i]);
+
+    x[8]  = 128u;
+    x[9]  = 0u;
+    x[10] = 0u;
+    x[11] = 0u;
+    x[12] = 0u;
+    x[13] = 0u;
+    x[14] = 256u;
+    x[15] = 0u;
+
+    // ---- Parallel round 1 ----
+    JJJ(a,b,c,d,e,x[5],8);     JJJ(e,a,b,c,d,256u,9);
+    JJJ(d,e,a,b,c,x[7],9);     JJJ(c,d,e,a,b,x[0],11);
+    JJJ(b,c,d,e,a,0u,13);      JJJ(a,b,c,d,e,x[2],15);
+    JJJ(e,a,b,c,d,0u,15);      JJJ(d,e,a,b,c,x[4],5);
+    JJJ(c,d,e,a,b,0u,7);       JJJ(b,c,d,e,a,x[6],7);
+    JJJ(a,b,c,d,e,0u,8);       JJJ(e,a,b,c,d,128u,11);
+    JJJ(d,e,a,b,c,x[1],14);    JJJ(c,d,e,a,b,0u,14);
+    JJJ(b,c,d,e,a,x[3],12);    JJJ(a,b,c,d,e,0u,6);
+
+    // ---- Parallel round 2 ----
+    III(e,a,b,c,d,x[6],9);     III(d,e,a,b,c,0u,13);
+    III(c,d,e,a,b,x[3],15);    III(b,c,d,e,a,x[7],7);
+    III(a,b,c,d,e,x[0],12);    III(e,a,b,c,d,0u,8);
+    III(d,e,a,b,c,x[5],9);     III(c,d,e,a,b,0u,11);
+    III(b,c,d,e,a,256u,7);     III(a,b,c,d,e,0u,7);
+    III(e,a,b,c,d,128u,12);    III(d,e,a,b,c,0u,7);
+    III(c,d,e,a,b,x[4],6);     III(b,c,d,e,a,0u,15);
+    III(a,b,c,d,e,x[1],13);    III(e,a,b,c,d,x[2],11);
+
+    // ---- Parallel round 3 ----
+    HHH(d,e,a,b,c,0u,9);       HHH(c,d,e,a,b,x[5],7);
+    HHH(b,c,d,e,a,x[1],15);    HHH(a,b,c,d,e,x[3],11);
+    HHH(e,a,b,c,d,x[7],8);     HHH(d,e,a,b,c,256u,6);
+    HHH(c,d,e,a,b,x[6],6);     HHH(b,c,d,e,a,0u,14);
+    HHH(a,b,c,d,e,0u,12);      HHH(e,a,b,c,d,128u,13);
+    HHH(d,e,a,b,c,0u,5);       HHH(c,d,e,a,b,x[2],14);
+    HHH(b,c,d,e,a,0u,13);      HHH(a,b,c,d,e,x[0],13);
+    HHH(e,a,b,c,d,x[4],7);     HHH(d,e,a,b,c,0u,5);
+
+    // ---- Parallel round 4 ----
+    GGG(c,d,e,a,b,128u,15);    GGG(b,c,d,e,a,x[6],5);
+    GGG(a,b,c,d,e,x[4],8);     GGG(e,a,b,c,d,x[1],11);
+    GGG(d,e,a,b,c,x[3],14);    GGG(c,d,e,a,b,0u,14);
+    GGG(b,c,d,e,a,0u,6);       GGG(a,b,c,d,e,x[0],14);
+    GGG(e,a,b,c,d,x[5],6);     GGG(d,e,a,b,c,0u,9);
+    GGG(c,d,e,a,b,x[2],12);    GGG(b,c,d,e,a,0u,9);
+    GGG(a,b,c,d,e,0u,12);      GGG(e,a,b,c,d,x[7],5);
+    GGG(d,e,a,b,c,0u,15);      GGG(c,d,e,a,b,256u,8);
+
+    // ---- Parallel round 5 ----
+    FFF(b,c,d,e,a,0u,8);       FFF(a,b,c,d,e,0u,5);
+    FFF(e,a,b,c,d,0u,12);      FFF(d,e,a,b,c,x[4],9);
+    FFF(c,d,e,a,b,x[1],12);    FFF(b,c,d,e,a,x[5],5);
+    FFF(a,b,c,d,e,128u,14);    FFF(e,a,b,c,d,x[7],6);
+    FFF(d,e,a,b,c,x[6],8);     FFF(c,d,e,a,b,x[2],13);
+    FFF(b,c,d,e,a,0u,6);       FFF(a,b,c,d,e,256u,5);
+    FFF(e,a,b,c,d,x[0],15);    FFF(d,e,a,b,c,x[3],13);
+    FFF(c,d,e,a,b,0u,11);      FFF(b,c,d,e,a,0u,11);
+
+    digest[0] = d;
+    digest[1] = e;
+    digest[2] = a;
+    digest[3] = b;
+    digest[4] = c;
+}
+
+
+inline void ripemd160sha256NoFinal(
+    thread const uint x[8],
+    thread uint digest[5]
+)
+{
+    uint d1[5];
+    uint d2[5];
+
+    ripemd160p1(x, d1);
+    ripemd160p2(x, d2);
+
+    digest[0] = d1[0] + d2[0];
+    digest[1] = d1[1] + d2[1];
+    digest[2] = d1[2] + d2[2];
+    digest[3] = d1[3] + d2[3];
+    digest[4] = d1[4] + d2[4];
+}
+
+inline void ripemd160FinalRound(
+    thread const uint hIn[5],
+    thread uint hOut[5]
+)
+{
+    auto endian = [](uint x) {
+        return (x << 24) |
+               ((x << 8)  & 0x00ff0000u) |
+               ((x >> 8)  & 0x0000ff00u) |
+               (x >> 24);
+    };
+
+    hOut[0] = endian(hIn[0] + RIPEMD160_IV[1]);
+    hOut[1] = endian(hIn[1] + RIPEMD160_IV[2]);
+    hOut[2] = endian(hIn[2] + RIPEMD160_IV[3]);
+    hOut[3] = endian(hIn[3] + RIPEMD160_IV[4]);
+    hOut[4] = endian(hIn[4] + RIPEMD160_IV[0]);
+}

@@ -1,10 +1,6 @@
 #include <metal_stdlib>
 using namespace metal;
 
-// ==========================
-// SHA-256 SECTION
-// ==========================
-
 // SHA-256 constants
 constant uint K[64] = {
     0x428a2f98u,0x71374491u,0xb5c0fbcfu,0xe9b5dba5u,0x3956c25bu,0x59f111f1u,0x923f82a4u,0xab1c5ed5u,
@@ -17,140 +13,188 @@ constant uint K[64] = {
     0x748f82eeu,0x78a5636fu,0x84c87814u,0x8cc70208u,0x90befffau,0xa4506cebu,0xbef9a3f7u,0xc67178f2u
 };
 
-inline uint rotr(uint x, uint n) {
-    return (x >> n) | (x << (32 - n));
-}
+#define ROTR(x,n) ((x >> n) | (x << (32 - n)))
+#define Ch(x,y,z) (((x) & (y)) ^ (~(x) & (z)))
+#define Maj(x,y,z) (((x) & (y)) ^ ((x) & (z)) ^ ((y) & (z)))
 
-inline uint Ch(uint x, uint y, uint z) {
-    return (x & y) ^ ((~x) & z);
-}
-inline uint Maj(uint x, uint y, uint z) {
-    return (x & y) ^ (x & z) ^ (y & z);
-}
-inline uint Sigma0(uint x) {
-    return rotr(x, 2) ^ rotr(x,13) ^ rotr(x,22);
-}
-inline uint Sigma1(uint x) {
-    return rotr(x, 6) ^ rotr(x,11) ^ rotr(x,25);
-}
-inline uint sigma0(uint x) {
-    return rotr(x, 7) ^ rotr(x,18) ^ (x >> 3);
-}
-inline uint sigma1(uint x) {
-    return rotr(x,17) ^ rotr(x,19) ^ (x >> 10);
-}
+#define SIGMA0(x) (ROTR(x,2) ^ ROTR(x,13) ^ ROTR(x,22))
+#define SIGMA1(x) (ROTR(x,6) ^ ROTR(x,11) ^ ROTR(x,25))
+#define sigma0(x) (ROTR(x,7) ^ ROTR(x,18) ^ (x >> 3))
+#define sigma1(x) (ROTR(x,17) ^ ROTR(x,19) ^ (x >> 10))
 
-struct SHA256Constants {
-    uint numMessages;
-    uint messageSize;
-};
+#define ROUND(a,b,c,d,e,f,g,h,w,k) \
+    { uint T = Ch(e,f,g) + SIGMA1(e) + (k) + (w); \
+      d += T + h; \
+      h += T + Maj(a,b,c) + SIGMA0(a); }
 
 
+// ====================================================================
+//  SHA-256 for Compressed Public Key — 33 bytes
+//  Input: x[8] limbs of X coordinate, yParity = 0/1
+//  Output: digest[8] = SHA-256(X||prefix)
+// ====================================================================
 
-
-
-
-inline void sha256_bytes(
-    thread const uchar* msg,
-    uint msgLen,
-    thread uint outState[8]
+inline void sha256PublicKeyCompressed(
+    thread const uint x[8],
+    uint yParity,
+    thread uint digest[8]
 )
 {
-    uint64_t bitLen = (uint64_t)msgLen * 8ull;
-    uint paddedLen  = (uint)((((msgLen + 9) + 63) / 64) * 64);
-    uint numBlocks  = paddedLen / 64;
+    uint a = 0x6a09e667u;
+    uint b = 0xbb67ae85u;
+    uint c = 0x3c6ef372u;
+    uint d = 0xa54ff53au;
+    uint e = 0x510e527fu;
+    uint f = 0x9b05688cu;
+    uint g = 0x1f83d9abu;
+    uint h = 0x5be0cd19u;
 
-    uint a0 = 0x6a09e667u;
-    uint b0 = 0xbb67ae85u;
-    uint c0 = 0x3c6ef372u;
-    uint d0 = 0xa54ff53au;
-    uint e0 = 0x510e527fu;
-    uint f0 = 0x9b05688cu;
-    uint g0 = 0x1f83d9abu;
-    uint h0 = 0x5be0cd19u;
+    uint w[16];
 
-    uint W[64];
+    // --------------------------------------------------------------------
+    // Build fixed first block: 0x02/0x03 || X || padding
+    // Matches BitCrack exactly
+    // --------------------------------------------------------------------
 
-    for (uint blockIdx = 0; blockIdx < numBlocks; ++blockIdx)
-    {
-        uint baseByteIndex = blockIdx * 64;
+    w[0] = (0x02000000u | ((yParity & 1u) << 24) | (x[0] >> 8));
+    w[1] = (x[1] >> 8) | (x[0] << 24);
+    w[2] = (x[2] >> 8) | (x[1] << 24);
+    w[3] = (x[3] >> 8) | (x[2] << 24);
+    w[4] = (x[4] >> 8) | (x[3] << 24);
+    w[5] = (x[5] >> 8) | (x[4] << 24);
+    w[6] = (x[6] >> 8) | (x[5] << 24);
+    w[7] = (x[7] >> 8) | (x[6] << 24);
 
-        // W[0..15]
-        for (uint t = 0; t < 16; ++t) {
-            uint w = 0u;
+    // final byte, padding start
+    w[8]  = (x[7] << 24) | 0x00800000u;
 
-            for (uint j = 0; j < 4; ++j) {
-                uint globalByteIndex = baseByteIndex + t*4u + j;
-                uchar b = 0u;
+    // all zeros except final length word
+    w[9]  = 0u;
+    w[10] = 0u;
+    w[11] = 0u;
+    w[12] = 0u;
+    w[13] = 0u;
+    w[14] = 0u;
+    w[15] = 264u; // message length = 33 × 8
 
-                if (globalByteIndex < msgLen) {
-                    b = msg[globalByteIndex];
-                }
-                else if (globalByteIndex == msgLen) {
-                    b = 0x80u;
-                }
-                else if (globalByteIndex >= (paddedLen - 8u)) {
-                    uint idxFromEnd = globalByteIndex - (paddedLen - 8u);
-                    uint shift = (7u - idxFromEnd) * 8u;
-                    b = (uchar)((bitLen >> shift) & 0xFFu);
-                }
-                else {
-                    b = 0u;
-                }
+    // ===================================================================
+    // FIRST 16 ROUNDS
+    // ===================================================================
+    ROUND(a,b,c,d,e,f,g,h, w[0], K[0]);
+    ROUND(h,a,b,c,d,e,f,g, w[1], K[1]);
+    ROUND(g,h,a,b,c,d,e,f, w[2], K[2]);
+    ROUND(f,g,h,a,b,c,d,e, w[3], K[3]);
+    ROUND(e,f,g,h,a,b,c,d, w[4], K[4]);
+    ROUND(d,e,f,g,h,a,b,c, w[5], K[5]);
+    ROUND(c,d,e,f,g,h,a,b, w[6], K[6]);
+    ROUND(b,c,d,e,f,g,h,a, w[7], K[7]);
+    ROUND(a,b,c,d,e,f,g,h, w[8], K[8]);
+    ROUND(h,a,b,c,d,e,f,g, 0u, K[9]);
+    ROUND(g,h,a,b,c,d,e,f, 0u, K[10]);
+    ROUND(f,g,h,a,b,c,d,e, 0u, K[11]);
+    ROUND(e,f,g,h,a,b,c,d, 0u, K[12]);
+    ROUND(d,e,f,g,h,a,b,c, 0u, K[13]);
+    ROUND(c,d,e,f,g,h,a,b, 0u, K[14]);
+    ROUND(b,c,d,e,f,g,h,a, w[15], K[15]);
 
-                w = (w << 8) | (uint)b;
-            }
+    // ===================================================================
+    // MESSAGE SCHEDULE ROUNDS (rolling w[16])
+    // BitCrack recurrence:
+    //     w[i] = w[i] + sigma0(w[i+1]) + w[i+9] + sigma1(w[i+14])
+    // ===================================================================
+#define SCHED(i) w[i] = w[i] + sigma0(w[(i+1)&15]) + w[(i+9)&15] + sigma1(w[(i+14)&15]);
 
-            W[t] = w;
-        }
+    // Round 16..31 schedule updates
+    SCHED(0);  SCHED(1);  SCHED(2);  SCHED(3);
+    SCHED(4);  SCHED(5);  SCHED(6);  SCHED(7);
+    SCHED(8);  SCHED(9);  SCHED(10); SCHED(11);
+    SCHED(12); SCHED(13); SCHED(14); SCHED(15);
 
-        for (uint t = 16; t < 64; ++t) {
-            uint s0 = sigma0(W[t-15]);
-            uint s1 = sigma1(W[t-2]);
-            W[t] = W[t-16] + s0 + W[t-7] + s1;
-        }
+    // ===================================================================
+    // ROUNDS 16..31
+    // ===================================================================
+    ROUND(a,b,c,d,e,f,g,h, w[0], K[16]);
+    ROUND(h,a,b,c,d,e,f,g, w[1], K[17]);
+    ROUND(g,h,a,b,c,d,e,f, w[2], K[18]);
+    ROUND(f,g,h,a,b,c,d,e, w[3], K[19]);
+    ROUND(e,f,g,h,a,b,c,d, w[4], K[20]);
+    ROUND(d,e,f,g,h,a,b,c, w[5], K[21]);
+    ROUND(c,d,e,f,g,h,a,b, w[6], K[22]);
+    ROUND(b,c,d,e,f,g,h,a, w[7], K[23]);
+    ROUND(a,b,c,d,e,f,g,h, w[8], K[24]);
+    ROUND(h,a,b,c,d,e,f,g, w[9], K[25]);
+    ROUND(g,h,a,b,c,d,e,f, w[10], K[26]);
+    ROUND(f,g,h,a,b,c,d,e, w[11], K[27]);
+    ROUND(e,f,g,h,a,b,c,d, w[12], K[28]);
+    ROUND(d,e,f,g,h,a,b,c, w[13], K[29]);
+    ROUND(c,d,e,f,g,h,a,b, w[14], K[30]);
+    ROUND(b,c,d,e,f,g,h,a, w[15], K[31]);
 
-        uint a = a0;
-        uint b = b0;
-        uint c_ = c0;
-        uint d = d0;
-        uint e = e0;
-        uint f = f0;
-        uint g = g0;
-        uint h = h0;
+    // ===================================================================
+    // MORE SCHEDULE EXPANSION (32..47)
+    // ===================================================================
+    SCHED(0);  SCHED(1);  SCHED(2);  SCHED(3);
+    SCHED(4);  SCHED(5);  SCHED(6);  SCHED(7);
+    SCHED(8);  SCHED(9);  SCHED(10); SCHED(11);
+    SCHED(12); SCHED(13); SCHED(14); SCHED(15);
 
-        for (uint t = 0; t < 64; ++t) {
-            uint T1 = h + Sigma1(e) + Ch(e,f,g) + K[t] + W[t];
-            uint T2 = Sigma0(a) + Maj(a,b,c_);
-            h = g;
-            g = f;
-            f = e;
-            e = d + T1;
-            d = c_;
-            c_ = b;
-            b = a;
-            a = T1 + T2;
-        }
+    // ===================================================================
+    // ROUNDS 32..47
+    // ===================================================================
+    ROUND(a,b,c,d,e,f,g,h, w[0], K[32]);
+    ROUND(h,a,b,c,d,e,f,g, w[1], K[33]);
+    ROUND(g,h,a,b,c,d,e,f, w[2], K[34]);
+    ROUND(f,g,h,a,b,c,d,e, w[3], K[35]);
+    ROUND(e,f,g,h,a,b,c,d, w[4], K[36]);
+    ROUND(d,e,f,g,h,a,b,c, w[5], K[37]);
+    ROUND(c,d,e,f,g,h,a,b, w[6], K[38]);
+    ROUND(b,c,d,e,f,g,h,a, w[7], K[39]);
+    ROUND(a,b,c,d,e,f,g,h, w[8], K[40]);
+    ROUND(h,a,b,c,d,e,f,g, w[9], K[41]);
+    ROUND(g,h,a,b,c,d,e,f, w[10], K[42]);
+    ROUND(f,g,h,a,b,c,d,e, w[11], K[43]);
+    ROUND(e,f,g,h,a,b,c,d, w[12], K[44]);
+    ROUND(d,e,f,g,h,a,b,c, w[13], K[45]);
+    ROUND(c,d,e,f,g,h,a,b, w[14], K[46]);
+    ROUND(b,c,d,e,f,g,h,a, w[15], K[47]);
 
-        a0 += a;
-        b0 += b;
-        c0 += c_;
-        d0 += d;
-        e0 += e;
-        f0 += f;
-        g0 += g;
-        h0 += h;
-    }
+    // ===================================================================
+    // FINAL SCHEDULE (48..63)
+    // ===================================================================
+    SCHED(0);  SCHED(1);  SCHED(2);  SCHED(3);
+    SCHED(4);  SCHED(5);  SCHED(6);  SCHED(7);
+    SCHED(8);  SCHED(9);  SCHED(10); SCHED(11);
+    SCHED(12); SCHED(13); SCHED(14); SCHED(15);
 
-    outState[0] = a0;
-    outState[1] = b0;
-    outState[2] = c0;
-    outState[3] = d0;
-    outState[4] = e0;
-    outState[5] = f0;
-    outState[6] = g0;
-    outState[7] = h0;
+    // ===================================================================
+    // FINAL ROUNDS 48..63
+    // ===================================================================
+    ROUND(a,b,c,d,e,f,g,h, w[0], K[48]);
+    ROUND(h,a,b,c,d,e,f,g, w[1], K[49]);
+    ROUND(g,h,a,b,c,d,e,f, w[2], K[50]);
+    ROUND(f,g,h,a,b,c,d,e, w[3], K[51]);
+    ROUND(e,f,g,h,a,b,c,d, w[4], K[52]);
+    ROUND(d,e,f,g,h,a,b,c, w[5], K[53]);
+    ROUND(c,d,e,f,g,h,a,b, w[6], K[54]);
+    ROUND(b,c,d,e,f,g,h,a, w[7], K[55]);
+    ROUND(a,b,c,d,e,f,g,h, w[8], K[56]);
+    ROUND(h,a,b,c,d,e,f,g, w[9], K[57]);
+    ROUND(g,h,a,b,c,d,e,f, w[10], K[58]);
+    ROUND(f,g,h,a,b,c,d,e, w[11], K[59]);
+    ROUND(e,f,g,h,a,b,c,d, w[12], K[60]);
+    ROUND(d,e,f,g,h,a,b,c, w[13], K[61]);
+    ROUND(c,d,e,f,g,h,a,b, w[14], K[62]);
+    ROUND(b,c,d,e,f,g,h,a, w[15], K[63]);
+
+    // ===================================================================
+    // Add initial hash state
+    // ===================================================================
+    digest[0] = a + 0x6a09e667u;
+    digest[1] = b + 0xbb67ae85u;
+    digest[2] = c + 0x3c6ef372u;
+    digest[3] = d + 0xa54ff53au;
+    digest[4] = e + 0x510e527fu;
+    digest[5] = f + 0x9b05688cu;
+    digest[6] = g + 0x1f83d9abu;
+    digest[7] = h + 0x5be0cd19u;
 }
-
-
-
