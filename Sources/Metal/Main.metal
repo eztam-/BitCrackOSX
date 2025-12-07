@@ -659,5 +659,48 @@ kernel void test_field_sub(
         output[id * 8 + i] = result.limbs[i];
     }
 }
+
+// =======================================
+// Test kernel: hash a single message
+// buffer(0): device uchar* input
+// buffer(1): constant uint& inputLength
+// buffer(2): device uint* output (8 words)
+// =======================================
+kernel void sha256_test_kernel(
+    device const uchar*   input      [[buffer(0)]],
+    constant uint&        inputLen   [[buffer(1)]],
+    device uint*          outState   [[buffer(2)]],
+    uint                  tid        [[thread_position_in_grid]]
+)
+{
+    // Only one thread does the work
+    if (tid != 0) return;
+
+    // Copy message from device memory into a thread-local array
+    // NOTE: for testing we assume a reasonably small message.
+    // For "abc" this is obviously fine.
+    thread uchar localMsg[128];
+    uint len = inputLen;
+    if (len > 128u) {
+        len = 128u; // clamp to avoid overflow in test
+    }
+
+    for (uint i = 0; i < len; ++i) {
+        localMsg[i] = input[i];
+    }
+
+    uint state[8];
+    // Call your existing SHA-256 implementation (unchanged)
+    sha256_bytes(localMsg, len, state);
+
+    // Write result to output buffer
+    for (uint i = 0; i < 8u; ++i) {
+        outState[i] = state[i];
+    }
+}
+
+
+
+
 //#endif
 
