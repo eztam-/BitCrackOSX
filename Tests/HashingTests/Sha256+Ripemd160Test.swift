@@ -68,7 +68,7 @@ final class HashKernelTests: TestBase {
         var gpuBytes = Data()
         for i in 0..<5 {
             let w = gpuWords[i]
-            // BitCrack’s final output uses endian()
+            // Final output uses endian()
             gpuBytes.append(contentsOf: [
                 UInt8((w >> 24) & 0xff),
                 UInt8((w >> 16) & 0xff),

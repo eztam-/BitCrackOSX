@@ -12,7 +12,7 @@ constant uint K_RMD[8] = {
 
 inline uint rotl(uint x, uint n) { return (x << n) | (x >> (32u - n)); }
 
-// BitCrack primitive functions
+// Primitive functions
 #define F(x,y,z) ((x) ^ (y) ^ (z))
 #define G(x,y,z) (((x)&(y)) | (~(x)&(z)))
 #define H(x,y,z) (((x)|~(y)) ^ (z))

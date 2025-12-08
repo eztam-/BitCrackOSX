@@ -108,7 +108,7 @@ inline void sha256PublicKeyCompressed(
 
     // ===================================================================
     // MESSAGE SCHEDULE ROUNDS (rolling w[16])
-    // BitCrack recurrence:
+    // Recurrence:
     //     w[i] = w[i] + sigma0(w[i+1]) + w[i+9] + sigma1(w[i+14])
     // ===================================================================
 #define SCHED(i) w[i] = w[i] + sigma0(w[(i+1)&15]) + w[(i+9)&15] + sigma1(w[(i+14)&15]);

@@ -44,8 +44,8 @@ public class KeySearchMetalHost {
         self.startKeyHex = startKeyHex
 
         
-        self.initPipeline = try Helpers.buildPipelineState(kernelFunctionName: "init_points_bitcrack_style")
-        self.stepPipeline = try Helpers.buildPipelineState(kernelFunctionName: "step_points_bitcrack_style")
+        self.initPipeline = try Helpers.buildPipelineState(kernelFunctionName: "init_points")
+        self.stepPipeline = try Helpers.buildPipelineState(kernelFunctionName: "step_points")
     }
     
     
@@ -148,7 +148,7 @@ public class KeySearchMetalHost {
     
     
     
-    /// Perform one BitCrack-style step: Q[i] += ΔG for all points.
+    /// Perform one  step: Q[i] += ΔG for all points.
     func appendStepKernel(pointSet: PointSet, commandBuffer: MTLCommandBuffer, bloomFilter: BloomFilter, bloomFilterResultBuffer: MTLBuffer, hash160OutBuffer: MTLBuffer) throws {
         var totalPoints = pointSet.totalPoints
         var gridSizeU32 = UInt32(pointSet.gridSize)

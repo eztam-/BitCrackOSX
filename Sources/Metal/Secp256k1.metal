@@ -7,15 +7,6 @@ using namespace metal;
 // Therefore this implementation uses mainly 32-bit arithmetic.
 
 
-
-// Tune for your device: 128/256/512 are good starting points.
-// Must be >= keys_per_thread in properties, but kernel will clip the last block anyway.
-// BEst would be to align this to the same value as in properties, but that doesnt seem to be possible in metal.
-#ifndef MAX_KEYS_PER_THREAD
-#define MAX_KEYS_PER_THREAD 128
-#endif
-
-
 // ---- SECP256k1 constants (little-endian limb order) ----
 
 // Secp256k1 prime modulus p = 2^256 - 2^32 - 977
@@ -396,80 +387,6 @@ inline uint256 load_private_key(device const uint* base_private_keys, uint index
     return result;
 }
 
-/*
-inline void store_public_key(device uint* output, uint index, uint256 x, uint256 y) {
-    for (int i = 0; i < 8; i++) {
-        output[index * 16 + i] = x.limbs[i];      // x coordinate
-        output[index * 16 + 8 + i] = y.limbs[i];  // y coordinate
-    }
-}
-*/
-
-/**
- Creates a 65-byte uncompressed public key.
- Adds the 0x04 prefix byte at the beginning (that’s the uncompressed SEC1 format marker).
- Adjust the base offset so each key occupies 65 bytes instead of 64.
- */
-inline void store_public_key_uncompressed(device uchar* output, uint index, uint256 x, uint256 y) {
-    // Each public key = 65 bytes: 0x04 + 32 bytes X + 32 bytes Y (big-endian)
-    int base = index * 65;
-
-    // Prefix 0x04
-    output[base + 0] = 0x04;
-
-    // Write X coordinate in big-endian order
-    int pos = base + 1;
-    #pragma unroll
-    for (int limb = 7; limb >= 0; limb--) {
-        uint vx = x.limbs[limb];
-        output[pos + 0] = (uchar)((vx >> 24) & 0xFF);
-        output[pos + 1] = (uchar)((vx >> 16) & 0xFF);
-        output[pos + 2] = (uchar)((vx >> 8)  & 0xFF);
-        output[pos + 3] = (uchar)(vx & 0xFF);
-        pos += 4;
-    }
-
-    // Write Y coordinate in big-endian order
-    #pragma unroll
-    for (int limb = 7; limb >= 0; limb--) {
-        uint vy = y.limbs[limb];
-        output[pos + 0] = (uchar)((vy >> 24) & 0xFF);
-        output[pos + 1] = (uchar)((vy >> 16) & 0xFF);
-        output[pos + 2] = (uchar)((vy >> 8)  & 0xFF);
-        output[pos + 3] = (uchar)(vy & 0xFF);
-        pos += 4;
-    }
-}
-
-
-/**
- Creates a 33-byte compressed public key.
- Adds the prefix: 0x02 if Y is even or 0x03 if Y is odd
- */
-inline void store_public_key_compressed(device uchar* output, uint index, uint256 x, uint256 y) {
-    // Each public key = 33 bytes: prefix (0x02/0x03) + 32 bytes X (big-endian)
-    int base = index * 33;
-
-    // Y parity: LSB of the whole 256-bit Y is in y.limbs[0]
-    uchar prefix = (y.limbs[0] & 1u) ? 0x03 : 0x02;
-    output[base + 0] = prefix;
-
-    // Write X in big-endian order: most-significant limb first, high byte first
-    int outPos = base + 1; // first byte of X
-    #pragma unroll
-    for (int limb = 7; limb >= 0; limb--) {
-        uint vx = x.limbs[limb];
-        // write bytes MSB -> LSB
-        output[outPos + 0] = (uchar)((vx >> 24) & 0xFF);
-        output[outPos + 1] = (uchar)((vx >> 16) & 0xFF);
-        output[outPos + 2] = (uchar)((vx >> 8)  & 0xFF);
-        output[outPos + 3] = (uchar)((vx >> 0)  & 0xFF);
-        outPos += 4;
-    }
-}
-
-
-
 inline bool is_zero(uint256 a) {
     uint acc = 0u;
     #pragma unroll
@@ -544,19 +461,6 @@ inline uint256 field_sub(uint256 a, uint256 b) {
 
     return result;
 }
-
-
-inline void mul_32x32(uint a, uint b, thread uint* low, thread uint* high) {
-    // use 64-bit product
-    ulong prod = (ulong)a * (ulong)b;
-    *low = (uint)prod;
-    *high = (uint)(prod >> 32);
-}
-
-
-
-
-
 
 
 inline uint256 sub_uint256(uint256 a, uint256 b) {
@@ -774,51 +678,9 @@ inline uint256 field_mul(uint256 a, uint256 b) {
 
 
 
-
-
-
 inline uint256 field_sqr(uint256 a) {
     return field_mul(a, a);
 }
-
-
-
-
-// Build a uint256 from the global modulus P[8]
-inline uint256 mod_p_u256() {
-    uint256 m;
-    #pragma unroll
-    for (int i = 0; i < 8; i++) m.limbs[i] = P[i];
-    return m;
-}
-
-// Right shift by 1 over 8×32-bit limbs; msb_in becomes the new top bit (bit 255)
-inline uint256 rshift1_with_msb(uint256 a, uint msb_in) {
-    uint256 r;
-    uint carry = msb_in & 1u; // becomes top bit after shifting
-    // walk from MS limb to LS limb
-    #pragma unroll
-    for (int i = 7; i >= 0; i--) {
-        uint new_carry = a.limbs[i] & 1u;              // LSB that falls to next limb
-        r.limbs[i] = (a.limbs[i] >> 1) | (carry << 31);
-        carry = new_carry;
-    }
-    return r;
-}
-
-// Plain 256-bit add: r = a + b (no modular reduction). Returns final carry (0/1).
-inline uint add_uint256_raw(thread uint256 &r, uint256 a, uint256 b) {
-    uint carry = 0;
-    #pragma unroll
-    for (int i = 0; i < 8; i++) {
-        uint sum, c1;
-        add_with_carry(a.limbs[i], b.limbs[i], carry, &sum, &c1);
-        r.limbs[i] = sum;
-        carry = c1;
-    }
-    return carry; // 0 or 1
-}
-
 
 
 
@@ -833,16 +695,6 @@ inline uint exp_bit_p_minus_2(int i) {
     int word = 7 - (i >> 5);          // MSW at index 0
     int bit  = i & 31;
     return (P_MINUS_2_MSW[word] >> bit) & 1u;
-}
-
-// Get up to 'len' bits ending at i (i is MSB), returns value in [0, 2^len)
-inline uint exp_bits_p_minus_2(int i, int len) {
-    uint v = 0u;
-    for (int k = 0; k < len; ++k) {
-        v <<= 1;
-        v |= exp_bit_p_minus_2(i - (len - 1 - k));
-    }
-    return v;
 }
 
 
@@ -911,33 +763,6 @@ inline uint256 field_inv(uint256 a) {
 
     return acc;
 }
-
-
-inline void batch_inverse(const thread uint256* Z,
-                          thread uint256*       invZ,
-                          int            n)
-{
-    uint256 prefix[MAX_KEYS_PER_THREAD];
-
-    uint256 acc = Z[0];
-    prefix[0] = acc;
-
-    for (int i = 1; i < n; i++) {
-        acc = field_mul(acc, Z[i]);
-        prefix[i] = acc;
-    }
-
-    uint256 invAll = field_inv(prefix[n - 1]);
-
-    uint256 temp = invAll;
-    for (int i = n - 1; i >= 1; i--) {
-        invZ[i] = field_mul(temp, prefix[i - 1]);
-        temp    = field_mul(temp, Z[i]);
-    }
-    invZ[0] = temp;
-}
-
-
 
 
 
@@ -1138,32 +963,5 @@ inline Point point_mul(
     // One inversion at the end to return affine
     return jacobian_to_affine(R);
 }
-
-
-
-
-inline void affine_from_jacobian_batch(
-    thread const PointJacobian* J,
-    thread const uint256*       invZ,
-    thread Point*               A,
-    int                  n)
-{
-    for (int i = 0; i < n; i++) {
-        if (J[i].infinity) {
-            A[i].infinity = true;
-            continue;
-        }
-
-        uint256 z1 = invZ[i];
-        uint256 z2 = field_sqr(z1);
-        uint256 z3 = field_mul(z2, z1);
-
-        A[i].x = field_mul(J[i].X, z2);
-        A[i].y = field_mul(J[i].Y, z3);
-        A[i].infinity = false;
-    }
-}
-
-
 
 
