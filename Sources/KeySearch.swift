@@ -4,20 +4,17 @@ import BigNumber
 import simd
 
 // TODO: FIXME: If the key range is smaller than the batch size it doesnt work
-// TODO: If the size is smaller, that we run into a memory leak since the garbage collector seem to slow, to free up the memory for the commandBuffers
 
+let BLOOM_MAX_HITS = 100_000   // Maximum number of bloom filter hits supported per batch.
 
 struct HitResult {
     var index: UInt32
     var hash160: (UInt32, UInt32, UInt32, UInt32, UInt32)
 }
 
-
-let BLOOM_MAX_HITS = 100_000   // Maximum number of bloom filter hits supported per batch.
-
 class KeySearch {
 
-    let maxInFlight = 3  // triple buffering
+    let maxInFlight = 9  // triple buffering
     struct BatchSlot {
         let bloomFilterHitsBuffer: MTLBuffer
         let hitCountBuffer: MTLBuffer
@@ -55,7 +52,6 @@ class KeySearch {
                 length: BLOOM_MAX_HITS * MemoryLayout<HitResult>.size,
                 options: .storageModeShared
             )!
-            hitsBuffer.contents().storeBytes(of: 0, as: UInt32.self)
             
             let resultCount: UInt32 = 0
             let resultCountBuffer = device.makeBuffer(
@@ -76,13 +72,13 @@ class KeySearch {
     
         let commandQueue = device.makeCommandQueue()!
         let keyLength = 33
-        let secp256k1 = try KeySearchMetalHost(on:  device, compressed: Properties.compressedKeySearch, startKeyHex: startKeyHex)
+        let keySearchMetal = try KeySearchMetalHost(on:  device, compressed: Properties.compressedKeySearch, startKeyHex: startKeyHex)
         
         // 1. Allocate point set
-        let pointSet = secp256k1.makePointSet(totalPoints: totalPoints, gridSize: Properties.GRID_SIZE)
+        let pointSet = keySearchMetal.makePointSet(totalPoints: totalPoints, gridSize: Properties.GRID_SIZE)
         let startKeyLE =  Helpers.hex256ToUInt32Limbs(startKeyHex)
         ui.startLiveStats()
-        try secp256k1.runInitKernel(pointSet: pointSet, startKeyLE: startKeyLE, commandBuffer: commandQueue.makeCommandBuffer()!)
+        try keySearchMetal.runInitKernel(pointSet: pointSet, startKeyLE: startKeyLE, commandBuffer: commandQueue.makeCommandBuffer()!)
         
         //dumpPoint(0, pointSet: pointSet)
 
@@ -95,7 +91,7 @@ class KeySearch {
             
             let commandBuffer = commandQueue.makeCommandBuffer()!
 
-            try secp256k1.appendStepKernel(pointSet: pointSet,
+            try keySearchMetal.appendStepKernel(pointSet: pointSet,
                                            commandBuffer: commandBuffer,
                                            bloomFilter: bloomFilter,
                                            bloomFilterHitsBuffer: slot.bloomFilterHitsBuffer,
@@ -107,6 +103,7 @@ class KeySearch {
                 // So we cannot increment the base key from here
                 
                 let falsePositiveCnt = self!.checkBloomFilterResults(bloomFilterHitsBuffer: slot.bloomFilterHitsBuffer, hitCountBuffer: slot.hitCountBuffer, batchCount: batchCount )
+      
                 self!.ui.bfFalePositiveCnt = falsePositiveCnt
                 
                 // RESET BEFORE EACH DISPATCH

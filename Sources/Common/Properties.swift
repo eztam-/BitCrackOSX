@@ -6,10 +6,10 @@ struct Properties{
 
     public static let APP_COMMAND_NAME = "keysearch"
     
-    public static let KEYS_PER_THREAD = 512 * 2
+    public static let KEYS_PER_THREAD = 1024
     
     // The number of threads. Must be <= totalPoints
-    public static let GRID_SIZE = 1024 * 64
+    public static let GRID_SIZE = 1024 * 32
     
     // This is effectively the batch size and reflects the number of public keys to be calculated per batch.
     // Must be a multiple of grid size
