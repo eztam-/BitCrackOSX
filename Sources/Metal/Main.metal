@@ -233,34 +233,16 @@ kernel void step_points_bitcrack_style(
        // uchar pk[65];
        // uint  pkLen = useCompressed ? 33u : 65u;
 
-        // ----- 1) Hash this point's public key -----
-
+        // ----- 1) SHA256 hash this point's public key -----
         uint256 x = xPtr[iForward];
         uint256 y = yPtr[iForward];
-
-       // uint yParity = (y.limbs[0] & 1u);
-
+        uint yParity = (y.limbs[0] & 1u);
         uint shaState[8];
+        sha256PublicKeyCompressed(x.limbs, yParity, shaState);
 
-        // REMOVE THIS
-        uint xBE[8];
-
-        for (uint i = 0; i < 8; ++i)
-            xBE[i] = x.limbs[7 - i];   // reverse limb order
-
-        uint yParity = y.limbs[0] & 1u;
-
-        sha256PublicKeyCompressed(xBE, yParity, shaState);
-        // END REMOVE
-        
-        //sha256PublicKeyCompressed(x.limbs, yParity, shaState);
-
-        //
-        // BitCrack RIPEMD160 pipeline (MUST COPY EXACTLY)
-        //
+        // ----- 2) RIPEMD160 -----
         uint ripemdTmp[5];
         uint ripemdOut[5];
-
         ripemd160sha256NoFinal(shaState, ripemdTmp);
         ripemd160FinalRound(ripemdTmp, ripemdOut);
 
@@ -275,9 +257,7 @@ kernel void step_points_bitcrack_style(
         outRipemd160[base + 4u] = ripemdOut[4];
 
         
-        // TOMOROW: Print the hash160 in the main loop for the first eky. Code exists already is just commented out
-        // REMOVE THIS
-      
+        // REMOVE THIS      
         uint packedOut[5];
 
         for (uint i = 0; i < 5; i++)

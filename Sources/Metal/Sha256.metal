@@ -34,8 +34,9 @@ constant uint K[64] = {
 //  Output: digest[8] = SHA-256(X||prefix)
 // ====================================================================
 
+
 inline void sha256PublicKeyCompressed(
-    thread const uint x[8],
+    thread const uint x[8],   // x[0] = LSW, x[7] = MSW
     uint yParity,
     thread uint digest[8]
 )
@@ -51,35 +52,43 @@ inline void sha256PublicKeyCompressed(
 
     uint w[16];
 
-    // --------------------------------------------------------------------
-    // Build fixed first block: 0x02/0x03 || X || padding
-    // Matches BitCrack exactly
-    // --------------------------------------------------------------------
+    // ----------------------------------------------------------------
+    // Build first block for compressed pubkey:
+    //   0x02/0x03 || X (big-endian)
+    //
+    // X is little-endian in limbs: x[0] = LSW ... x[7] = MSW.
+    // This is the same mapping you *used* to get by pre-reversing
+    // (xBE[i] = x[7 - i]). Now we just index that way directly.
+    // ----------------------------------------------------------------
 
-    w[0] = (0x02000000u | ((yParity & 1u) << 24) | (x[0] >> 8));
-    w[1] = (x[1] >> 8) | (x[0] << 24);
-    w[2] = (x[2] >> 8) | (x[1] << 24);
-    w[3] = (x[3] >> 8) | (x[2] << 24);
-    w[4] = (x[4] >> 8) | (x[3] << 24);
-    w[5] = (x[5] >> 8) | (x[4] << 24);
-    w[6] = (x[6] >> 8) | (x[5] << 24);
-    w[7] = (x[7] >> 8) | (x[6] << 24);
+    // These are exactly your old formulas, but with x[7-i] instead of x[i].
+    w[0] = (0x02000000u | ((yParity & 1u) << 24) | (x[7] >> 8));
+    w[1] = (x[6] >> 8) | (x[7] << 24);
+    w[2] = (x[5] >> 8) | (x[6] << 24);
+    w[3] = (x[4] >> 8) | (x[5] << 24);
+    w[4] = (x[3] >> 8) | (x[4] << 24);
+    w[5] = (x[2] >> 8) | (x[3] << 24);
+    w[6] = (x[1] >> 8) | (x[2] << 24);
+    w[7] = (x[0] >> 8) | (x[1] << 24);
 
-    // final byte, padding start
-    w[8]  = (x[7] << 24) | 0x00800000u;
+    // final byte of X (from LSW) + padding start
+    w[8]  = (x[0] << 24) | 0x00800000u;
 
-    // all zeros except final length word
+    // zeros except final length
     w[9]  = 0u;
     w[10] = 0u;
     w[11] = 0u;
     w[12] = 0u;
     w[13] = 0u;
     w[14] = 0u;
-    w[15] = 264u; // message length = 33 × 8
+    w[15] = 264u; // 33 bytes × 8
 
     // ===================================================================
-    // FIRST 16 ROUNDS
+    // The rest of your function stays exactly the same:
+    // Rounds, SCHED macro, digest add, etc.
     // ===================================================================
+
+    // FIRST 16 ROUNDS
     ROUND(a,b,c,d,e,f,g,h, w[0], K[0]);
     ROUND(h,a,b,c,d,e,f,g, w[1], K[1]);
     ROUND(g,h,a,b,c,d,e,f, w[2], K[2]);
@@ -89,13 +98,13 @@ inline void sha256PublicKeyCompressed(
     ROUND(c,d,e,f,g,h,a,b, w[6], K[6]);
     ROUND(b,c,d,e,f,g,h,a, w[7], K[7]);
     ROUND(a,b,c,d,e,f,g,h, w[8], K[8]);
-    ROUND(h,a,b,c,d,e,f,g, 0u, K[9]);
-    ROUND(g,h,a,b,c,d,e,f, 0u, K[10]);
-    ROUND(f,g,h,a,b,c,d,e, 0u, K[11]);
-    ROUND(e,f,g,h,a,b,c,d, 0u, K[12]);
-    ROUND(d,e,f,g,h,a,b,c, 0u, K[13]);
-    ROUND(c,d,e,f,g,h,a,b, 0u, K[14]);
-    ROUND(b,c,d,e,f,g,h,a, w[15], K[15]);
+    ROUND(h,a,b,c,d,e,f,g, 0u,   K[9]);
+    ROUND(g,h,a,b,c,d,e,f, 0u,   K[10]);
+    ROUND(f,g,h,a,b,c,d,e, 0u,   K[11]);
+    ROUND(e,f,g,h,a,b,c,d, 0u,   K[12]);
+    ROUND(d,e,f,g,h,a,b,c, 0u,   K[13]);
+    ROUND(c,d,e,f,g,h,a,b, 0u,   K[14]);
+    ROUND(b,c,d,e,f,g,h,a, w[15],K[15]);
 
     // ===================================================================
     // MESSAGE SCHEDULE ROUNDS (rolling w[16])
@@ -190,11 +199,11 @@ inline void sha256PublicKeyCompressed(
     // Add initial hash state
     // ===================================================================
     digest[0] = a + 0x6a09e667u;
-    digest[1] = b + 0xbb67ae85u;
-    digest[2] = c + 0x3c6ef372u;
-    digest[3] = d + 0xa54ff53au;
-    digest[4] = e + 0x510e527fu;
-    digest[5] = f + 0x9b05688cu;
-    digest[6] = g + 0x1f83d9abu;
-    digest[7] = h + 0x5be0cd19u;
+       digest[1] = b + 0xbb67ae85u;
+       digest[2] = c + 0x3c6ef372u;
+       digest[3] = d + 0xa54ff53au;
+       digest[4] = e + 0x510e527fu;
+       digest[5] = f + 0x9b05688cu;
+       digest[6] = g + 0x1f83d9abu;
+       digest[7] = h + 0x5be0cd19u;
 }
