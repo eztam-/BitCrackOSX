@@ -146,10 +146,10 @@ public class KeySearchMetalHost {
         return (0..<8).map { buffer[$0] }
     }
     
-    
+
     
     /// Perform one  step: Q[i] += ΔG for all points.
-    func appendStepKernel(pointSet: PointSet, commandBuffer: MTLCommandBuffer, bloomFilter: BloomFilter, bloomFilterResultBuffer: MTLBuffer, hash160OutBuffer: MTLBuffer) throws {
+    func appendStepKernel(pointSet: PointSet, commandBuffer: MTLCommandBuffer, bloomFilter: BloomFilter, bloomFilterHitsBuffer: MTLBuffer, hitCountBuffer: MTLBuffer) throws {
         var totalPoints = pointSet.totalPoints
         var gridSizeU32 = UInt32(pointSet.gridSize)
         
@@ -190,8 +190,8 @@ public class KeySearchMetalHost {
         encoder.setBuffer(bloomFilter.getBitsBuffer(),  offset: 0, index: 7)
         var mBits = bloomFilter.getMbits()
         encoder.setBytes(&mBits,            length: MemoryLayout<UInt32>.stride, index: 8)
-        encoder.setBuffer(bloomFilterResultBuffer, offset: 0, index: 9)
-        encoder.setBuffer(hash160OutBuffer,    offset: 0, index: 10)
+        encoder.setBuffer(hitCountBuffer, offset: 0, index: 9)
+        encoder.setBuffer(bloomFilterHitsBuffer,    offset: 0, index: 10)
         var compression: UInt32 = Properties.compressedKeySearch ? 1 : 0
         encoder.setBytes(&compression, length: MemoryLayout<UInt32>.stride, index: 11)
 

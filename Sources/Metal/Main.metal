@@ -148,6 +148,14 @@ inline void u256_to_be32(const uint256 x, thread uchar out[32]) {
 
 
 
+struct HitResult
+{
+    uint index;      // point index (iForward)
+    uint digest[5];  // hash160
+};
+
+
+
 //Adds ΔG to all points each iteration.
 //
 //  EC step kernel for Metal
@@ -179,93 +187,77 @@ inline void u256_to_be32(const uint256 x, thread uchar out[32]) {
 //   buffer(11): compression   (constant uint)  0=uncompressed,1=compressed
 //
 kernel void step_points(
-    constant uint&    totalPoints   [[buffer(0)]],
-    constant uint&    gridSize      [[buffer(1)]],
-    device   uint256* chain         [[buffer(2)]],
-    device   uint256* xPtr          [[buffer(3)]],
-    device   uint256* yPtr          [[buffer(4)]],
-    constant uint256& incX          [[buffer(5)]],
-    constant uint256& incY          [[buffer(6)]],
-    const device uint*    bloomBits     [[buffer(7)]],
-    constant uint&        m_bits        [[buffer(8)]],
-    device   uint*        bloomResults  [[buffer(9)]],
-    device   uint*        outRipemd160  [[buffer(10)]],
-    constant uint&        compression   [[buffer(11)]],
-    uint                  gid           [[thread_position_in_grid ]]
+    constant uint&       totalPoints   [[buffer(0)]],
+    constant uint&       gridSize      [[buffer(1)]],
+    device   uint256*    chain         [[buffer(2)]],
+    device   uint256*    xPtr          [[buffer(3)]],
+    device   uint256*    yPtr          [[buffer(4)]],
+    constant uint256&    incX          [[buffer(5)]],
+    constant uint256&    incY          [[buffer(6)]],
+    const device uint*   bloomBits     [[buffer(7)]],
+    constant uint&       m_bits        [[buffer(8)]],
+    device   atomic_uint* resultCount  [[buffer(9)]],
+    device   HitResult*   results      [[buffer(10)]],
+    constant uint&       compression   [[buffer(11)]],
+    uint                 gid           [[thread_position_in_grid]]
 )
 {
     if (gid >= gridSize) return;
 
-    // ---- init inverse = 1 ----
+    // Initialize inverse = 1
     uint256 inverse;
-    for (int k = 0; k < 8; ++k) inverse.limbs[k] = 0u;
+    for (int k = 0; k < 8; ++k)
+        inverse.limbs[k] = 0u;
     inverse.limbs[0] = 1u;
 
     int batchIdx = 0;
     uint dim = gridSize;
 
-    // ---- forward pass: hash + bloom + batch-add ----
+    // -------------------------
+    // FORWARD PASS
+    // -------------------------
     uint iForward;
     for (iForward = gid; iForward < totalPoints; iForward += dim)
     {
-        // ----- 1) Hash this point's public key -----
-       // bool useCompressed = (compression != 0u);
-       // uchar pk[65];
-       // uint  pkLen = useCompressed ? 33u : 65u;
-
-        // ----- 1) SHA256 hash this point's public key -----
+        // ---------------------------------------
+        // 1) Compute HASH160 (SHA256 -> RIPEMD160)
+        // ---------------------------------------
         uint256 x = xPtr[iForward];
         uint256 y = yPtr[iForward];
+
         uint yParity = (y.limbs[0] & 1u);
+
         uint shaState[8];
         sha256PublicKeyCompressed(x.limbs, yParity, shaState);
 
-        // ----- 2) RIPEMD160 -----
         uint ripemdTmp[5];
-        uint ripemdOut[5];
+        uint digestBE[5];   // Big endian RIPEMD160 words (output stage)
         ripemd160sha256NoFinal(shaState, ripemdTmp);
-        ripemd160FinalRound(ripemdTmp, ripemdOut);
+        ripemd160FinalRound(ripemdTmp, digestBE);
 
-        //
-        // Store RIPEMD-160
-        //
-        uint base = iForward * 5u;
-        outRipemd160[base + 0u] = ripemdOut[0];
-        outRipemd160[base + 1u] = ripemdOut[1];
-        outRipemd160[base + 2u] = ripemdOut[2];
-        outRipemd160[base + 3u] = ripemdOut[3];
-        outRipemd160[base + 4u] = ripemdOut[4];
-
-        
-        // TODO: REMOVE THIS
-        uint packedOut[5];
-
-        for (uint i = 0; i < 5; i++)
+        // Convert to little-endian for your bloom hashing
+        uint digestLE[5];
+        for (uint k = 0; k < 5; ++k)
         {
-            uint w = ripemdOut[i];
-            // convert from BIG-endian to LITTLE-endian
+            uint w = digestBE[k];
             uint b0 = (w >> 24) & 0xFF;
             uint b1 = (w >> 16) & 0xFF;
             uint b2 = (w >> 8 ) & 0xFF;
             uint b3 = (w      ) & 0xFF;
-
-            // pack into little-endian word for bloom_insert compatibility
-            packedOut[i] = (b3 << 24) | (b2 << 16) | (b1 << 8) | b0;
+            digestLE[k] = (b3 << 24) | (b2 << 16) | (b1 << 8) | b0;
         }
-        // END REMOVE THIS
-        
-        
-        
-        // ----- 2) Bloom query -----
+
+        // ---------------------------------------
+        // 2) Bloom filter lookup (no per-point mem)
+        // ---------------------------------------
         uint h1, h2;
-        hash_pair_fnv_words(packedOut, 5u, h1, h2);
-        //hash_pair_fnv_words(ripemdOut, 5u, h1, h2);
+        hash_pair_fnv_words(digestLE, 5u, h1, h2);
 
         uint hit = 1u;
-        for (uint j = 0; j < NUMBER_HASHES; ++j) {
+        for (uint j = 0; j < NUMBER_HASHES; ++j)
+        {
             ulong combined = (ulong)h1 + (ulong)j * (ulong)h2;
             uint bit_idx = (uint)(combined % (ulong)m_bits);
-
             uint word_idx = bit_idx >> 5;
             uint bit_mask = 1u << (bit_idx & 31u);
 
@@ -274,9 +266,27 @@ kernel void step_points(
                 break;
             }
         }
-        bloomResults[iForward] = hit;
 
-        // ----- 3) Batch-add prefix product -----
+        // ---------------------------------------
+        // 3) If Bloom hit → store in compact buffer
+        // ---------------------------------------
+        if (hit != 0u)
+        {
+            uint slot = atomic_fetch_add_explicit(resultCount, 1u, memory_order_relaxed);
+
+            HitResult r;
+            r.index = iForward;
+
+            // store digest (little endian form)
+            for (uint k = 0; k < 5; ++k)
+                r.digest[k] = digestLE[k];
+
+            results[slot] = r;
+        }
+
+        // ---------------------------------------
+        // 4) Batch-add prefix product
+        // ---------------------------------------
         beginBatchAdd256k(
             incX,
             xPtr[iForward],
@@ -291,10 +301,14 @@ kernel void step_points(
         batchIdx++;
     }
 
-    // ---- single inversion ----
+    // -------------------------
+    // INVERSION STEP
+    // -------------------------
     doBatchInverse256k(inverse.limbs);
 
-    // ---- backward pass: apply batch-add ----
+    // -------------------------
+    // BACKWARD PASS
+    // -------------------------
     int i = (int)iForward - (int)dim;
 
     uint256 newX;
@@ -323,6 +337,7 @@ kernel void step_points(
         yPtr[i] = newY;
     }
 }
+
 
 
 
