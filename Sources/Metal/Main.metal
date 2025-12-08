@@ -1,3 +1,4 @@
+#pragma clang fp contract(fast)
 #include <metal_stdlib>
 using namespace metal;
 
@@ -5,6 +6,8 @@ using namespace metal;
 #include "Sha256.metal"
 #include "Ripemd160.metal"
 #include "BloomFilter.metal"
+
+#pragma clang optimize on
 
 
 constant const uint NUMBER_HASHES = 20;

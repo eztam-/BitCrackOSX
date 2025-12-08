@@ -1,7 +1,5 @@
-//#pragma clang fp contract(fast)
 #include <metal_stdlib>
 using namespace metal;
-//#pragma clang optimize on
 
 // Silicon GPU integer ALUs are natively 32-bit wide, so 64-bit (ulong, long, ulong4, etc.) arithmetic is emulated using multiple 32-bit ops.
 // Therefore this implementation uses mainly 32-bit arithmetic.
