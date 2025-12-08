@@ -238,11 +238,22 @@ kernel void step_points_bitcrack_style(
         uint256 x = xPtr[iForward];
         uint256 y = yPtr[iForward];
 
-        uint yParity = (y.limbs[0] & 1u);
+       // uint yParity = (y.limbs[0] & 1u);
 
         uint shaState[8];
 
-        sha256PublicKeyCompressed(x.limbs, yParity, shaState);
+        // REMOVE THIS
+        uint xBE[8];
+
+        for (uint i = 0; i < 8; ++i)
+            xBE[i] = x.limbs[7 - i];   // reverse limb order
+
+        uint yParity = y.limbs[0] & 1u;
+
+        sha256PublicKeyCompressed(xBE, yParity, shaState);
+        // END REMOVE
+        
+        //sha256PublicKeyCompressed(x.limbs, yParity, shaState);
 
         //
         // BitCrack RIPEMD160 pipeline (MUST COPY EXACTLY)
@@ -263,9 +274,33 @@ kernel void step_points_bitcrack_style(
         outRipemd160[base + 3u] = ripemdOut[3];
         outRipemd160[base + 4u] = ripemdOut[4];
 
+        
+        // TOMOROW: Print the hash160 in the main loop for the first eky. Code exists already is just commented out
+        // REMOVE THIS
+      
+        uint packedOut[5];
+
+        for (uint i = 0; i < 5; i++)
+        {
+            uint w = ripemdOut[i];
+            // convert from BIG-endian to LITTLE-endian
+            uint b0 = (w >> 24) & 0xFF;
+            uint b1 = (w >> 16) & 0xFF;
+            uint b2 = (w >> 8 ) & 0xFF;
+            uint b3 = (w      ) & 0xFF;
+
+            // pack into little-endian word for bloom_insert compatibility
+            packedOut[i] = (b3 << 24) | (b2 << 16) | (b1 << 8) | b0;
+        }
+       
+        // END REMOVE THIS
+        
+        
+        
         // ----- 2) Bloom query -----
         uint h1, h2;
-        hash_pair_fnv_words(ripemdOut, 5u, h1, h2);
+        hash_pair_fnv_words(packedOut, 5u, h1, h2);
+        //hash_pair_fnv_words(ripemdOut, 5u, h1, h2);
 
         uint hit = 1u;
         for (uint j = 0; j < NUMBER_HASHES; ++j) {

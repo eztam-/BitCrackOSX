@@ -105,24 +105,13 @@ class KeySearch {
                    self!.ui.bfFalePositiveCnt = falsePositiveCnt
                    slot.semaphore.signal()
             }
-            
-            
             commandBuffer.commit()
+           
+    
             //commandBuffer.waitUntilCompleted()
-            
-            // TMP DEBUG
-            //dumpPoint(0, pointSet: pointSet)
-            //var pubKeyHash = [UInt8](repeating: 0, count: 20)
-            //memcpy(&pubKeyHash, slots[0].ripemd160OutBuffer.contents().advanced(by: 0 * 20), 20)
-            //let pubKeyHashHex = Data(pubKeyHash).hexString
-            //print("HASH160: \(pubKeyHashHex)")
-            // END TMP DEBUG
-
-            
-            
-            
-            //checkBloomFilterResults(resultBuffer: slots[0].bloomFilterOutBuffer, ripemd160Buffer: slots[0].ripemd160OutBuffer, batchCount: batchCount)
-
+            // dumpPoint(0, pointSet: pointSet)
+            //checkBloomFilterResults(resultBuffer: slot.bloomFilterOutBuffer, ripemd160Buffer: slots[0].ripemd160OutBuffer, batchCount: batchCount)
+       
             let batchEndNS = DispatchTime.now().uptimeNanoseconds
                     
              // TODO make this async
@@ -134,7 +123,7 @@ class KeySearch {
            
         }
         
-        
+ 
     }
     
     
@@ -145,6 +134,8 @@ class KeySearch {
     
         var falsePositiveCnt = 0
 
+        
+   
         // Rewind to the start key of the *current* batch.
         // init kernel: base = start + Δk
         // process kernel: base += Δk   (Δk = totalKeysPerBatch)
@@ -159,10 +150,15 @@ class KeySearch {
                 // Read 20-byte RIPEMD160 for this pub key
                 var pubKeyHash = [UInt8](repeating: 0, count: 20)
                 memcpy(&pubKeyHash, ripemd160Buffer.contents().advanced(by: i * 20), 20)
-                let pubKeyHashHex = Data(pubKeyHash).hexString
+                // Swap each 32-bit word after reading
+                var arr = pubKeyHash
+                for i in stride(from: 0, to: 20, by: 4) {
+                    arr[i..<i+4].reverse()
+                }
+                let pubKeyHashHex = Data(arr).hexString
+
                 let addresses = try! db.getAddresses(for: pubKeyHashHex)
-                
-                
+
                 if addresses.isEmpty {
                     falsePositiveCnt += 1
                 } else {

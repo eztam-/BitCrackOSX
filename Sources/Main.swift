@@ -90,6 +90,9 @@ _________                        __     ____  __.               _________       
                 if uncompressedKeySearch && compressedKeySearch {
                     print("Combined search for compressed and uncompressed keys is not yet supported. Please use one of the two options separately.")
                     return
+                } else if uncompressedKeySearch {
+                    print("Support for uncompressed keys has been droped")
+                    return
                 } else if !uncompressedKeySearch && !compressedKeySearch{
                     Properties.compressedKeySearch = true
                 } else {
