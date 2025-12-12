@@ -121,10 +121,7 @@ class UI {
         var currKey: String = ""
         if currentKey > 0 {
             currKey = currentKey.asString(radix: 16)
-            // Add trailing zeros if missing
-            if currKey.count < 64 {
-                currKey = String(repeating: "0", count: 64 - currKey.count) + currKey
-            }
+            currKey = Helpers.addTrailingZeros(key: currKey)
             currKey = underlineFirstDifferentCharacter(base: startHexKey.uppercased(), modified: currKey.uppercased())
         }
        

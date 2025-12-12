@@ -82,6 +82,8 @@ class KeySearch {
         
         //dumpPoint(0, pointSet: pointSet)
 
+        var appStartNS = DispatchTime.now().uptimeNanoseconds
+
         for batchCount in 1..<Int.max{ // TODO
             
             let batchStartNS = DispatchTime.now().uptimeNanoseconds
@@ -113,7 +115,20 @@ class KeySearch {
             commandBuffer.commit()
 
             let batchEndNS = DispatchTime.now().uptimeNanoseconds
-                    
+              
+            // DON'T REMOVE
+            // This prints a smoother longer term MKeys/s figure, for porformance testing. Let it run for 30-60! The normal measure is too jumpy and volatile
+            /*
+            if batchCount > maxInFlight && batchCount % maxInFlight == 0 {
+                let durationSeconds = Double(batchEndNS - appStartNS) / 1_000_000_000.0
+                let itemsPerSecond = Double(pubKeyBatchSize * (batchCount - maxInFlight)) / durationSeconds
+                let mHashesPerSec = itemsPerSecond / 1_000_000.0
+                ui.printMessage("\(mHashesPerSec) M hashes/s")
+            } else if batchCount <= maxInFlight {
+                appStartNS = DispatchTime.now().uptimeNanoseconds
+            }
+            */
+            
              // TODO make this async
              ui.updateStats(
                  totalStartTime: batchStartNS,

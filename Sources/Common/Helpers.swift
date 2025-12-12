@@ -280,20 +280,35 @@ public class Helpers{
         }
         
         let diff = end - start + 1
-
+        
         // Random 256-bit number
         var bytes = [UInt8](repeating: 0, count: 32)
         _ = SecRandomCopyBytes(kSecRandomDefault, bytes.count, &bytes)
         let r = BInt(bytes: bytes)
-
+        
         // Scale into range with modulo (no infinite loop)
         let result = start + (r % diff)
-
-        // Convert to fixed-width 64-hex-char string
-        let hex = String(result.asString(radix: 16))
-        return String(repeating: "0", count: max(0, 64 - hex.count)) + hex
+        
+        let randomKey = String(result.asString(radix: 16))
+        let endKeyStr = end.asString(radix: 16)
+        
+        print("\n🔑 Generating Random Key in Range")
+        print("    Range Start      : \(addTrailingZeros(key: start.asString(radix: 16), totalLength: endKeyStr.count))")
+        print("    Random Start Key : \(addTrailingZeros(key: randomKey, totalLength: endKeyStr.count))")
+        print("    Range End        : \(endKeyStr)")
+        
+        return Helpers.addTrailingZeros(key: randomKey)
     }
 
+    
+    
+    public static func addTrailingZeros(key: String, totalLength: Int = 64)-> String{
+        if key.count < totalLength {
+            return String(repeating: "0", count: totalLength - key.count) + key
+        }
+        return key
+    }
+    
     public static func getStorageModePrivate() -> MTLResourceOptions {
         return TEST_MODE ? .storageModeShared : .storageModePrivate
     }
