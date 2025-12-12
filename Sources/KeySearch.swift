@@ -71,7 +71,6 @@ class KeySearch {
     func run() throws {
     
         let commandQueue = device.makeCommandQueue()!
-        let keyLength = 33
         let keySearchMetal = try KeySearchMetalHost(on:  device, compressed: Properties.compressedKeySearch, startKeyHex: startKeyHex)
         
         // 1. Allocate point set
@@ -156,7 +155,6 @@ class KeySearch {
         
         for i in 0..<finalCount {
             let hit = hitPtr[i]
-            let dig = hit.hash160
             let hash160String = digestToHexString(hit.hash160)
                         
             let addresses = try! db.getAddresses(for: hash160String)
@@ -183,10 +181,11 @@ class KeySearch {
                 --------------------------------------------------------------------------------------
                 """)
                 
-                 try! appendToResultFile(
+                try! appendToResultFile(
                     text: "Found private key: \(privKeyHex) for addresses: \(addresses.map(\.address).joined(separator: ", ")) \n"
-                 )
-                
+                )
+
+                ui.sendNotification( message: "\(privKeyHex)", title: "Found private key")
             }
         }
 

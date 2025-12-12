@@ -15,25 +15,9 @@ struct Properties{
     // Must be a multiple of grid size
     public static let TOTAL_POINTS: Int = GRID_SIZE * KEYS_PER_THREAD // DON'T CHANGE THIS!
     
-
-    
-   
-
-    
     nonisolated(unsafe) public static var verbose: Bool = false
-    
     nonisolated(unsafe) public static var compressedKeySearch: Bool = true
     nonisolated(unsafe) public static var uncompressedKeySearch: Bool = false
- 
-    // TODO: See if 'mathMode.fast' brings any performance boost. Unfortunately this only works when compiling metal files at runtime
-    // public static func metalOptions()-> MTLCompileOptions {
-    //    let options = MTLCompileOptions()
-    //    options.mathMode = .fast
-    //    return options
-    // }
-    
-    
-    
 
 }
 

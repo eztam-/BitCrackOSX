@@ -1,5 +1,6 @@
 import Foundation
 import BigNumber
+import UserNotifications
 
 
 class UI {
@@ -25,7 +26,7 @@ class UI {
     private static let STATS_LINES = 7
     
     private let batchSize: Int
-    
+       
     public init(batchSize: Int, startKeyHex: String){
         self.batchSize = batchSize
         self.startHexKey = startKeyHex
@@ -45,7 +46,7 @@ class UI {
     }
     
     public func printFooterPadding(numLines: Int = STATS_LINES) {
-        for i in 0..<UI.STATS_LINES {
+        for _ in 0..<UI.STATS_LINES {
            // print("\u{1B}[K") // Clear each line
             print("")
         }
@@ -165,6 +166,16 @@ class UI {
            
            return modified
     }
+    
+    
+    func sendNotification(message: String, title: String) {
+        let script = "display notification \"\(message)\" with title \"\(title)\" sound name \"Ping\""
+        let task = Process()
+        task.launchPath = "/usr/bin/osascript"
+        task.arguments = ["-e", script]
+        task.launch()
+    }
+
 }
 
 

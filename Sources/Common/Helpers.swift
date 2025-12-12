@@ -11,7 +11,6 @@ enum KeySearchError: Error {
 
 
 
-
 // Extension for hex string conversion
 extension Data {
     public var hexString: String {
@@ -48,17 +47,6 @@ public class Helpers{
     nonisolated(unsafe) public static var TEST_MODE = false
     
     private static let device : MTLDevice = MTLCreateSystemDefaultDevice()!
-    
-    // Shouldn't make a hige difference in performance, but having the batch size as a multiple of maxThreadsPerThreadgroup will utilize each thread group fully.
-    // (otherwise the last one might be just partially used).
-    // This might also be a nice way, to chose larger batch sized for faster GPUs (TBC)
-    // Keep this private since each of the cimpute classes should get it per init(). This allows test cases to work with smaller batch sizes
-    //public static let PRIV_KEY_BATCH_SIZE = Helpers.getSharedDevice().maxThreadsPerThreadgroup.width * 256
-    
-    // Everything before the secps26k1 EC calculation is PRIV_KEY_BATCH_SIZE aeverything after is PUB_KEY_BATCH_SIZE
-    //public static let PUB_KEY_BATCH_SIZE = PRIV_KEY_BATCH_SIZE * Properties.KEYS_PER_THREAD
-    
-    
     
     public static func printLimbs(limbs: [UInt32]){
         print("Limbs: \(limbs.map { String(format: "0x%08X", $0) })")
