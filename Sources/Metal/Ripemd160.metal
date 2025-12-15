@@ -31,6 +31,7 @@ inline uint rotl(uint x, uint n) { return (x << n) | (x >> (32u - n)); }
 #define III(a,b,c,d,e,m,s) { a += I(b,c,d) + (m) + K_RMD[6]; a = rotl(a,s) + (e); c = rotl(c,10u); }
 #define JJJ(a,b,c,d,e,m,s) { a += J(b,c,d) + (m) + K_RMD[7]; a = rotl(a,s) + (e); c = rotl(c,10u); }
 
+// TODO: We are doing BE to LE conversions many times at differetn places (swap32) !! This is slow
 // Convert SHA256 output word from big-endian to little-endian
 inline uint swap32(uint x)
 {
@@ -231,35 +232,14 @@ inline void ripemd160FinalRound(
     thread uint hOut[5]
 )
 {
-    auto endian = [](uint x) {
-        return (x << 24) |
-               ((x << 8)  & 0x00ff0000u) |
-               ((x >> 8)  & 0x0000ff00u) |
-               (x >> 24);
-    };
-
-    hOut[0] = endian(hIn[0] + RIPEMD160_IV[1]);
-    hOut[1] = endian(hIn[1] + RIPEMD160_IV[2]);
-    hOut[2] = endian(hIn[2] + RIPEMD160_IV[3]);
-    hOut[3] = endian(hIn[3] + RIPEMD160_IV[4]);
-    hOut[4] = endian(hIn[4] + RIPEMD160_IV[0]);
+    hOut[0] = swap32(hIn[0] + RIPEMD160_IV[1]);
+    hOut[1] = swap32(hIn[1] + RIPEMD160_IV[2]);
+    hOut[2] = swap32(hIn[2] + RIPEMD160_IV[3]);
+    hOut[3] = swap32(hIn[3] + RIPEMD160_IV[4]);
+    hOut[4] = swap32(hIn[4] + RIPEMD160_IV[0]);
 }
 
 
-
-
-
-
-
-// TODO: there is an second implementation of this above!
-// Byte-swap 32-bit word (big <-> little)
-inline uint bswap32(uint x)
-{
-    return ((x & 0x000000FFu) << 24) |
-           ((x & 0x0000FF00u) << 8)  |
-           ((x & 0x00FF0000u) >> 8)  |
-           ((x & 0xFF000000u) >> 24);
-}
 
 
 // -------------------------------------------------------------
@@ -280,7 +260,7 @@ inline void undoRMD160FinalRound(const thread uint hFinal[5],
 
     for (uint i = 0; i < 5; i++)
     {
-        uint w = bswap32(hFinal[i]);              // endian^-1
+        uint w = swap32(hFinal[i]);              // endian^-1
         hOut[i] = w - RIPEMD160_IV[(i + 1) % 5];  // subtract rotated IV
     }
 }
