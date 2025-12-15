@@ -15,6 +15,8 @@ public class BloomFilter {
     private let insert_threadsPerThreadgroup: MTLSize
     private let insert_threadgroupsPerGrid: MTLSize
     private var insertItemsBuffer: MTLBuffer
+    private var countBuffer: MTLBuffer
+    private var mBitsBuffer: MTLBuffer
     
     enum BloomFilterError: Error {
         case initializationFailed
@@ -85,6 +87,11 @@ public class BloomFilter {
         // ------------------------------
         self.insertItemsBuffer = device.makeBuffer(length: expectedInsertions * 20,
                                                    options: .storageModeShared)!
+        
+        self.countBuffer = device.makeBuffer(length: MemoryLayout<UInt32>.size, options: .storageModeShared)!
+        
+        self.mBitsBuffer = device.makeBuffer(length: MemoryLayout<UInt32>.size, options: .storageModeShared)!
+        memcpy(mBitsBuffer.contents(), &mBits, MemoryLayout<UInt32>.size)
 
         // ------------------------------
         // Build compute pipeline
@@ -124,16 +131,19 @@ public class BloomFilter {
         let cmdBuffer = queue.makeCommandBuffer()!
         let encoder = cmdBuffer.makeComputeCommandEncoder()!
 
-        var countU = UInt32(items.count)
-
         encoder.setComputePipelineState(insertPipeline)
         encoder.setBuffer(insertItemsBuffer, offset: 0, index: 0) // 20-byte inputs
-        encoder.setBytes(&countU, length: 4, index: 1)
-        encoder.setBuffer(bitsBuffer, offset: 0, index: 2)
-        encoder.setBytes(&mBits, length: 4, index: 3)              // mask
+    
+        var countU = UInt32(items.count)
+        memcpy(countBuffer.contents(), &countU, MemoryLayout<UInt32>.size)
+        encoder.setBuffer(countBuffer, offset: 0, index: 1)
 
-        encoder.dispatchThreadgroups(insert_threadgroupsPerGrid,
-                                     threadsPerThreadgroup: insert_threadsPerThreadgroup)
+        encoder.setBuffer(bitsBuffer, offset: 0, index: 2)
+        
+        // mask
+        encoder.setBuffer(mBitsBuffer, offset: 0, index: 3)
+
+        encoder.dispatchThreadgroups(insert_threadgroupsPerGrid, threadsPerThreadgroup: insert_threadsPerThreadgroup)
         encoder.endEncoding()
         cmdBuffer.commit()
     }
