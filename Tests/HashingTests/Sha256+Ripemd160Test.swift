@@ -13,7 +13,7 @@ final class HashKernelTests: TestBase {
     
     
 
-    @Test func testBitCrackHashKernel() throws {
+    @Test func testHashKernel() throws {
 
         //----------------------------------------------------------------------
         // 1. Create a known compressed public key for testing

@@ -204,7 +204,9 @@ kernel void step_points(
 {
     if (gid >= gridSize) return;
 
-    // Initialize inverse = 1
+    // -------------------------
+    // Inverse init
+    // -------------------------
     uint256 inverse;
     for (int k = 0; k < 8; ++k)
         inverse.limbs[k] = 0u;
@@ -219,61 +221,66 @@ kernel void step_points(
     uint iForward;
     for (iForward = gid; iForward < totalPoints; iForward += dim)
     {
-        // ---------------------------------------
-        // 1) Compute HASH160 (SHA256 -> RIPEMD160)
-        // ---------------------------------------
         uint256 x = xPtr[iForward];
         uint256 y = yPtr[iForward];
-
         uint yParity = (y.limbs[0] & 1u);
 
+        // ---------------------------------------
+        // 1) Compute SHA256(pubkey)
+        // ---------------------------------------
         uint shaState[8];
         sha256PublicKeyCompressed(x.limbs, yParity, shaState);
 
-        uint ripemdTmp[5];
-        uint digestBE[5];   // Big endian RIPEMD160 words (output stage)
-        ripemd160sha256NoFinal(shaState, ripemdTmp);
-        ripemd160FinalRound(ripemdTmp, digestBE);
+        // ---------------------------------------
+        // 2) Compute RIPEMD160-No-Final
+        // ---------------------------------------
+        uint ripemdPreFinal[5];
+        ripemd160sha256NoFinal(shaState, ripemdPreFinal);
+        // NOTE: THIS IS *NOT* endian swapped yet
 
         // ---------------------------------------
-        // 2) Bloom filter lookup (no per-point mem)
+        // 3) Bloom filter lookup USING pre-final digest
         // ---------------------------------------
         uint h1, h2;
-        hash_pair_fnv_words(digestBE, 5u, h1, h2);
+        hash_pair_fnv_words(ripemdPreFinal, 5u, h1, h2);
 
         uint hit = 1u;
         for (uint j = 0; j < NUMBER_HASHES; ++j)
         {
             ulong combined = (ulong)h1 + (ulong)j * (ulong)h2;
-            uint bit_idx = (uint)(combined % (ulong)m_bits);
+            uint bit_idx  = (uint)(combined % (ulong)m_bits);
             uint word_idx = bit_idx >> 5;
             uint bit_mask = 1u << (bit_idx & 31u);
 
-            if ((bloomBits[word_idx] & bit_mask) == 0u) {
+            if ((bloomBits[word_idx] & bit_mask) == 0u)
+            {
                 hit = 0u;
                 break;
             }
         }
 
-        // ---------------------------------------
-        // 3) If Bloom hit → store in compact buffer
-        // ---------------------------------------
+        // ----------------------------------------------------
+        // 4) Bloom HIT → compute final RIPEMD160 + store result
+        // ----------------------------------------------------
         if (hit != 0u)
         {
+            // Now compute final RIPEMD160 ONLY ON HITS
+            uint digestFinal[5];
+            ripemd160FinalRound(ripemdPreFinal, digestFinal);
+
             uint slot = atomic_fetch_add_explicit(resultCount, 1u, memory_order_relaxed);
 
             HitResult r;
             r.index = iForward;
 
-            // store digest (little endian form)
             for (uint k = 0; k < 5; ++k)
-                r.digest[k] = digestBE[k];
+                r.digest[k] = digestFinal[k];
 
             results[slot] = r;
         }
 
         // ---------------------------------------
-        // 4) Batch-add prefix product
+        // 5) Batch-add prefix product
         // ---------------------------------------
         beginBatchAdd256k(
             incX,
@@ -325,6 +332,7 @@ kernel void step_points(
         yPtr[i] = newY;
     }
 }
+
 
 
 
@@ -412,7 +420,6 @@ kernel void init_points(
 }
 
 
-
 kernel void bloom_insert(
     const device uchar *items      [[buffer(0)]],
     constant uint &item_count      [[buffer(1)]],
@@ -421,34 +428,32 @@ kernel void bloom_insert(
     uint gid [[thread_position_in_grid]])
 {
     if (gid >= item_count) return;
-    
-    const device uchar *key = items + (gid * 20); // 20 bytes
 
-    // ---------------------------------------
-    // Build BIG-ENDIAN 32-bit words
-    // (matches RIPEMD160 byte layout)
-    // ---------------------------------------
-    uint digestBE[5];
-    for (uint k = 0; k < 5; ++k)
-    {
-        uint b0 = key[k*4 + 0];
-        uint b1 = key[k*4 + 1];
-        uint b2 = key[k*4 + 2];
-        uint b3 = key[k*4 + 3];
-        
-        // Big endian: first byte becomes MSB
-        digestBE[k] = (b0 << 24) | (b1 << 16) | (b2 << 8) | b3;
-    }
+    // ---------------------------------------------------------
+    // Load pointer to this hash160 (20 bytes)
+    // ---------------------------------------------------------
+    const device uchar *key = items + (gid * 20);
 
-    // ---------------------------------------
-    // Hash using BIG-ENDIAN words
-    // ---------------------------------------
+    // Temporary local copy for undo function
+    uchar hashBytes[20];
+    for (uint i = 0; i < 20; i++)
+        hashBytes[i] = key[i];
+
+    // ---------------------------------------------------------
+    // Compute PRE-FINAL round RIPEMD160 state
+    // ---------------------------------------------------------
+    uint digestPreFinal[5];
+    undoRMD160FinalRoundFromBytes(hashBytes, digestPreFinal);
+
+    // ---------------------------------------------------------
+    // Hash for bloom filter placement (use pre-final words)
+    // ---------------------------------------------------------
     uint h1, h2;
-    hash_pair_fnv_words(digestBE, 5u, h1, h2);
+    hash_pair_fnv_words(digestPreFinal, 5u, h1, h2);
 
-    // ---------------------------------------
-    // Insert bits
-    // ---------------------------------------
+    // ---------------------------------------------------------
+    // Set bits in bloom filter
+    // ---------------------------------------------------------
     for (uint i = 0; i < NUMBER_HASHES; i++) {
         ulong combined = (ulong)h1 + (ulong)i * (ulong)h2;
         uint bit_idx = (uint)(combined % (ulong)m_bits);
@@ -459,6 +464,7 @@ kernel void bloom_insert(
         atomic_fetch_or_explicit(&bits[word_idx], bit_mask, memory_order_relaxed);
     }
 }
+
 
 
 

@@ -244,3 +244,67 @@ inline void ripemd160FinalRound(
     hOut[3] = endian(hIn[3] + RIPEMD160_IV[4]);
     hOut[4] = endian(hIn[4] + RIPEMD160_IV[0]);
 }
+
+
+
+
+
+
+
+// TODO: there is an second implementation of this above!
+// Byte-swap 32-bit word (big <-> little)
+inline uint bswap32(uint x)
+{
+    return ((x & 0x000000FFu) << 24) |
+           ((x & 0x0000FF00u) << 8)  |
+           ((x & 0x00FF0000u) >> 8)  |
+           ((x & 0xFF000000u) >> 24);
+}
+
+
+// -------------------------------------------------------------
+// Undo RIPEMD160 final round
+// Converts FINAL_HASH → PRE_FINAL_HASH used by bloom filter
+// hFinal[i] = BIG-ENDIAN 32-bit output of RIPEMD160
+// hOut[i]   = INTERMEDIATE STATE (digest1 + digest2)
+// -------------------------------------------------------------
+// hFinal: 5 x 32-bit words of RIPEMD160 output in big-endian (network order)
+// hOut:   5 x 32-bit words = pre-final-round state (same domain as ripemd160sha256NoFinal output)
+inline void undoRMD160FinalRound(const thread uint hFinal[5],
+                                 thread uint hOut[5])
+{
+    // This is the inverse of:
+    //   final[i] = endian(pre[i] + IV[(i + 1) % 5]);
+    // So:
+    //   pre[i]   = endian^-1(final[i]) - IV[(i + 1) % 5];
+
+    for (uint i = 0; i < 5; i++)
+    {
+        uint w = bswap32(hFinal[i]);              // endian^-1
+        hOut[i] = w - RIPEMD160_IV[(i + 1) % 5];  // subtract rotated IV
+    }
+}
+
+
+// -------------------------------------------------------------
+// Variant that starts from 20-byte hash160 big-endian
+// (This matches the bloom_insert input format.)
+// -------------------------------------------------------------
+inline void undoRMD160FinalRoundFromBytes(const thread const uchar hash160[20],
+                                          thread uint hOut[5])
+{
+    uint hFinal[5];
+
+    // Convert 20-byte hash160 BE → 5 x uint32 BE
+    for (uint i = 0; i < 5; i++)
+    {
+        uint b0 = hash160[i*4 + 0];
+        uint b1 = hash160[i*4 + 1];
+        uint b2 = hash160[i*4 + 2];
+        uint b3 = hash160[i*4 + 3];
+
+        hFinal[i] = (b0 << 24) | (b1 << 16) | (b2 << 8) | b3;
+    }
+
+    undoRMD160FinalRound(hFinal, hOut);
+}
