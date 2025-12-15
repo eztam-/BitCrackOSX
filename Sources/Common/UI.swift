@@ -65,8 +65,8 @@ class UI {
     }
     
     public func printMessage(_ msg: String) {
-        lock.lock()
-        defer { lock.unlock() }
+        //lock.lock()
+        //defer { lock.unlock() }
 
         // Move to top of footer block
         raw("\u{1B}[\(UI.STATS_LINES)A")
@@ -83,6 +83,7 @@ class UI {
         // Print the message (may be multi-line; will scroll naturally)
         print(msg)
         printFooterPadding()
+        printStats()
         fflush(stdout)
 
     }
