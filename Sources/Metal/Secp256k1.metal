@@ -992,39 +992,60 @@ inline void completeBatchAdd256k(
     uint                dim
 )
 {
-    uint256 s;
+    // ------------------------------------------------------------
+    // Load x[i], y[i] ONCE
+    // (Must be done in caller ideally — using registers)
+    // ------------------------------------------------------------
+    uint256 xi = xPtr[i];
+    uint256 yi = yPtr[i];
 
-    if (batchIdx > 0) {
-        // Load previous prefix product
-        uint chainIndex = (batchIdx - 1) * dim + gid;
-        uint256 c = chain[chainIndex];
+    // ------------------------------------------------------------
+    // Compute chain index
+    // ------------------------------------------------------------
+    uint hasPrev = (batchIdx > 0) ? 1u : 0u;
+    uint chainIndex = (batchIdx - 1) * dim + gid;
 
-        // slope numerator partially: s = inverse * c
-        s = field_mul(*inverse, c);
+    // ------------------------------------------------------------
+    // Load c or use identity (1)
+    // ------------------------------------------------------------
+    uint256 c;
+    if (hasPrev)
+        c = chain[chainIndex];
+    else {
+        // identity element for prefix product: 1
+        for (uint k=0; k<8; ++k) c.limbs[k] = 0u;
+        c.limbs[0] = 1u;
+    }
 
-        // advance inverse: inverse = inverse * (px - x[i])
-        uint256 diff = field_sub(px, xPtr[i]);
+    // ------------------------------------------------------------
+    // Compute slope accumulator s = inverse * c
+    // ------------------------------------------------------------
+    uint256 s = field_mul(*inverse, c);
+
+    // ------------------------------------------------------------
+    // Update inverse = inverse * (px - xi)   unless last batch
+    // ------------------------------------------------------------
+    if (hasPrev) {
+        uint256 diff = field_sub(px, xi);
         *inverse = field_mul(*inverse, diff);
     }
-    else {
-        // Last one in backward pass
-        s = *inverse;
-    }
 
-    // rise = py - yPtr[i]
-    uint256 rise = field_sub(py, yPtr[i]);
-
-    // full slope: s = rise * s
+    // ------------------------------------------------------------
+    // s = rise * s
+    // ------------------------------------------------------------
+    uint256 rise = field_sub(py, yi);
     s = field_mul(rise, s);
 
-    // s^2
+    // ------------------------------------------------------------
+    // rx = s^2 - px - xi
+    // ------------------------------------------------------------
     uint256 s2 = field_sqr(s);
-
-    // rx = s^2 - px - x[i]
     uint256 rx = field_sub(s2, px);
-    rx = field_sub(rx, xPtr[i]);
+    rx = field_sub(rx, xi);
 
+    // ------------------------------------------------------------
     // ry = s*(px - rx) - py
+    // ------------------------------------------------------------
     uint256 px_minus_rx = field_sub(px, rx);
     uint256 ry = field_mul(s, px_minus_rx);
     ry = field_sub(ry, py);
