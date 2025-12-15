@@ -161,8 +161,8 @@ public class BloomFilter {
             return bitsBuffer
     }
     
-    public func getMbits() -> UInt32 {
-            return mBits
+    public func getMbitsBuffer() -> MTLBuffer {
+            return mBitsBuffer
     }
     
 }

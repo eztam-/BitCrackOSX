@@ -226,10 +226,10 @@ class KeySearch {
     
     func dumpPoint(_ index: Int, pointSet: KeySearchMetalHost.PointSet) {
         let xPtr = pointSet.xBuffer.contents()
-            .bindMemory(to: KeySearchMetalHost.UInt256.self, capacity: Int(pointSet.totalPoints))
+            .bindMemory(to: KeySearchMetalHost.UInt256.self, capacity: Int(totalPoints))
         
         let yPtr = pointSet.yBuffer.contents()
-            .bindMemory(to: KeySearchMetalHost.UInt256.self, capacity: Int(pointSet.totalPoints))
+            .bindMemory(to: KeySearchMetalHost.UInt256.self, capacity: Int(totalPoints))
         
         let x = xPtr[index]
         let y = yPtr[index]

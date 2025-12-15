@@ -28,13 +28,15 @@ public class KeySearchMetalHost {
     private let startKeyHex: String
     
     public struct PointSet {
-        let totalPoints: UInt32
+        let totalPointsBuffer: MTLBuffer
         let gridSize: Int          // number of threads in grid (1D)
         let xBuffer: MTLBuffer
         let yBuffer: MTLBuffer
         let chainBuffer: MTLBuffer
-        let deltaGBuffer: MTLBuffer
+        let deltaGXBuffer: MTLBuffer
+        let deltaGYBuffer: MTLBuffer
         let lastPrivBuffer: MTLBuffer
+        let gridSizeBuffer: MTLBuffer
     }
     
     public init(on device: MTLDevice, compressed: Bool, startKeyHex: String) throws {
@@ -61,19 +63,30 @@ public class KeySearchMetalHost {
         let chainBuffer = device.makeBuffer(length: chainCount * MemoryLayout<UInt256>.stride, options: .storageModeShared)!
         
         // single Point for ΔG
-        let deltaGBuffer = device.makeBuffer(length: MemoryLayout<Point>.stride, options: .storageModeShared)!
+        let deltaGXBuffer = device.makeBuffer(length: MemoryLayout<UInt256>.stride, options: .storageModeShared)!
+        let deltaGYBuffer = device.makeBuffer(length: MemoryLayout<UInt256>.stride, options: .storageModeShared)!
         
         // 8 limbs (UInt32) for last private key
         let lastPrivBuffer = device.makeBuffer(length: 8 * MemoryLayout<UInt32>.stride, options: .storageModeShared)! // TODO: do we still need this since we calculate the priv key on CPU?
         
+        var totalPointsL = totalPoints
+        let totalPointsBuffer = device.makeBuffer(length: MemoryLayout<UInt32>.size, options: .storageModeShared)!
+        memcpy(totalPointsBuffer.contents(), &totalPointsL, MemoryLayout<UInt32>.size)
+
+        var gridSizeU32 = UInt32(gridSize)
+        let gridSizeBuffer = device.makeBuffer(length: MemoryLayout<UInt32>.size, options: .storageModeShared)!
+        memcpy(gridSizeBuffer.contents(), &gridSizeU32, MemoryLayout<UInt32>.size)
+
         return PointSet(
-            totalPoints: totalPoints,
+            totalPointsBuffer: totalPointsBuffer,
             gridSize: gridSize,
             xBuffer: xBuffer,
             yBuffer: yBuffer,
             chainBuffer: chainBuffer,
-            deltaGBuffer: deltaGBuffer,
-            lastPrivBuffer: lastPrivBuffer
+            deltaGXBuffer: deltaGXBuffer,
+            deltaGYBuffer: deltaGYBuffer,
+            lastPrivBuffer: lastPrivBuffer,
+            gridSizeBuffer: gridSizeBuffer
         )
     }
     
@@ -82,11 +95,9 @@ public class KeySearchMetalHost {
     ///
     /// `startKeyLE` must be 8×UInt32 in little-endian limb order as expected
     /// by your Metal `field_add` / scalar arithmetic.
-    func runInitKernel(pointSet: PointSet,
-                       startKeyLE: [UInt32], commandBuffer: MTLCommandBuffer) throws {
-        precondition(startKeyLE.count == 8)
+    func runInitKernel(pointSet: PointSet, startKeyLE: [UInt32], commandBuffer: MTLCommandBuffer) throws {
         
-        var totalPoints = pointSet.totalPoints
+        precondition(startKeyLE.count == 8)
         
         // Start key buffer (8 limbs)
         let startKeyBuffer = device.makeBuffer(length: 8 * MemoryLayout<UInt32>.stride,
@@ -100,10 +111,8 @@ public class KeySearchMetalHost {
         
         encoder.setComputePipelineState(initPipeline)
         
-        // buffer(0): totalPoints (by value)
-        encoder.setBytes(&totalPoints,
-                         length: MemoryLayout<UInt32>.stride,
-                         index: 0)
+        // buffer(0): totalPoints
+        encoder.setBuffer(pointSet.totalPointsBuffer, offset: 0, index: 0)
         
         // buffer(1): start_key_limbs
         encoder.setBuffer(startKeyBuffer, offset: 0, index: 1)
@@ -115,10 +124,14 @@ public class KeySearchMetalHost {
         encoder.setBuffer(pointSet.yBuffer, offset: 0, index: 3)
         
         // buffer(4): deltaG_out
-        encoder.setBuffer(pointSet.deltaGBuffer, offset: 0, index: 4)
+        encoder.setBuffer(pointSet.deltaGXBuffer, offset: 0, index: 4)
+        
+        
+        encoder.setBuffer(pointSet.deltaGYBuffer, offset: 0, index: 5)
+        
         
         // buffer(5): last_private_key (8 × uint)
-        encoder.setBuffer(pointSet.lastPrivBuffer, offset: 0, index: 5)
+        encoder.setBuffer(pointSet.lastPrivBuffer, offset: 0, index: 6)
         
         // Launch with `gridSize` threads (1D)
         let gridSize = pointSet.gridSize
@@ -133,11 +146,6 @@ public class KeySearchMetalHost {
         commandBuffer.waitUntilCompleted()
     }
     
-    /// Read ΔG (increment point) after init.
-    func readDeltaG(from pointSet: PointSet) -> Point {
-        let ptr = pointSet.deltaGBuffer.contents()
-        return ptr.load(as: Point.self)
-    }
     
     /// Read last private key (optional, for bookkeeping)
     func readLastPrivateKey(from pointSet: PointSet) -> [UInt32] {
@@ -150,24 +158,15 @@ public class KeySearchMetalHost {
     
     /// Perform one  step: Q[i] += ΔG for all points.
     func appendStepKernel(pointSet: PointSet, commandBuffer: MTLCommandBuffer, bloomFilter: BloomFilter, bloomFilterHitsBuffer: MTLBuffer, hitCountBuffer: MTLBuffer) throws {
-        var totalPoints = pointSet.totalPoints
-        var gridSizeU32 = UInt32(pointSet.gridSize)
-        
-        // Read ΔG from init kernel
-        var deltaG = readDeltaG(from: pointSet)
-        var incX = deltaG.x
-        var incY = deltaG.y
-        
-        
         let encoder = commandBuffer.makeComputeCommandEncoder()!
         
         encoder.setComputePipelineState(stepPipeline)
         
         // buffer(0): totalPoints
-        encoder.setBytes(&totalPoints, length: MemoryLayout<UInt32>.stride, index: 0)
-        
+        encoder.setBuffer(pointSet.totalPointsBuffer, offset: 0, index: 0)
+
         // buffer(1): gridSize
-        encoder.setBytes(&gridSizeU32, length: MemoryLayout<UInt32>.stride, index: 1)
+        encoder.setBuffer(pointSet.gridSizeBuffer, offset: 0, index: 1)
         
         // buffer(2): chain
         encoder.setBuffer(pointSet.chainBuffer, offset: 0, index: 2)
@@ -179,25 +178,19 @@ public class KeySearchMetalHost {
         encoder.setBuffer(pointSet.yBuffer, offset: 0, index: 4)
         
         // buffer(5): incX (uint256)
-        encoder.setBytes(&incX, length: MemoryLayout<UInt256>.stride, index: 5)
+        encoder.setBuffer(pointSet.deltaGXBuffer, offset: 0, index: 5)
         
         // buffer(6): incY (uint256)
-        encoder.setBytes(&incY, length: MemoryLayout<UInt256>.stride, index: 6)
+        encoder.setBuffer(pointSet.deltaGYBuffer, offset: 0, index: 6)
+
         
-        
-        
-        // new:
         encoder.setBuffer(bloomFilter.getBitsBuffer(),  offset: 0, index: 7)
-        var mBits = bloomFilter.getMbits()
-        encoder.setBytes(&mBits,            length: MemoryLayout<UInt32>.stride, index: 8)
+        encoder.setBuffer(bloomFilter.getMbitsBuffer(), offset: 0, index: 8)
         encoder.setBuffer(hitCountBuffer, offset: 0, index: 9)
         encoder.setBuffer(bloomFilterHitsBuffer,    offset: 0, index: 10)
-        var compression: UInt32 = Properties.compressedKeySearch ? 1 : 0
-        encoder.setBytes(&compression, length: MemoryLayout<UInt32>.stride, index: 11)
+        //var compression: UInt32 = Properties.compressedKeySearch ? 1 : 0
+        //encoder.setBytes(&compression, length: MemoryLayout<UInt32>.stride, index: 11)
 
-        
-
-        
         
         // Dispatch exactly gridSize threads (as the kernel expects)
         let gridSize = pointSet.gridSize

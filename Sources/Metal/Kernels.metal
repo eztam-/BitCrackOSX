@@ -60,7 +60,7 @@ kernel void step_points(
     constant uint&       mask          [[buffer(8)]],
     device   atomic_uint* resultCount  [[buffer(9)]],
     device   HitResult*   results      [[buffer(10)]],
-    constant uint&       compression   [[buffer(11)]],
+    //constant uint&       compression   [[buffer(11)]],
     uint                 gid           [[thread_position_in_grid]]
 )
 {
@@ -231,8 +231,9 @@ kernel void init_points(
     device   const uint*start_key_limbs   [[ buffer(1) ]],  // 8 limbs (LE)
     device   uint256   *xPtr              [[ buffer(2) ]],
     device   uint256   *yPtr              [[ buffer(3) ]],
-    device   Point     &deltaG_out        [[ buffer(4) ]],
-    device   uint      *last_private_key  [[ buffer(5) ]],  // optional: 8 limbs out
+    device   uint256&    deltaG_x          [[buffer(4)]],
+    device   uint256&    deltaG_y          [[buffer(5)]],
+    device   uint      *last_private_key  [[ buffer(6) ]],  // optional: 8 limbs out
     uint                  tid             [[ thread_position_in_grid ]]
 )
 {
@@ -266,7 +267,8 @@ kernel void init_points(
 
         // ΔG = Δk · G
         Point deltaG = point_mul(deltaK, G_TABLE256, G_DOUBLES);
-        deltaG_out = deltaG;
+        deltaG_x = deltaG.x;
+        deltaG_y = deltaG.y;
 
         // lastPriv = startKey + totalPoints
         uint256 lastPriv = field_add(startKey, deltaK);
