@@ -207,17 +207,18 @@ class KeySearch {
         }
     }
     
-    
     func digestToHexString(_ dig: (UInt32, UInt32, UInt32, UInt32, UInt32)) -> String {
         let words = [dig.0, dig.1, dig.2, dig.3, dig.4]
         var s = ""
         
         for w in words {
-            let be = w.byteSwapped
-            s += String(format: "%08x", be)
+            // w is already big-endian word from the GPU
+            s += String(format: "%08x", w)
         }
+        
         return s
     }
+
     
     
     func dumpPoint(_ index: Int, pointSet: KeySearchMetalHost.PointSet) {

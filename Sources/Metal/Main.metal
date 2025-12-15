@@ -235,23 +235,11 @@ kernel void step_points(
         ripemd160sha256NoFinal(shaState, ripemdTmp);
         ripemd160FinalRound(ripemdTmp, digestBE);
 
-        // Convert to little-endian for your bloom hashing
-        uint digestLE[5];
-        for (uint k = 0; k < 5; ++k)
-        {
-            uint w = digestBE[k];
-            uint b0 = (w >> 24) & 0xFF;
-            uint b1 = (w >> 16) & 0xFF;
-            uint b2 = (w >> 8 ) & 0xFF;
-            uint b3 = (w      ) & 0xFF;
-            digestLE[k] = (b3 << 24) | (b2 << 16) | (b1 << 8) | b0;
-        }
-
         // ---------------------------------------
         // 2) Bloom filter lookup (no per-point mem)
         // ---------------------------------------
         uint h1, h2;
-        hash_pair_fnv_words(digestLE, 5u, h1, h2);
+        hash_pair_fnv_words(digestBE, 5u, h1, h2);
 
         uint hit = 1u;
         for (uint j = 0; j < NUMBER_HASHES; ++j)
@@ -279,7 +267,7 @@ kernel void step_points(
 
             // store digest (little endian form)
             for (uint k = 0; k < 5; ++k)
-                r.digest[k] = digestLE[k];
+                r.digest[k] = digestBE[k];
 
             results[slot] = r;
         }
@@ -425,11 +413,6 @@ kernel void init_points(
 
 
 
-
-
-
-
-// INSERT KERNEL
 kernel void bloom_insert(
     const device uchar *items      [[buffer(0)]],
     constant uint &item_count      [[buffer(1)]],
@@ -439,21 +422,44 @@ kernel void bloom_insert(
 {
     if (gid >= item_count) return;
     
-    const device uchar *key = items + (gid * 20); // RIPEMD160 hash is 20 bytes long
-    
+    const device uchar *key = items + (gid * 20); // 20 bytes
+
+    // ---------------------------------------
+    // Build BIG-ENDIAN 32-bit words
+    // (matches RIPEMD160 byte layout)
+    // ---------------------------------------
+    uint digestBE[5];
+    for (uint k = 0; k < 5; ++k)
+    {
+        uint b0 = key[k*4 + 0];
+        uint b1 = key[k*4 + 1];
+        uint b2 = key[k*4 + 2];
+        uint b3 = key[k*4 + 3];
+        
+        // Big endian: first byte becomes MSB
+        digestBE[k] = (b0 << 24) | (b1 << 16) | (b2 << 8) | b3;
+    }
+
+    // ---------------------------------------
+    // Hash using BIG-ENDIAN words
+    // ---------------------------------------
     uint h1, h2;
-    hash_pair_fnv(key, 5, h1, h2); // RIPEMD160 hash is 5 UInt32 long
-    
+    hash_pair_fnv_words(digestBE, 5u, h1, h2);
+
+    // ---------------------------------------
+    // Insert bits
+    // ---------------------------------------
     for (uint i = 0; i < NUMBER_HASHES; i++) {
-        // Matching Swift: (h1 + i * h2) % m_bits
         ulong combined = (ulong)h1 + (ulong)i * (ulong)h2;
         uint bit_idx = (uint)(combined % (ulong)m_bits);
-        
+
         uint word_idx = bit_idx >> 5;
         uint bit_mask = 1u << (bit_idx & 31u);
+
         atomic_fetch_or_explicit(&bits[word_idx], bit_mask, memory_order_relaxed);
     }
 }
+
 
 
  
