@@ -81,7 +81,7 @@ class KeySearch {
         
         //dumpPoint(0, pointSet: pointSet)
 
-        var appStartNS = DispatchTime.now().uptimeNanoseconds
+        //var appStartNS = DispatchTime.now().uptimeNanoseconds
 
         for batchCount in 1..<Int.max{ // TODO
             

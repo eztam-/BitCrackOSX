@@ -44,15 +44,12 @@ public class KeySearchMetalHost {
         self.compressed = compressed
         self.publicKeyLength = compressed ? 33 : 65
         self.startKeyHex = startKeyHex
-
-        
         self.initPipeline = try Helpers.buildPipelineState(kernelFunctionName: "init_points")
         self.stepPipeline = try Helpers.buildPipelineState(kernelFunctionName: "step_points")
     }
     
     
-    func makePointSet(totalPoints: UInt32,
-                      gridSize: Int) -> PointSet {
+    func makePointSet(totalPoints: UInt32, gridSize: Int) -> PointSet {
         // x / y arrays: one UInt256 per point
         let xBuffer = device.makeBuffer(length: Int(totalPoints) * MemoryLayout<UInt256>.stride, options: .storageModePrivate)!
         let yBuffer = device.makeBuffer(length: Int(totalPoints) * MemoryLayout<UInt256>.stride, options: .storageModePrivate)!
@@ -100,43 +97,23 @@ public class KeySearchMetalHost {
         precondition(startKeyLE.count == 8)
         
         // Start key buffer (8 limbs)
-        let startKeyBuffer = device.makeBuffer(length: 8 * MemoryLayout<UInt32>.stride,
-                                               options: .storageModeShared)!
-        startKeyBuffer.contents()
-            .copyMemory(from: startKeyLE,
-                        byteCount: 8 * MemoryLayout<UInt32>.stride)
-        
+        let startKeyBuffer = device.makeBuffer(length: 8 * MemoryLayout<UInt32>.stride, options: .storageModeShared)!
+        startKeyBuffer.contents().copyMemory(from: startKeyLE, byteCount: 8 * MemoryLayout<UInt32>.stride)
         
         let encoder = commandBuffer.makeComputeCommandEncoder()!
         
         encoder.setComputePipelineState(initPipeline)
-        
-        // buffer(0): totalPoints
         encoder.setBuffer(pointSet.totalPointsBuffer, offset: 0, index: 0)
-        
-        // buffer(1): start_key_limbs
         encoder.setBuffer(startKeyBuffer, offset: 0, index: 1)
-        
-        // buffer(2): xPtr
         encoder.setBuffer(pointSet.xBuffer, offset: 0, index: 2)
-        
-        // buffer(3): yPtr
         encoder.setBuffer(pointSet.yBuffer, offset: 0, index: 3)
-        
-        // buffer(4): deltaG_out
         encoder.setBuffer(pointSet.deltaGXBuffer, offset: 0, index: 4)
-        
-        
         encoder.setBuffer(pointSet.deltaGYBuffer, offset: 0, index: 5)
-        
-        
-        // buffer(5): last_private_key (8 × uint)
         encoder.setBuffer(pointSet.lastPrivBuffer, offset: 0, index: 6)
         
         // Launch with `gridSize` threads (1D)
         let gridSize = pointSet.gridSize
-        let threadsPerThreadgroup = min(initPipeline.maxTotalThreadsPerThreadgroup,
-                                        gridSize)
+        let threadsPerThreadgroup = min(initPipeline.maxTotalThreadsPerThreadgroup, gridSize)
         let tgSize = MTLSize(width: threadsPerThreadgroup, height: 1, depth: 1)
         let grid = MTLSize(width: gridSize, height: 1, depth: 1)
         
@@ -162,28 +139,13 @@ public class KeySearchMetalHost {
         
         encoder.setComputePipelineState(stepPipeline)
         
-        // buffer(0): totalPoints
         encoder.setBuffer(pointSet.totalPointsBuffer, offset: 0, index: 0)
-
-        // buffer(1): gridSize
         encoder.setBuffer(pointSet.gridSizeBuffer, offset: 0, index: 1)
-        
-        // buffer(2): chain
         encoder.setBuffer(pointSet.chainBuffer, offset: 0, index: 2)
-        
-        // buffer(3): xPtr
         encoder.setBuffer(pointSet.xBuffer, offset: 0, index: 3)
-        
-        // buffer(4): yPtr
         encoder.setBuffer(pointSet.yBuffer, offset: 0, index: 4)
-        
-        // buffer(5): incX (uint256)
         encoder.setBuffer(pointSet.deltaGXBuffer, offset: 0, index: 5)
-        
-        // buffer(6): incY (uint256)
         encoder.setBuffer(pointSet.deltaGYBuffer, offset: 0, index: 6)
-
-        
         encoder.setBuffer(bloomFilter.getBitsBuffer(),  offset: 0, index: 7)
         encoder.setBuffer(bloomFilter.getMbitsBuffer(), offset: 0, index: 8)
         encoder.setBuffer(hitCountBuffer, offset: 0, index: 9)
@@ -191,7 +153,6 @@ public class KeySearchMetalHost {
         //var compression: UInt32 = Properties.compressedKeySearch ? 1 : 0
         //encoder.setBytes(&compression, length: MemoryLayout<UInt32>.stride, index: 11)
 
-        
         // Dispatch exactly gridSize threads (as the kernel expects)
         let gridSize = pointSet.gridSize
         let threadsPerThreadgroup = min(stepPipeline.maxTotalThreadsPerThreadgroup,
