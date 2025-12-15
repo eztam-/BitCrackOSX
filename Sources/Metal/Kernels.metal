@@ -66,40 +66,58 @@ kernel void step_points(
 {
     if (gid >= gridSize) return;
 
+    uint dim = gridSize;
+
+    // --------------------------------------------------------------------
+    // LOCAL POINTERS for strided traversal
+    // --------------------------------------------------------------------
+    device uint256* xPtrLocal = xPtr + gid;
+    device uint256* yPtrLocal = yPtr + gid;
+
+    // --------------------------------------------------------------------
+    // Load this thread’s starting point ONCE
+    // --------------------------------------------------------------------
+    uint256 x = *xPtrLocal;
+    uint256 y = *yPtrLocal;
+
+    // --------------------------------------------------------------------
+    // Initialize prefix inverse accumulator = 1
+    // --------------------------------------------------------------------
     uint256 inverse;
-    for (int k = 0; k < 8; ++k)
+    for (uint k = 0; k < 8; ++k)
         inverse.limbs[k] = 0u;
     inverse.limbs[0] = 1u;
 
     int batchIdx = 0;
-    uint dim = gridSize;
-
     uint iForward;
+
+    // --------------------------------------------------------------------
+    // FORWARD PASS (MAIN LOOP) — NO repeated global loads of xPtr/yPtr
+    // --------------------------------------------------------------------
     for (iForward = gid; iForward < totalPoints; iForward += dim)
     {
-        uint256 x = xPtr[iForward];
-        uint256 y = yPtr[iForward];
+        // ---- 1) Compute y-parity ----
         uint yParity = (y.limbs[0] & 1u);
 
-        // 1) SHA256(pubkey-compressed)
+        // ---- 2) SHA256(pubkey compressed) ----
         uint shaState[8];
         sha256PublicKeyCompressed(x.limbs, yParity, shaState);
 
-        // 2) RIPEMD160 without final round => pre-final state
+        // ---- 3) RIPEMD160 pre-final ----
         uint preFinal[5];
         ripemd160sha256NoFinal(shaState, preFinal);
 
-        // 3) Bloom lookup on pre-final state
+        // ---- 4) Bloom filter check ----
         bool hit = bloom_contains(preFinal, bloomBits, mask);
 
-        // 4) On hit ONLY => do final round + store
+        // ---- 5) On hit → compute final RIPEMD160 and store ----
         if (hit)
         {
             uint digestFinal[5];
             ripemd160FinalRound(preFinal, digestFinal);
 
             uint slot = atomic_fetch_add_explicit(resultCount, 1u, memory_order_relaxed);
-
+            
             HitResult r;
             r.index = iForward;
             for (uint k = 0; k < 5; ++k)
@@ -108,10 +126,14 @@ kernel void step_points(
             results[slot] = r;
         }
 
-        // 5) Batch-add prefix product
+        // ---- 6) Forward batch-add prefix computation ----
+        // beginBatchAdd256k DOES NOT update x, y. It ONLY:
+        //   - computes diff = incX - x
+        //   - updates inverse = inverse * diff
+        //   - writes chain entry
         beginBatchAdd256k(
             incX,
-            xPtr[iForward],
+            x,
             chain,
             (int)iForward,
             batchIdx,
@@ -120,18 +142,32 @@ kernel void step_points(
             dim
         );
         batchIdx++;
+
+        // ---- 7) Advance to next element in the strided sequence ----
+        xPtrLocal += dim;
+        yPtrLocal += dim;
+
+        if (iForward + dim < totalPoints) {
+            // Load x,y ONLY once per stride jump
+            x = *xPtrLocal;
+            y = *yPtrLocal;
+        }
     }
 
+    // --------------------------------------------------------------------
+    // INVERSION STEP — compute batch-wide inverse
+    // --------------------------------------------------------------------
     doBatchInverse256k(inverse.limbs);
 
+    // --------------------------------------------------------------------
+    // BACKWARD PASS — correct each point using prefix products
+    // --------------------------------------------------------------------
     int i = (int)iForward - (int)dim;
-
-    uint256 newX;
-    uint256 newY;
-
     for (; i >= 0; i -= (int)dim)
     {
         batchIdx--;
+
+        uint256 newX, newY;
 
         completeBatchAdd256k(
             incX,
@@ -152,6 +188,7 @@ kernel void step_points(
         yPtr[i] = newY;
     }
 }
+
 
 
 
