@@ -14,10 +14,12 @@ class UI {
     // Per batch stats
     var totalStartTime: UInt64 = 0
     var totalEndTime: UInt64 = 0
-    var bfFalsePositiveCnt: Int = 0
+    var bfFalsePositiveCnt: [Int] = []
     var startHexKey: String = ""
     var startKey: BInt = BInt.zero
     var batchCount: Int = 0
+    
+    var lastPrintBatchCount = 0
     
     let timer = DispatchSource.makeTimerSource()
     var isFirstRun = true
@@ -94,31 +96,28 @@ class UI {
         defer { lock.unlock() }
         
         
-        
         let durationNs = totalEndTime - totalStartTime
         let durationSeconds = Double(durationNs) / 1_000_000_000.0
 
+        
         let itemsPerSecond = Double(batchSize) / durationSeconds
         let mHashesPerSec = itemsPerSecond / 1_000_000.0
-
-
-        let falsePositiveRate = 100.0 / Double(batchSize) * Double(self.bfFalsePositiveCnt)
         var statusStr = String(format: "  %.1f MKey/s ", mHashesPerSec)
-     
         
-        if falsePositiveRate > 0.0001 {
-            statusStr.append(" ⚠️  Bloom filter FPR is too high and impacts performance! Adjust your settings.")
+        
+        let batchesPerS = batchCount - lastPrintBatchCount
+        let totalFpLastSecond = bfFalsePositiveCnt.reduce(0, +)
+        let falsePositiveRate = 100.0 / Double(batchSize * batchesPerS) * Double(totalFpLastSecond)
+        var bloomFilterString = String(format: "%.6f%% FPR (%d)", falsePositiveRate, totalFpLastSecond)
+        if falsePositiveRate > 0.00001 {
+            bloomFilterString.append(" ⚠️  Bloom filter FPR is too high and impacts performance! Adjust your settings.")
         }
         
-        
         print("\u{1B}[\(UI.STATS_LINES)A", terminator: "")
-        // TODO: hide the details about the individual steps and make them available by compiler flag or preporeccor? if pperformance is dramatic. Otherwise make them available by comln param
         print("")
         print("📊 Live Stats")
         print("\(clearLine())    Start key   :   \(startHexKey.uppercased())")
        
-        
-        
         let currentKey = startKey + batchSize * batchCount
         var currKey: String = ""
         if currentKey > 0 {
@@ -128,11 +127,13 @@ class UI {
         }
        
         print("\(clearLine())    Current key :   \(currKey)")
-        print("\(clearLine())    Batch Count :   \(batchCount)")
-        //let nextBasePrivKeyHex = Data(privKey.reversed()).hexString
-        print(String(format: "\(clearLine())    Bloom Filter:   %.4f%% FPR (%d)", falsePositiveRate, self.bfFalsePositiveCnt))
+        print("\(clearLine())    Batch Count :   \(batchCount) (\(batchesPerS)/s)")
+        print("\(clearLine())    Bloom Filter:   \(bloomFilterString)")
         print("\(clearLine())    Throughput  : \(statusStr)")
         fflush(stdout)
+        
+        bfFalsePositiveCnt.removeAll()
+        lastPrintBatchCount = batchCount
         
     }
     

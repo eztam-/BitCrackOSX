@@ -108,7 +108,7 @@ class KeySearch {
                 //if falsePositiveCnt > 0 {
                 //    self!.ui.printMessage("\(falsePositiveCnt)")
                 //}
-                self!.ui.bfFalsePositiveCnt = falsePositiveCnt
+                self!.ui.bfFalsePositiveCnt.append(falsePositiveCnt)
                 
                 // RESET BEFORE EACH DISPATCH
                 slot.hitCountBuffer.contents().storeBytes(of: 0, as: UInt32.self)
