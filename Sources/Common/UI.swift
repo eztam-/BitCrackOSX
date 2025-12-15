@@ -14,7 +14,7 @@ class UI {
     // Per batch stats
     var totalStartTime: UInt64 = 0
     var totalEndTime: UInt64 = 0
-    var bfFalePositiveCnt: Int = 0
+    var bfFalsePositiveCnt: Int = 0
     var startHexKey: String = ""
     var startKey: BInt = BInt.zero
     var batchCount: Int = 0
@@ -101,7 +101,7 @@ class UI {
         let mHashesPerSec = itemsPerSecond / 1_000_000.0
 
 
-        let falsePositiveRate = 100.0 / Double(batchSize) * Double(self.bfFalePositiveCnt)
+        let falsePositiveRate = 100.0 / Double(batchSize) * Double(self.bfFalsePositiveCnt)
         var statusStr = String(format: "  %.1f MKey/s ", mHashesPerSec)
      
         
@@ -129,7 +129,7 @@ class UI {
         print("\(clearLine())    Current key :   \(currKey)")
         print("\(clearLine())    Batch Count :   \(batchCount)")
         //let nextBasePrivKeyHex = Data(privKey.reversed()).hexString
-        print(String(format: "\(clearLine())    Bloom Filter:   %.4f%% FPR (%d)", falsePositiveRate, self.bfFalePositiveCnt))
+        print(String(format: "\(clearLine())    Bloom Filter:   %.4f%% FPR (%d)", falsePositiveRate, self.bfFalsePositiveCnt))
         print("\(clearLine())    Throughput  : \(statusStr)")
         fflush(stdout)
         

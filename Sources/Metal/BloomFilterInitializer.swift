@@ -30,7 +30,7 @@ public class BloomFilter {
             print("❌ No records found in the database. Please load some addresses first.")
             exit(1)
         }
-        try self.init(expectedInsertions: cnt, falsePositiveRate:0.000001, batchSize: batchSize)
+        try self.init(expectedInsertions: cnt, batchSize: batchSize)
         print("\n🌀 Start loading \(cnt) public key hashes from database into the bloom filter.")
         let startTime = CFAbsoluteTimeGetCurrent()
 
@@ -52,81 +52,100 @@ public class BloomFilter {
         
     }
     
-    public init(expectedInsertions: Int, falsePositiveRate: Double = 0.0001, batchSize: Int) throws {
+    public init(expectedInsertions: Int, batchSize: Int) throws {
         self.batchSize = batchSize
         self.device = Helpers.getSharedDevice()
-        
-        // This is a very dirty fix, for the issue, that the bloomfilter causes too many false positifes, but only for small datasets
-        var numInsertions = expectedInsertions < 100000 ? expectedInsertions * 10 : expectedInsertions
-        numInsertions = expectedInsertions < 1000 ? expectedInsertions * 100 : numInsertions
-        numInsertions = expectedInsertions < 100 ? expectedInsertions * 1000 : numInsertions
-        
-        let m = ceil(-(Double(numInsertions) * log(falsePositiveRate)) / pow(log(2.0), 2.0))
-                
-        if Int(m) > UInt32.max {
-            bitCount = Int(UInt32.max)
-            print("❌  WARNING! Bloom filter size exceeds maximum.")
-            //print("⚠️  WARNING! Bloom filter size exceeds maximum. Clamped bit count to UInt32.max. This might cause an exessive rate in false positives.")
-            throw BloomFilterError.bitSizeExceededMax
-        } else{
-            self.bitCount = Int(m)
-        }
 
-        let wordCount = (bitCount + 31) / 32
+        // ------------------------------
+        // bloom sizing
+        // ------------------------------
+        let approxBits = expectedInsertions * 32
+        let bitCount = BloomFilter.nextPowerOfTwo(approxBits)        // MUST be power-of-two
+        self.bitCount = bitCount
+        self.mBits = UInt32(bitCount - 1)                // mask = bitCount - 1
+
+        let wordCount = bitCount / 32
         let bufferSize = wordCount * MemoryLayout<UInt32>.stride
-       
-        print("    Expected insertions: \(numInsertions)")
-        print("    Bit count: \(bitCount) bits (\(bufferSize / 1024) KB)")
-        print("    Target FPR: \(falsePositiveRate)")
-        
-        let bits = device.makeBuffer(length: bufferSize, options: .storageModeShared)!
+
+        print("BloomFilter")
+        print("  insertions: \(expectedInsertions)")
+        print("  bitCount:   \(bitCount) bits  (\(bufferSize / 1024) KB)")
+        print("  mask:       0x\(String(self.mBits, radix:16))")
+
+        // ------------------------------
+        // Allocate bloom bit array
+        // ------------------------------
+        let bits = device.makeBuffer(length: bufferSize,
+                                     options: .storageModeShared)!
         memset(bits.contents(), 0, bufferSize)
         self.bitsBuffer = bits
-        self.mBits = UInt32(bitCount)
-        
-        // Intitialization for insert
-        insertItemsBuffer = device.makeBuffer(length: bufferSize, options: .storageModeShared)!
+
+        // ------------------------------
+        // Buffer for items to insert
+        // ------------------------------
+        self.insertItemsBuffer = device.makeBuffer(length: expectedInsertions * 20,
+                                                   options: .storageModeShared)!
+
+        // ------------------------------
+        // Build compute pipeline
+        // ------------------------------
         self.insertPipeline = try Helpers.buildPipelineState(kernelFunctionName: "bloom_insert")
-        (self.insert_threadsPerThreadgroup,  self.insert_threadgroupsPerGrid) = try Helpers.getThreadConfig(
+
+        (self.insert_threadsPerThreadgroup,
+         self.insert_threadgroupsPerGrid) = try Helpers.getThreadConfig(
             pipelineState: insertPipeline,
             batchSize: batchSize,
-            threadsPerThreadgroupMultiplier: 16)
-        
+            threadsPerThreadgroupMultiplier: 16
+        )
     }
+
     
     public func insert(_ items: [Data]) throws {
         guard !items.isEmpty else { return }
-        let itemBytes = 20
-       
+
+        // ---------------------------------------
+        // Upload items (20-byte hash160 each)
+        // ---------------------------------------
         let ptr = insertItemsBuffer.contents().assumingMemoryBound(to: UInt8.self)
+
         for (i, item) in items.enumerated() {
-            let offset = i * itemBytes
-            let copyCount = min(item.count, itemBytes)
+            let offset = i * 20
+            let copyCount = min(item.count, 20)
             item.copyBytes(to: ptr.advanced(by: offset), count: copyCount)
-            if copyCount < itemBytes {
-                memset(ptr.advanced(by: offset + copyCount), 0, itemBytes - copyCount)
+            if copyCount < 20 {
+                memset(ptr.advanced(by: offset + copyCount), 0, 20 - copyCount)
             }
         }
-        
-        let insertCommandQueue = device.makeCommandQueue()!
-        let cmdBuffer = insertCommandQueue.makeCommandBuffer()!
+
+        // ---------------------------------------
+        // Dispatch bloom_insert kernel
+        // ---------------------------------------
+        let queue = device.makeCommandQueue()!
+        let cmdBuffer = queue.makeCommandBuffer()!
         let encoder = cmdBuffer.makeComputeCommandEncoder()!
-        
+
         var countU = UInt32(items.count)
+
         encoder.setComputePipelineState(insertPipeline)
-        encoder.setBuffer(insertItemsBuffer, offset: 0, index: 0)
+        encoder.setBuffer(insertItemsBuffer, offset: 0, index: 0) // 20-byte inputs
         encoder.setBytes(&countU, length: 4, index: 1)
         encoder.setBuffer(bitsBuffer, offset: 0, index: 2)
-        encoder.setBytes(&mBits, length: 4, index: 3)
+        encoder.setBytes(&mBits, length: 4, index: 3)              // mask
 
-        encoder.dispatchThreadgroups(insert_threadgroupsPerGrid, threadsPerThreadgroup: insert_threadsPerThreadgroup)
-        // Alternatively let Metal find the best number of thread groups
-        //encoder.dispatchThreads(MTLSize(width: batchSize, height: 1, depth: 1), threadsPerThreadgroup: threadsPerGroup)
+        encoder.dispatchThreadgroups(insert_threadgroupsPerGrid,
+                                     threadsPerThreadgroup: insert_threadsPerThreadgroup)
         encoder.endEncoding()
-        
         cmdBuffer.commit()
-        //cmdBuffer.waitUntilCompleted() // TODO: No need to wait here
     }
+
+    
+    private static func nextPowerOfTwo(_ n: Int) -> Int {
+        var v = 1
+        while v < n { v <<= 1 }
+        return v
+    }
+
+    
         
     public func getBitsBuffer() -> MTLBuffer {
             return bitsBuffer

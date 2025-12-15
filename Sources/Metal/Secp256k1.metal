@@ -963,3 +963,122 @@ inline Point point_mul(
 }
 
 
+
+
+/// Backward pass: compute new affine point (rx, ry) = Q + P using shared inversion.
+///
+/// Inputs:
+///   px, py     = increment point (ΔG.x, ΔG.y)
+///   xPtr, yPtr = global arrays of affine points
+///   i          = point index
+///   batchIdx   = index in backward iteration
+///   chain      = global chain buffer
+///   inverse    = running suffix inverse (updated each iteration)
+///
+/// Output:
+///   newX, newY = updated affine coordinates
+inline void completeBatchAdd256k(
+    const uint256       px,
+    const uint256       py,
+    device uint256*     xPtr,
+    device uint256*     yPtr,
+    int                 i,
+    int                 batchIdx,
+    device uint256*     chain,
+    thread uint256*     inverse,
+    thread uint256*     newX,
+    thread uint256*     newY,
+    uint                gid,
+    uint                dim
+)
+{
+    uint256 s;
+
+    if (batchIdx > 0) {
+        // Load previous prefix product
+        uint chainIndex = (batchIdx - 1) * dim + gid;
+        uint256 c = chain[chainIndex];
+
+        // slope numerator partially: s = inverse * c
+        s = field_mul(*inverse, c);
+
+        // advance inverse: inverse = inverse * (px - x[i])
+        uint256 diff = field_sub(px, xPtr[i]);
+        *inverse = field_mul(*inverse, diff);
+    }
+    else {
+        // Last one in backward pass
+        s = *inverse;
+    }
+
+    // rise = py - yPtr[i]
+    uint256 rise = field_sub(py, yPtr[i]);
+
+    // full slope: s = rise * s
+    s = field_mul(rise, s);
+
+    // s^2
+    uint256 s2 = field_sqr(s);
+
+    // rx = s^2 - px - x[i]
+    uint256 rx = field_sub(s2, px);
+    rx = field_sub(rx, xPtr[i]);
+
+    // ry = s*(px - rx) - py
+    uint256 px_minus_rx = field_sub(px, rx);
+    uint256 ry = field_mul(s, px_minus_rx);
+    ry = field_sub(ry, py);
+
+    *newX = rx;
+    *newY = ry;
+}
+
+inline void doBatchInverse256k(thread uint* limbs8)
+{
+    // Load uint256
+    uint256 t;
+    #pragma unroll
+    for (int i = 0; i < 8; i++) t.limbs[i] = limbs8[i];
+
+    // Compute inverse mod p
+    t = field_inv(t);
+
+    // Store back
+    #pragma unroll
+    for (int i = 0; i < 8; i++) limbs8[i] = t.limbs[i];
+}
+
+
+
+/// Forward pass for batch addition
+/// - px        = increment point X (ΔG.x)
+/// - qx        = current point's X coordinate (xPtr[i])
+/// - chain     = global chain buffer (size >= totalPoints)
+/// - idx       = global point index i
+/// - batchIdx  = index of this step inside the batch pass
+/// - inverse   = running accumulator of prefix products
+///
+/// The actual chain index is assumed to be:
+///    chainIdx = batchIdx * dim + gid
+/// So idx is not used directly for indexing chain.
+inline void beginBatchAdd256k(
+    const uint256       px,
+    const uint256       qx,
+    device uint256*     chain,
+    int                 idx,        // kept for compatibility, not used here
+    int                 batchIdx,
+    thread uint256*     inverse,
+    uint                gid,
+    uint                dim
+)
+{
+    // diff = px - qx
+    uint256 diff = field_sub(px, qx);
+
+    // prefix product: inverse = inverse * diff (mod p)
+    *inverse = field_mul(*inverse, diff);
+
+    // chain[p] = inverse
+    uint chainIndex = batchIdx * dim + gid;
+    chain[chainIndex] = *inverse;
+}

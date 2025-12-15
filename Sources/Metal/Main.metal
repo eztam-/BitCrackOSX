@@ -10,144 +10,6 @@ using namespace metal;
 #pragma clang optimize on
 
 
-constant const uint NUMBER_HASHES = 20;
-
-/// Backward pass: compute new affine point (rx, ry) = Q + P using shared inversion.
-///
-/// Inputs:
-///   px, py     = increment point (ΔG.x, ΔG.y)
-///   xPtr, yPtr = global arrays of affine points
-///   i          = point index
-///   batchIdx   = index in backward iteration
-///   chain      = global chain buffer
-///   inverse    = running suffix inverse (updated each iteration)
-///
-/// Output:
-///   newX, newY = updated affine coordinates
-inline void completeBatchAdd256k(
-    const uint256       px,
-    const uint256       py,
-    device uint256*     xPtr,
-    device uint256*     yPtr,
-    int                 i,
-    int                 batchIdx,
-    device uint256*     chain,
-    thread uint256*     inverse,
-    thread uint256*     newX,
-    thread uint256*     newY,
-    uint                gid,
-    uint                dim
-)
-{
-    uint256 s;
-
-    if (batchIdx > 0) {
-        // Load previous prefix product
-        uint chainIndex = (batchIdx - 1) * dim + gid;
-        uint256 c = chain[chainIndex];
-
-        // slope numerator partially: s = inverse * c
-        s = field_mul(*inverse, c);
-
-        // advance inverse: inverse = inverse * (px - x[i])
-        uint256 diff = field_sub(px, xPtr[i]);
-        *inverse = field_mul(*inverse, diff);
-    }
-    else {
-        // Last one in backward pass
-        s = *inverse;
-    }
-
-    // rise = py - yPtr[i]
-    uint256 rise = field_sub(py, yPtr[i]);
-
-    // full slope: s = rise * s
-    s = field_mul(rise, s);
-
-    // s^2
-    uint256 s2 = field_sqr(s);
-
-    // rx = s^2 - px - x[i]
-    uint256 rx = field_sub(s2, px);
-    rx = field_sub(rx, xPtr[i]);
-
-    // ry = s*(px - rx) - py
-    uint256 px_minus_rx = field_sub(px, rx);
-    uint256 ry = field_mul(s, px_minus_rx);
-    ry = field_sub(ry, py);
-
-    *newX = rx;
-    *newY = ry;
-}
-
-inline void doBatchInverse256k(thread uint* limbs8)
-{
-    // Load uint256
-    uint256 t;
-    #pragma unroll
-    for (int i = 0; i < 8; i++) t.limbs[i] = limbs8[i];
-
-    // Compute inverse mod p
-    t = field_inv(t);
-
-    // Store back
-    #pragma unroll
-    for (int i = 0; i < 8; i++) limbs8[i] = t.limbs[i];
-}
-
-
-
-/// Forward pass for batch addition
-/// - px        = increment point X (ΔG.x)
-/// - qx        = current point's X coordinate (xPtr[i])
-/// - chain     = global chain buffer (size >= totalPoints)
-/// - idx       = global point index i
-/// - batchIdx  = index of this step inside the batch pass
-/// - inverse   = running accumulator of prefix products
-///
-/// The actual chain index is assumed to be:
-///    chainIdx = batchIdx * dim + gid
-/// So idx is not used directly for indexing chain.
-inline void beginBatchAdd256k(
-    const uint256       px,
-    const uint256       qx,
-    device uint256*     chain,
-    int                 idx,        // kept for compatibility, not used here
-    int                 batchIdx,
-    thread uint256*     inverse,
-    uint                gid,
-    uint                dim
-)
-{
-    // diff = px - qx
-    uint256 diff = field_sub(px, qx);
-
-    // prefix product: inverse = inverse * diff (mod p)
-    *inverse = field_mul(*inverse, diff);
-
-    // chain[p] = inverse
-    uint chainIndex = batchIdx * dim + gid;
-    chain[chainIndex] = *inverse;
-}
-
-
-// Convert little-endian uint256 to 32 big-endian bytes
-inline void u256_to_be32(const uint256 x, thread uchar out[32]) {
-    // limbs[0] = least significant word
-    #pragma unroll
-    for (int limb = 0; limb < 8; ++limb) {
-        uint w = x.limbs[limb];
-        int byteBase = 28 - limb * 4; // big-endian order
-
-        out[byteBase + 0] = (uchar)((w >> 24) & 0xFFu);
-        out[byteBase + 1] = (uchar)((w >> 16) & 0xFFu);
-        out[byteBase + 2] = (uchar)((w >>  8) & 0xFFu);
-        out[byteBase + 3] = (uchar)( w        & 0xFFu);
-    }
-}
-
-
-
 struct HitResult
 {
     uint index;      // point index (iForward)
@@ -195,7 +57,7 @@ kernel void step_points(
     constant uint256&    incX          [[buffer(5)]],
     constant uint256&    incY          [[buffer(6)]],
     const device uint*   bloomBits     [[buffer(7)]],
-    constant uint&       m_bits        [[buffer(8)]],
+    constant uint&       mask          [[buffer(8)]],
     device   atomic_uint* resultCount  [[buffer(9)]],
     device   HitResult*   results      [[buffer(10)]],
     constant uint&       compression   [[buffer(11)]],
@@ -204,9 +66,6 @@ kernel void step_points(
 {
     if (gid >= gridSize) return;
 
-    // -------------------------
-    // Inverse init
-    // -------------------------
     uint256 inverse;
     for (int k = 0; k < 8; ++k)
         inverse.limbs[k] = 0u;
@@ -215,9 +74,6 @@ kernel void step_points(
     int batchIdx = 0;
     uint dim = gridSize;
 
-    // -------------------------
-    // FORWARD PASS
-    // -------------------------
     uint iForward;
     for (iForward = gid; iForward < totalPoints; iForward += dim)
     {
@@ -225,63 +81,34 @@ kernel void step_points(
         uint256 y = yPtr[iForward];
         uint yParity = (y.limbs[0] & 1u);
 
-        // ---------------------------------------
-        // 1) Compute SHA256(pubkey)
-        // ---------------------------------------
+        // 1) SHA256(pubkey-compressed)
         uint shaState[8];
         sha256PublicKeyCompressed(x.limbs, yParity, shaState);
 
-        // ---------------------------------------
-        // 2) Compute RIPEMD160-No-Final
-        // ---------------------------------------
-        uint ripemdPreFinal[5];
-        ripemd160sha256NoFinal(shaState, ripemdPreFinal);
-        // NOTE: THIS IS *NOT* endian swapped yet
+        // 2) RIPEMD160 without final round => pre-final state
+        uint preFinal[5];
+        ripemd160sha256NoFinal(shaState, preFinal);
 
-        // ---------------------------------------
-        // 3) Bloom filter lookup USING pre-final digest
-        // ---------------------------------------
-        uint h1, h2;
-        hash_pair_fnv_words(ripemdPreFinal, 5u, h1, h2);
+        // 3) Bloom lookup on pre-final state
+        bool hit = bloom_contains(preFinal, bloomBits, mask);
 
-        uint hit = 1u;
-        for (uint j = 0; j < NUMBER_HASHES; ++j)
+        // 4) On hit ONLY => do final round + store
+        if (hit)
         {
-            ulong combined = (ulong)h1 + (ulong)j * (ulong)h2;
-            uint bit_idx  = (uint)(combined % (ulong)m_bits);
-            uint word_idx = bit_idx >> 5;
-            uint bit_mask = 1u << (bit_idx & 31u);
-
-            if ((bloomBits[word_idx] & bit_mask) == 0u)
-            {
-                hit = 0u;
-                break;
-            }
-        }
-
-        // ----------------------------------------------------
-        // 4) Bloom HIT → compute final RIPEMD160 + store result
-        // ----------------------------------------------------
-        if (hit != 0u)
-        {
-            // Now compute final RIPEMD160 ONLY ON HITS
             uint digestFinal[5];
-            ripemd160FinalRound(ripemdPreFinal, digestFinal);
+            ripemd160FinalRound(preFinal, digestFinal);
 
             uint slot = atomic_fetch_add_explicit(resultCount, 1u, memory_order_relaxed);
 
             HitResult r;
             r.index = iForward;
-
             for (uint k = 0; k < 5; ++k)
                 r.digest[k] = digestFinal[k];
 
             results[slot] = r;
         }
 
-        // ---------------------------------------
         // 5) Batch-add prefix product
-        // ---------------------------------------
         beginBatchAdd256k(
             incX,
             xPtr[iForward],
@@ -292,18 +119,11 @@ kernel void step_points(
             gid,
             dim
         );
-
         batchIdx++;
     }
 
-    // -------------------------
-    // INVERSION STEP
-    // -------------------------
     doBatchInverse256k(inverse.limbs);
 
-    // -------------------------
-    // BACKWARD PASS
-    // -------------------------
     int i = (int)iForward - (int)dim;
 
     uint256 newX;
@@ -332,6 +152,7 @@ kernel void step_points(
         yPtr[i] = newY;
     }
 }
+
 
 
 
@@ -421,48 +242,28 @@ kernel void init_points(
 
 
 kernel void bloom_insert(
-    const device uchar *items      [[buffer(0)]],
+    const device uchar *items      [[buffer(0)]],  // N * 20-byte hash160
     constant uint &item_count      [[buffer(1)]],
-    device atomic_uint *bits       [[buffer(2)]],
-    constant uint &m_bits          [[buffer(3)]],
+    device atomic_uint *bits       [[buffer(2)]],  // bloom bit array
+    constant uint &mask            [[buffer(3)]],  // mask (2^n - 1)
     uint gid [[thread_position_in_grid]])
 {
     if (gid >= item_count) return;
 
-    // ---------------------------------------------------------
-    // Load pointer to this hash160 (20 bytes)
-    // ---------------------------------------------------------
+    // 20-byte hash160 for this item
     const device uchar *key = items + (gid * 20);
 
-    // Temporary local copy for undo function
+    // Local copy so we can pass as thread array
     uchar hashBytes[20];
-    for (uint i = 0; i < 20; i++)
+    for (uint i = 0; i < 20; ++i)
         hashBytes[i] = key[i];
 
-    // ---------------------------------------------------------
-    // Compute PRE-FINAL round RIPEMD160 state
-    // ---------------------------------------------------------
-    uint digestPreFinal[5];
-    undoRMD160FinalRoundFromBytes(hashBytes, digestPreFinal);
+    // Pre-final RIPEMD160 state
+    uint preFinal[5];
+    undoRMD160FinalRoundFromBytes(hashBytes, preFinal);
 
-    // ---------------------------------------------------------
-    // Hash for bloom filter placement (use pre-final words)
-    // ---------------------------------------------------------
-    uint h1, h2;
-    hash_pair_fnv_words(digestPreFinal, 5u, h1, h2);
-
-    // ---------------------------------------------------------
-    // Set bits in bloom filter
-    // ---------------------------------------------------------
-    for (uint i = 0; i < NUMBER_HASHES; i++) {
-        ulong combined = (ulong)h1 + (ulong)i * (ulong)h2;
-        uint bit_idx = (uint)(combined % (ulong)m_bits);
-
-        uint word_idx = bit_idx >> 5;
-        uint bit_mask = 1u << (bit_idx & 31u);
-
-        atomic_fetch_or_explicit(&bits[word_idx], bit_mask, memory_order_relaxed);
-    }
+    // Insert into bit array using index generation
+    bloom_insert(preFinal, bits, mask);
 }
 
 

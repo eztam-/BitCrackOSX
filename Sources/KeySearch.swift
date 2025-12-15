@@ -105,7 +105,7 @@ class KeySearch {
                 
                 let falsePositiveCnt = self!.checkBloomFilterResults(bloomFilterHitsBuffer: slot.bloomFilterHitsBuffer, hitCountBuffer: slot.hitCountBuffer, batchCount: batchCount )
       
-                self!.ui.bfFalePositiveCnt = falsePositiveCnt
+                self!.ui.bfFalsePositiveCnt = falsePositiveCnt
                 
                 // RESET BEFORE EACH DISPATCH
                 slot.hitCountBuffer.contents().storeBytes(of: 0, as: UInt32.self)
