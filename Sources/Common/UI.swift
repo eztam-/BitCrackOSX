@@ -116,7 +116,7 @@ class UI {
         print("\u{1B}[\(UI.STATS_LINES)A", terminator: "")
         print("")
         print("📊 Live Stats")
-        print("\(clearLine())    Start key   :   \(startHexKey.uppercased())")
+        print("\(clearLine())    Start key   :  \(startHexKey.uppercased())")
        
         let currentKey = startKey + batchSize * batchCount
         var currKey: String = ""
@@ -126,10 +126,10 @@ class UI {
             currKey = underlineFirstDifferentCharacter(base: startHexKey.uppercased(), modified: currKey.uppercased())
         }
        
-        print("\(clearLine())    Current key :   \(currKey)")
-        print("\(clearLine())    Batch Count :   \(batchCount) (\(batchesPerS)/s)")
-        print("\(clearLine())    Bloom Filter:   \(bloomFilterString)")
-        print("\(clearLine())    Throughput  : \(statusStr)")
+        print("\(clearLine())    Current key :  \(currKey)")
+        print("\(clearLine())    Batch Count :  \(batchCount) (\(batchesPerS)/s)")
+        print("\(clearLine())    Bloom Filter:  \(bloomFilterString)")
+        print("\(clearLine())    Throughput  :\(statusStr)")
         fflush(stdout)
         
         bfFalsePositiveCnt.removeAll()

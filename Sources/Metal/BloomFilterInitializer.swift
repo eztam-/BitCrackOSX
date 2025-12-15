@@ -67,10 +67,10 @@ public class BloomFilter {
         let wordCount = bitCount / 32
         let bufferSize = wordCount * MemoryLayout<UInt32>.stride
 
-        print("BloomFilter")
-        print("  insertions: \(expectedInsertions)")
-        print("  bitCount:   \(bitCount) bits  (\(bufferSize / 1024) KB)")
-        print("  mask:       0x\(String(self.mBits, radix:16))")
+        print("   ▢▢▣▢▣▢▢")
+        print("    Insertions  :  \(expectedInsertions)")
+        print("    BitCount    :  \(bitCount) bits  (\(bufferSize / 1024) KB)")
+        print("    Mask        :  0x\(String(self.mBits, radix:16))")
 
         // ------------------------------
         // Allocate bloom bit array

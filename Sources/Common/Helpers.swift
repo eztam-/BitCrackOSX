@@ -281,9 +281,9 @@ public class Helpers{
         let endKeyStr = end.asString(radix: 16)
         
         print("\n🔑 Generating Random Key in Range")
-        print("    Range Start      : \(addTrailingZeros(key: start.asString(radix: 16), totalLength: endKeyStr.count))")
-        print("    Random Start Key : \(addTrailingZeros(key: randomKey, totalLength: endKeyStr.count))")
-        print("    Range End        : \(endKeyStr)")
+        print("    Range Start :  \(addTrailingZeros(key: start.asString(radix: 16), totalLength: endKeyStr.count))")
+        print("    Random Key  :  \(addTrailingZeros(key: randomKey, totalLength: endKeyStr.count))")
+        print("    Range End   :  \(endKeyStr)")
         
         return Helpers.addTrailingZeros(key: randomKey)
     }
