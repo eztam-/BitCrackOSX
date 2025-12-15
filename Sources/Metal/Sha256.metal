@@ -28,6 +28,15 @@ constant uint K[64] = {
       h += T + Maj(a,b,c) + SIGMA0(a); }
 
 
+// Convert SHA256 output word from big-endian to little-endian
+inline uint swap32_(uint x)
+{
+    return (x << 24) |
+           ((x << 8)  & 0x00ff0000u) |
+           ((x >> 8)  & 0x0000ff00u) |
+           (x >> 24);
+}
+
 // ====================================================================
 //  SHA-256 for Compressed Public Key — 33 bytes
 //  Input: x[8] limbs of X coordinate, yParity = 0/1
@@ -198,12 +207,13 @@ inline void sha256PublicKeyCompressed(
     // ===================================================================
     // Add initial hash state
     // ===================================================================
-    digest[0] = a + 0x6a09e667u;
-       digest[1] = b + 0xbb67ae85u;
-       digest[2] = c + 0x3c6ef372u;
-       digest[3] = d + 0xa54ff53au;
-       digest[4] = e + 0x510e527fu;
-       digest[5] = f + 0x9b05688cu;
-       digest[6] = g + 0x1f83d9abu;
-       digest[7] = h + 0x5be0cd19u;
+    // Convert BE → LE exactly once
+    digest[0] = swap32_(a + 0x6a09e667u);
+    digest[1] = swap32_(b + 0xbb67ae85u);
+    digest[2] = swap32_(c + 0x3c6ef372u);
+    digest[3] = swap32_(d + 0xa54ff53au);
+    digest[4] = swap32_(e + 0x510e527fu);
+    digest[5] = swap32_(f + 0x9b05688cu);
+    digest[6] = swap32_(g + 0x1f83d9abu);
+    digest[7] = swap32_(h + 0x5be0cd19u);
 }

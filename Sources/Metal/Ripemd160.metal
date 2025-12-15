@@ -52,11 +52,8 @@ inline void ripemd160p1(thread const uint xIn[8], thread uint digest[5])
 
     uint x[16];
 
-    //for (uint i = 0; i < 8; i++)
-    //    x[i] = xIn[i];   // NO swap here
-    
     for (uint i = 0; i < 8; i++)
-        x[i] = swap32(xIn[i]);
+        x[i] = xIn[i];
 
     x[8]  = 128u;
     x[9]  = 0u;
@@ -136,11 +133,9 @@ inline void ripemd160p2(thread const uint xIn[8], thread uint digest[5])
 
     uint x[16];
 
-    //for (uint i = 0; i < 8; i++)
-    //    x[i] = xIn[i];   // NO swap here
-    
     for (uint i = 0; i < 8; i++)
-        x[i] = swap32(xIn[i]);
+        x[i] = xIn[i];
+
 
     x[8]  = 128u;
     x[9]  = 0u;
