@@ -101,7 +101,7 @@ _________                        __     ____  __.               _________       
                 }
                 
                 print(banner)
-             
+                try UI.printGPUInfo()
                 let db = try DB(dbPath: dbFile)
                 let bloomFilter = try BloomFilter(db: db, batchSize: Properties.TOTAL_POINTS) // TODO: bad access of BATCH_SIZE in KeySearch
                 if startKey == "RANDOM" {

@@ -65,11 +65,12 @@ class KeySearch {
                 hitCountBuffer: resultCountBuffer
             )
         }
+       
         
     }
     
     func run() throws {
-    
+
         let commandQueue = device.makeCommandQueue()!
         let keySearchMetal = try KeySearchMetalHost(on:  device, compressed: Properties.compressedKeySearch, startKeyHex: startKeyHex)
         
@@ -146,7 +147,7 @@ class KeySearch {
         // Get bloom filter hit count
         let hitCount = hitCountBuffer.contents().load(as: UInt32.self)
         if hitCount > BLOOM_MAX_HITS {
-            ui.printMessage("WARNING: Bloom filter hit count \(hitCount) exceeds maximum \(BLOOM_MAX_HITS)!")
+            ui.printMessage("WARNING: Bloom filter hit count \(hitCount) exceeds maximum \(BLOOM_MAX_HITS)! Uptime: \(ui.elapsedTimeString())")
         }
         let finalCount = Int(min(hitCount, UInt32(BLOOM_MAX_HITS)))
         

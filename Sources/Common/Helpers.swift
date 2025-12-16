@@ -142,27 +142,6 @@ public class Helpers{
         return result
     }
     
-    
-    public static func printGPUInfo(device: MTLDevice) throws {
-        let name = device.name
-        let maxThreadsPerThreadgroup = device.maxThreadsPerThreadgroup
-        let isLowPower = device.isLowPower
-        let hasUnifiedMemory = device.hasUnifiedMemory
-        let memoryMB = device.recommendedMaxWorkingSetSize / (1024 * 1024)
-
-
-        print("""
-        
-        ⚡ GPU Information
-            Name:               \(name)
-            Low Power:          \(isLowPower ? "Yes" : "No")
-            Unified Memory:     \(hasUnifiedMemory ? "Yes" : "No")
-            Max Threads per TG: \(maxThreadsPerThreadgroup.width)
-            Recommended Memory: \(memoryMB) MB
-        
-        """)
-    }
-    
 
     /**
         threadsPerThreadgroupMultiplier: Use to fine tune per kernel. If the maximum is exceeded, the number is automatically capped to the max (16 on M1 or 32 on M3,...) Use preferably number that are a power of 2 (2,4,8,16,..)

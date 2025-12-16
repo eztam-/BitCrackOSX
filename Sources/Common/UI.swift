@@ -1,7 +1,7 @@
 import Foundation
 import BigNumber
 import UserNotifications
-
+import Metal
 
 class UI {
     
@@ -157,6 +157,27 @@ class UI {
         // Clear the current line and move cursor to beginning
         return "\u{001B}[2K\u{001B}[0G"
     }
+    
+    public static func printGPUInfo() throws {
+        let device = Helpers.getSharedDevice()
+        let name = device.name
+        let maxThreadsPerThreadgroup = device.maxThreadsPerThreadgroup
+        let isLowPower = device.isLowPower
+        let hasUnifiedMemory = device.hasUnifiedMemory
+        let memoryMB = device.recommendedMaxWorkingSetSize / (1024 * 1024)
+
+        print("""
+        
+        ⚡ GPU Information
+            Name:               \(name)
+            Low Power:          \(isLowPower ? "Yes" : "No")
+            Unified Memory:     \(hasUnifiedMemory ? "Yes" : "No")
+            Max Threads per TG: \(maxThreadsPerThreadgroup.width)
+            Recommended Memory: \(memoryMB) MB
+        
+        """)
+    }
+    
     
     
     func underlineFirstDifferentCharacter(base: String, modified: String) -> String {

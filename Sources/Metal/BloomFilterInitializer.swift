@@ -24,7 +24,7 @@ public class BloomFilter {
     }
     
     public convenience init(db: DB, batchSize: Int) throws {
-        print("──────────────────────────────────────────────────")
+       
         print("🚀 Initializing Bloom Filter")
         
         let cnt = try db.getAddressCount()
