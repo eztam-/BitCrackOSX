@@ -169,11 +169,11 @@ class UI {
         print("""
         
         ⚡ GPU Information
-            Name:               \(name)
-            Low Power:          \(isLowPower ? "Yes" : "No")
-            Unified Memory:     \(hasUnifiedMemory ? "Yes" : "No")
-            Max Threads per TG: \(maxThreadsPerThreadgroup.width)
-            Recommended Memory: \(memoryMB) MB
+            Name        : \(name)
+            Low Power   : \(isLowPower ? "Yes" : "No")
+            Unified Mem : \(hasUnifiedMemory ? "Yes" : "No")
+            Max Threads : \(maxThreadsPerThreadgroup.width) per TG
+            Memory      : \(memoryMB) MB
         
         """)
     }
