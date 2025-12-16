@@ -62,40 +62,46 @@ keysearch load -h
 keysearch run -h
 ```
 
-## Fine Tuning
-Major parameters to fine tune for a specific GPU:
-- **Grid Size** This is the number of threads being submitted per batch. If choosen too high, the application will use up too much memory and might slow down the entire OS.
-    
-- **Keys per Thread** This should be choosen as high as possible. However if choosen too high, there will be memory overruns and the application will still appear running (seamingly even very fast) but is actually broken and doesn't macth anymore. So always thes if the app still matches keys when experimenting with this settings.
+### Fine Tuning
 
-If both parameters are choosen too low, then the number of batches per second will go up which is also a limiting factor (see performance optimization below). You might want to increase the ring buffer size as well.
+Key parameters to adjust for optimal performance on a specific GPU:
+- **Grid Size**
+    This defines the number of threads submitted per batch.
+    If set too high, the application may consume excessive memory and potentially slow down the entire operating system.
+
+- **Keys per Thread**
+    This value should be set as high as possible for maximum throughput.
+    However, if set too high, it can cause memory overruns. In such cases, the application may appear to run normally (and even very fast) but will silently fail to match any keys.
+    Always verify that key matching still works when experimenting with this setting.
+    
+- **Ring Buffer Size**
+    If the two parameters above are set too low—or if your GPU is particularly powerful—the number of batches processed per second will increase, which introduces another performance bottleneck (see the performance optimization section below).
+    In those cases, you may also need to increase the ring buffer size.
 
 
 ## Roadmap
 - Improve performance
-    - secp256k1 EC claculations are the main bottleneck and need o be improved. This will significantly improve the general performance
-    - Put all the different pipeline steps into one commandBuffer to avoid back and forth between CPU and GPU between the different steps.
-    - Switch to metal 4 classes which promise better performance
-    - Improve tthe bloomfilter query performance and DB queries
-- The loading of addresses from file into the DB and Bloomfilter is very slow, when loading large files >1GB. This needs to be improved
-    - possible solutions
+    - secp256k1 EC claculations are partly a performance bottleneck but can still be improved further. 
+    - Switch to Metal 4 which should perform better since the CPU footprint for encoding and submitting work can be kept significantly smaller.
+    - Improve the address file load time for very large files.
+      The loading of addresses from file into the DB and Bloomfilter is very slow, when loading large files >1GB.
+      Possible solutions:
         - Disk-backed key/value store (LMDB / RocksDB / LevelDB)
         - Memory-mapped sorted file + binary search
         - In mem hash map? -> the limit is the memory
-   
-- Next
-    - Remove private key increment from metal and do in in swift async. There is no need to do this on the GPU
-    - Do the bloomfilter result check async (ring buffer?)
-    - improve field_mul sinc it is the most used one
+   - Fix bloom filter issues:
+        - Crashing after several hours of running
+        - Each key matches when using very large address sets
         
 ## Performance Improvement Notes
-- One problematic bottleneck is the commandBuffer work submission to the GPU and the fact, that we can control the GPU saturation only ba the following parameters:
+- The application is ALU bound so further optimizations should target the 32 Bit arithmetic functions. 
+- One problematic bottleneck is the commandBuffer work submission to the GPU and the fact, that we can control the GPU saturation only by the following parameters:
     - Properties.KEYS_PER_THREAD = 1024
     - Properties.GRID_SIZE = 1024 x 32
   On an M1 Pro GPU this is just OK but not perfect and on faster GPUs we will run into real issues here. If we increase these two parameters, then also the memory preasure will increase because of the X and Y point buffers which increase linearly.
   So we could become memory bound if we increase this values to high. On the other hand we must increase this values to keep the GPU busy and to avoid CPU overhead, since the command encoding takes some CPU time.
-  Currently I have solved this issue by introducing a ring buffer which works OK with size 9 on M1 Pro. However the batches are processed even on M1 almost to fast which can be seen in the live stats (4-5 batches per second). 
-  Looking at bitcracks CL code for a reference, there is just a CPU sided loop that calls the step kernel per iteration. But in Bitcrack OpenCL, there is almost no CPU overhead as we have in Metal 3 so we need to find a different solution.
+  Currently I have solved this issue by introducing a ring buffer which works OK with size 4 on M1 Pro. However the batches are processed even on M1 almost to fast which can be seen in the live stats (4-5 batches per second). 
+  Looking at BitCracks CL code for a reference, there is just a CPU sided loop that calls the step kernel per iteration. But in Bitcrack OpenCL, there is almost no CPU overhead as we have in Metal 3 so we need to find a different solution.
   Possible solutions:
   1. Swith to Metal 4 which supports more efficient command encoding (this is partly done in branch "metal4").
   2. Increase the ring buffer size even further.
@@ -108,7 +114,6 @@ If both parameters are choosen too low, then the number of batches per second wi
 - What should bring measurable performance improvement:
     - Replacing the current field_inv with Fermat's Little Theorem with an optimized addition chain as. e.g. done in bitcoin-core lib
 
-Before merging some steps into one command buffer I measured the following performance. So secp256k1
 
 ## Known Issues
 - Loading very large address sets (GBs) causes either the bloom filter to fail. Or what I rather suspect, is an issue with the DB query which might have concurrency issues.
@@ -159,8 +164,10 @@ The bloom filter ingestion only happens once during application start.
 ### Key Search Pipeline
 In general, the main bottleneck are the secp256k1 EC calculations which are very compute heavy compared to the rest of the pipeline steps.
 In order to make the secp256k1 EC calculations as efficient as possible we need to avoid calculating for each private key a point multiplication to get the corresponding private key.
-Instead we run several pub to private key calculation per thread. Each thead then calculates just for the very first private key a costy point pultiplication.
-For all consecutive private keys in the same thread we just do a point addition of G to the vreviously calculated point. This is about 30x faster.
+Instead we calculate only once in the beginning a set of base points (using costy point multiplication) and also a X and Y delta.
+For consecutive batches, we only need to do point additions and inversions which is significantly faster.
+We also calculate several private keys per thread.
+
 
 
 ### Endians
