@@ -25,14 +25,29 @@ class UI {
     var isFirstRun = true
     private let lock = NSLock()
     
-    private static let STATS_LINES = 7
+    private static let STATS_LINES = 8
     
     private let batchSize: Int
-       
+    
+    private let appStartTime = DispatchTime.now()
+    
     public init(batchSize: Int, startKeyHex: String){
         self.batchSize = batchSize
         self.startHexKey = startKeyHex
         self.startKey = BInt(startKeyHex, radix: 16)!
+    }
+    
+    func elapsedTimeString() -> String {
+        let elapsed = DispatchTime.now().uptimeNanoseconds - appStartTime.uptimeNanoseconds
+
+        let totalSeconds = elapsed / 1_000_000_000
+
+        let days = totalSeconds / 86_400
+        let hours = (totalSeconds % 86_400) / 3_600
+        let minutes = (totalSeconds % 3_600) / 60
+        let seconds = totalSeconds % 60
+
+        return String(format: "%02d:%02d:%02d:%02d", days, hours, minutes, seconds)
     }
     
     public func startLiveStats(){
@@ -127,6 +142,7 @@ class UI {
         }
        
         print("\(clearLine())    Current key :  \(currKey)")
+        print("\(clearLine())    Time elapsed:  \(elapsedTimeString())")
         print("\(clearLine())    Batch Count :  \(batchCount) (\(batchesPerS)/s)")
         print("\(clearLine())    Bloom Filter:  \(bloomFilterString)")
         print("\(clearLine())    Throughput  :\(statusStr)")
