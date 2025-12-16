@@ -50,7 +50,7 @@ public class BloomFilter {
             try self.insert(batch)
         }
         let endTime = CFAbsoluteTimeGetCurrent()
-        print("\n✅ Bloom filter initialized with \(cnt) addresses. Took \(Int(endTime-startTime)) seconds.")
+        print("   → Initialization with \(cnt) addresses. Took \(Int(endTime-startTime)) seconds.")
         
     }
     
