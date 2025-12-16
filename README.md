@@ -1,10 +1,9 @@
 # CryptKeySearch
 A tool for solving Bitcoin puzzles on OSX. The application is build and optimized to run on Apple Silicon GPUs for high performance.
 Other, similar tools like BitCrack stopped working for OSX users since Apple switched to it's new Silicon Chips.
-This application aims to be a better replacement for such legacy tools which have many limitations. 
-Bitcrack for example only supports legacy addresses and has no support for modern Bitcoin addresses like Taproot or SegWit.
+This application aims to be a better replacement that adds additional features like support for modern Bitcoin addresses like Taproot or SegWit.
 
-CryptKeySearch is build entirely from scratch for OSX and utilizes Apples Metal framework for high performance.
+CryptKeySearch is build entirely from scratch for OSX and utilizes Apples Metal framework for high performance. The project was heavily inspired from [BitCrack](https://github.com/brichard19/BitCrack) so kudos to brichard19.
 
 **NOTE!**
 - The application is still new and under heavy development.
@@ -18,13 +17,13 @@ CryptKeySearch is build entirely from scratch for OSX and utilizes Apples Metal 
 Many hours of work went and will go into this project. If you like it and want to support it, please do:
 - Give this Github repository a star. :star:
 - Support development by contributing to the code :computer:
-- Any, even small donation is welcome :money_with_wings: BTC: 39QmdfngkM3y4KJbwrgspNRQZvwow5BFpg
+- Donations are very welcome :money_with_wings: BTC: 39QmdfngkM3y4KJbwrgspNRQZvwow5BFpg
 
  
 
 ## Build
 
-Don't run directly from XCode for other reasons than development, since it is significantly slower there compared to creating a releasebuild and running it from terminal!
+Don't run directly from XCode for other reasons than development, since it is significantly slower there and the ui is broken compared to creating a releasebuild and running it from terminal!
 
 To build the application you need to install XCode from the App Store first.
 
@@ -52,15 +51,25 @@ keysearch load <path_to_your_file>
 
 Once the database was popuated we can start the key search from a given start address:
 ```
+# Run with given start key
 keysearch run -s 0000000000000000000000000000000000000000000000000000000000000001
+
+# Run with random start key within a given range
+keysearch run -s RANDOM:400000000000000000:7fffffffffffffffff 
+
+# For more options see:
+keysearch -h
+keysearch load -h
+keysearch run -h
 ```
 
 ## Fine Tuning
 Major parameters to fine tune for a specific GPU:
-- **Batch Size** The batch Size should be slowly increased until the live stats shown on the teminal start to update less frequently and then switched back one step. Also monitor the MKey/s while doing that. The batch size should be changed in Helpers.swift by only modifying the multiplicator `public static let PRIV_KEY_BATCH_SIZE = Helpers.getSharedDevice().maxThreadsPerThreadgroup.width * 128`
-- **Keys per Thread** This should be choosen as high as possible. Slowly increase until the app crashes because the GPU runs out of memory. Then go one step back.Unfortunately this cannot be made dynamically configurable. And also unfortunately, there are two places where this needs to be updated and maintaned at the same number. One is the MAX_KEYS_PER_THREAD constant in secp256k1.metal nd the other is KEYS_PER_THREAD in Properties.swift
+- **Grid Size** This is the number of threads being submitted per batch. If choosen too high, the application will use up too much memory and might slow down the entire OS.
+    
+- **Keys per Thread** This should be choosen as high as possible. However if choosen too high, there will be memory overruns and the application will still appear running (seamingly even very fast) but is actually broken and doesn't macth anymore. So always thes if the app still matches keys when experimenting with this settings.
 
-If the high GPU utilization of the keysearch slows down all the other apps of your computer, and you would like to work on the same computer, and you don't need high performance, then you could reduce the batch size step by step to a point where your computer becomes more responsive.
+If both parameters are choosen too low, then the number of batches per second will go up which is also a limiting factor (see performance optimization below). You might want to increase the ring buffer size as well.
 
 
 ## Roadmap
@@ -80,9 +89,20 @@ If the high GPU utilization of the keysearch slows down all the other apps of yo
     - Do the bloomfilter result check async (ring buffer?)
     - improve field_mul sinc it is the most used one
         
-## secp256k1 Performance Improvement Notes
+## Performance Improvement Notes
+- One problematic bottleneck is the commandBuffer work submission to the GPU and the fact, that we can control the GPU saturation only ba the following parameters:
+    - Properties.KEYS_PER_THREAD = 1024
+    - Properties.GRID_SIZE = 1024 x 32
+  On an M1 Pro GPU this is just OK but not perfect and on faster GPUs we will run into real issues here. If we increase these two parameters, then also the memory preasure will increase because of the X and Y point buffers which increase linearly.
+  So we could become memory bound if we increase this values to high. On the other hand we must increase this values to keep the GPU busy and to avoid CPU overhead, since the command encoding takes some CPU time.
+  Currently I have solved this issue by introducing a ring buffer which works OK with size 9 on M1 Pro. However the batches are processed even on M1 almost to fast which can be seen in the live stats (4-5 batches per second). 
+  Looking at bitcracks CL code for a reference, there is just a CPU sided loop that calls the step kernel per iteration. But in Bitcrack OpenCL, there is almost no CPU overhead as we have in Metal 3 so we need to find a different solution.
+  Possible solutions:
+  1. Swith to Metal 4 which supports more efficient command encoding (this is partly done in branch "metal4").
+  2. Increase the ring buffer size even further.
+    
 - Mixing Jacobian and Affine (“Mixed Addition”).
-  this is what other high performance OpenCL omplementations like hashcats do as well and I have adopted this in my implementation already.<br>
+  this is what other high performance OpenCL based secp256k1 implementations like hashcats do as well and I have adopted this in my implementation already.<br>
     _If both points are in Jacobian form, addition is slower because both have Z ≠ 1._<br>
    _But in most scalar multiplication algorithms (like the precomputed-table method we're using), one point is fixed — e.g. (i+1)*G — and can be stored in affine form (x, y) with Z = 1._
 
@@ -91,23 +111,15 @@ If the high GPU utilization of the keysearch slows down all the other apps of yo
 
 Before merging some steps into one command buffer I measured the following performance. So secp256k1
 
-Key gen     :    0.674 ms
-secp256k1   :  738.731 ms
-SHA256      :   81.175 ms
-RIPEMD160   :   20.001 ms
-Bloom Filter:   25.387 ms (includes 23 db queries)
-    
-Different settings:
-Key gen     :    2.536 ms
-secp256k1   : 1022.950 ms
-SHA256      :  136.692 ms
-RIPEMD160   :   31.352 ms
-Bloom Filter:   46.387 ms (39 db queries)
+## Known Issues
+- Loading very large address sets (GBs) causes either the bloom filter to fail. Or what I rather suspect, is an issue with the DB query which might have concurrency issues.
+  The problem shows itself, that each singe private key matches.
+  
+- After running the app for a few hours, the bloomfilter seems to crash. Theres suddenly the MAX amount of matches exceeded and the palse positive rate jumps and stays very high.
 
-Stats per shader can also be nicely profiled in XCode -> Run the app -> capture GPU workload -> Select Command Queue -> Capture
-<img src="https://raw.githubusercontent.com/eztam-/BitCrackOSX/refs/heads/main/img/shader_performance.png">  
+- Loading large address files takes very long, which could be improved.
 
-
+- support for uncompressed keys has been temporary removed  
 
 ## Architecture
 The GPU is used for:
@@ -151,21 +163,10 @@ In order to make the secp256k1 EC calculations as efficient as possible we need 
 Instead we run several pub to private key calculation per thread. Each thead then calculates just for the very first private key a costy point pultiplication.
 For all consecutive private keys in the same thread we just do a point addition of G to the vreviously calculated point. This is about 30x faster.
 
-|Pipeline Step|input batch size|output batch size|input|output|
-|-------------|----------------|-----------------|-----|------|
-|Key Generator|N|N|start key|Base keys with an increment of KEYS_PER_THREAD between each|
-|secp256k1|N|N\*KEYS_PER_THREAD|previous output|public keys|
-|SHA256|N\*KEYS_PER_THREAD|N\*KEYS_PER_THREAD|previous output|SHA256 hashed private keys|
-|RIPEMD160|N\*KEYS_PER_THREAD|N\*KEYS_PER_THREAD|previous output|RIPEMD160 hashed private keys (hash160)|
-|Bloom Filter|N\*KEYS_PER_THREAD|N\*KEYS_PER_THREAD|previous output|indexes of matched hash160 hashes|
-|Database|-|-|previous output|For all existing entries the list of corresponding addresses|
 
 ### Endians
 host-endian == little-endian on Apple Silicon GPUs/CPUs<br>
-For convenience I have kept all in- and outputs to GPU shaders in host-endian.<br>
-Input and output endiangs by shader:<br>
-host-endian --> SHA256    --> host-endian<br>
-host-endian --> RIPEMD160 --> host-endian<br>
+... TDB
 
 
 

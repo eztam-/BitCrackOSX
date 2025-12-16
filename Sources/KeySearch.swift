@@ -14,7 +14,6 @@ struct HitResult {
 
 class KeySearch {
 
-    let maxInFlight = 9  // triple buffering
     struct BatchSlot {
         let bloomFilterHitsBuffer: MTLBuffer
         let hitCountBuffer: MTLBuffer
@@ -32,7 +31,7 @@ class KeySearch {
     var startKey: BInt
     let keyIncrement: BInt
     let totalPoints: UInt32
-    
+    let maxInFlight: Int
     
     public init(bloomFilter: BloomFilter, database: DB, outputFile: String, startKeyHex: String) {
         self.bloomFilter = bloomFilter
@@ -44,7 +43,7 @@ class KeySearch {
         self.pubKeyBatchSize = Int(Properties.TOTAL_POINTS)
         self.keyIncrement = BInt(pubKeyBatchSize)
         self.ui = UI(batchSize: self.pubKeyBatchSize, startKeyHex: startKeyHex)
-        
+        self.maxInFlight = Properties.RING_BUFFER_SIZE
         
         // Initialize ring buffer with MTLBuffers
         slots = (0..<maxInFlight).map { _ in
