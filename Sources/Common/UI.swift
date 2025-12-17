@@ -141,8 +141,8 @@ class UI {
             currKey = underlineFirstDifferentCharacter(base: startHexKey.uppercased(), modified: currKey.uppercased())
         }
        
-        print("\(clearLine())    Current key :  \(currKey)")
-        print("\(clearLine())    Time elapsed:  \(elapsedTimeString())")
+        print("\(clearLine())    Current Key :  \(currKey)")
+        print("\(clearLine())    Elapsed Time:  \(elapsedTimeString())")
         print("\(clearLine())    Batch Count :  \(batchCount) (\(batchesPerS)/s)")
         print("\(clearLine())    Bloom Filter:  \(bloomFilterString)")
         print("\(clearLine())    Throughput  :\(statusStr)")
