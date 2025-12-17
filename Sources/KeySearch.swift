@@ -5,7 +5,10 @@ import simd
 
 // TODO: FIXME: If the key range is smaller than the batch size it doesnt work
 
-let BLOOM_MAX_HITS = 100_000   // Maximum number of bloom filter hits supported per batch.
+// This needs to be exactly aligned with the corresponding value on host side!
+// Maximum number of bloom filter hits supported per batch. To save memory we cannot make this the full size of totalPoints
+let BLOOM_MAX_HITS = 100_000
+
 
 struct HitResult {
     var index: UInt32
@@ -105,9 +108,9 @@ class KeySearch {
                 
                 let falsePositiveCnt = self!.checkBloomFilterResults(bloomFilterHitsBuffer: slot.bloomFilterHitsBuffer, hitCountBuffer: slot.hitCountBuffer, batchCount: batchCount )
       
-                //if falsePositiveCnt > 0 {
-                //    self!.ui.printMessage("\(falsePositiveCnt)")
-                //}
+               // if falsePositiveCnt > 15 {
+               //     self!.ui.printMessage("TMP DEBUG / batchCnt: \(batchCount) slotIndex: \(slotIndex) FP: \(falsePositiveCnt) ")
+               // }
                 self!.ui.bfFalsePositiveCnt.append(falsePositiveCnt)
                 
                 // RESET BEFORE EACH DISPATCH
@@ -146,7 +149,7 @@ class KeySearch {
         // Get bloom filter hit count
         let hitCount = hitCountBuffer.contents().load(as: UInt32.self)
         if hitCount > BLOOM_MAX_HITS {
-            ui.printMessage("WARNING: Bloom filter hit count \(hitCount) exceeds maximum \(BLOOM_MAX_HITS)! Uptime: \(ui.elapsedTimeString())")
+            ui.printMessage("WARNING: Bloom filter hit count \(hitCount) exceeds maximum \(BLOOM_MAX_HITS)! Uptime: \(ui.elapsedTimeString()) batchCnt: \(batchCount)" )
         }
         let finalCount = Int(min(hitCount, UInt32(BLOOM_MAX_HITS)))
         

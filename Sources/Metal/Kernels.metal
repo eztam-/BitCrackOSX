@@ -16,7 +16,7 @@ struct HitResult
     uint digest[5];  // hash160
 };
 
-
+constant uint BLOOM_MAX_HITS = 100000; // This needs to be exactly aligned with the corresponding value on host side
 
 //Adds ΔG to all points each iteration.
 //
@@ -68,6 +68,7 @@ kernel void step_points(
 
     uint dim = gridSize;
 
+    uint max = 100000;
     // --------------------------------------------------------------------
     // LOCAL POINTERS for strided traversal
     // --------------------------------------------------------------------
@@ -117,6 +118,10 @@ kernel void step_points(
             ripemd160FinalRound(preFinal, digestFinal);
 
             uint slot = atomic_fetch_add_explicit(resultCount, 1u, memory_order_relaxed);
+            
+            // BLOOM_MAX_HITS should usually never be exceeded, but if, then we would have a buffer overflow here
+            // Clamp index so it never exceeds maxResults-1.
+            slot = min(slot, BLOOM_MAX_HITS);
             
             HitResult r;
             r.index = iForward;
