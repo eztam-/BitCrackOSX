@@ -146,6 +146,7 @@ public class BloomFilter {
         encoder.dispatchThreadgroups(threadgroupsPerGrid, threadsPerThreadgroup: threadsPerThreadgroup)
         encoder.endEncoding()
         cmdBuffer.commit()
+        cmdBuffer.waitUntilCompleted() // We need to wait here otherwise the bf initialization will overlapp the key search which causes unpredictable side effects because insert+query isn't thread safe
     }
     
     
