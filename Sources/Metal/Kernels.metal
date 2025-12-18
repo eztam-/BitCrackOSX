@@ -120,7 +120,7 @@ kernel void step_points(
             
             // BLOOM_MAX_HITS should usually never be exceeded, but if, then we would have a buffer overflow here
             // Clamp index so it never exceeds maxResults-1.
-            slot = min(slot, BLOOM_MAX_HITS);
+            slot = min(slot, BLOOM_MAX_HITS - 1);
             
             HitResult r;
             r.index = iForward;
