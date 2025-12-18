@@ -44,7 +44,7 @@ public class KeySearchMetalHost {
         let gridSizeBuffer: MTLBuffer
     }
     
-    public init(on device: MTLDevice, compressed: Bool, startKeyHex: String, totalPoints: UInt32, gridSize: Int) throws {
+    public init(on device: MTLDevice, compressed: Bool, startKeyHex: String, totalPoints: Int, gridSize: Int) throws {
         self.device = device
         self.compressed = compressed
         self.publicKeyLength = compressed ? 33 : 65
@@ -62,13 +62,13 @@ public class KeySearchMetalHost {
     }
     
     
-    private static func makePointSet(totalPoints: UInt32, gridSize: Int, device: MTLDevice) -> PointSet {
+    private static func makePointSet(totalPoints: Int, gridSize: Int, device: MTLDevice) -> PointSet {
         // x / y arrays: one UInt256 per point
-        let xBuffer = device.makeBuffer(length: Int(totalPoints) * MemoryLayout<UInt256>.stride, options: .storageModePrivate)!
-        let yBuffer = device.makeBuffer(length: Int(totalPoints) * MemoryLayout<UInt256>.stride, options: .storageModePrivate)!
+        let xBuffer = device.makeBuffer(length: totalPoints * MemoryLayout<UInt256>.stride, options: .storageModePrivate)!
+        let yBuffer = device.makeBuffer(length: totalPoints * MemoryLayout<UInt256>.stride, options: .storageModePrivate)!
         
         // chain size: ceil(totalPoints / gridSize) * gridSize
-        let batches = (Int(totalPoints) + gridSize - 1) / gridSize
+        let batches = (totalPoints + gridSize - 1) / gridSize
         let chainCount = batches * gridSize
         let chainBuffer = device.makeBuffer(length: chainCount * MemoryLayout<UInt256>.stride, options: .storageModeShared)!
         
@@ -76,7 +76,7 @@ public class KeySearchMetalHost {
         let deltaGXBuffer = device.makeBuffer(length: MemoryLayout<UInt256>.stride, options: .storageModeShared)!
         let deltaGYBuffer = device.makeBuffer(length: MemoryLayout<UInt256>.stride, options: .storageModeShared)!
         
-        var totalPointsL = totalPoints
+        var totalPointsL = UInt32(totalPoints)
         let totalPointsBuffer = device.makeBuffer(length: MemoryLayout<UInt32>.size, options: .storageModeShared)!
         memcpy(totalPointsBuffer.contents(), &totalPointsL, MemoryLayout<UInt32>.size)
         

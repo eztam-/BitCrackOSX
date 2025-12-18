@@ -28,12 +28,11 @@ class KeySearch {
     let db: DB
     let outputFile: String
     let device = Helpers.getSharedDevice()
-    let pubKeyBatchSize: Int //=  Helpers.PUB_KEY_BATCH_SIZE // Number of public keys generated per batch
     let ui: UI
     let startKeyHex: String
     var startKey: BInt
     let keyIncrement: BInt
-    let totalPoints: UInt32
+    let totalPoints: Int = Properties.TOTAL_POINTS
     let maxInFlight: Int
     
     public init(bloomFilter: BloomFilter, database: DB, outputFile: String, startKeyHex: String) {
@@ -42,10 +41,9 @@ class KeySearch {
         self.outputFile = outputFile
         self.startKeyHex = startKeyHex
         self.startKey = BInt(startKeyHex, radix: 16)!
-        self.totalPoints = UInt32(Properties.TOTAL_POINTS)
-        self.pubKeyBatchSize = Int(Properties.TOTAL_POINTS)
-        self.keyIncrement = BInt(pubKeyBatchSize)
-        self.ui = UI(batchSize: self.pubKeyBatchSize, startKeyHex: startKeyHex)
+
+        self.keyIncrement = BInt(totalPoints)
+        self.ui = UI(batchSize: totalPoints, startKeyHex: startKeyHex)
         self.maxInFlight = Properties.RING_BUFFER_SIZE
         
         // Initialize ring buffer with MTLBuffers
@@ -229,10 +227,10 @@ class KeySearch {
     
     func dumpPoint(_ index: Int, pointSet: KeySearchMetalHost.PointSet) {
         let xPtr = pointSet.xBuffer.contents()
-            .bindMemory(to: KeySearchMetalHost.UInt256.self, capacity: Int(totalPoints))
+            .bindMemory(to: KeySearchMetalHost.UInt256.self, capacity: totalPoints)
         
         let yPtr = pointSet.yBuffer.contents()
-            .bindMemory(to: KeySearchMetalHost.UInt256.self, capacity: Int(totalPoints))
+            .bindMemory(to: KeySearchMetalHost.UInt256.self, capacity: totalPoints)
         
         let x = xPtr[index]
         let y = yPtr[index]
