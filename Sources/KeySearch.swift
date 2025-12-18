@@ -72,7 +72,7 @@ class KeySearch {
     func run() throws {
         
         let commandQueue = device.makeCommandQueue()!
-        let keySearchMetal = try KeySearchMetalHost(on:  device, compressed: Properties.compressedKeySearch, totalPoints: totalPoints, gridSize: Properties.GRID_SIZE)
+        let keySearchMetal = try KeySearchMetal(on:  device, compressed: Properties.compressedKeySearch, totalPoints: totalPoints, gridSize: Properties.GRID_SIZE)
         
         ui.startLiveStats()
         
@@ -223,12 +223,12 @@ class KeySearch {
     
     
     
-    func dumpPoint(_ index: Int, pointSet: KeySearchMetalHost.PointSet) {
+    func dumpPoint(_ index: Int, pointSet: KeySearchMetal.PointSet) {
         let xPtr = pointSet.xBuffer.contents()
-            .bindMemory(to: KeySearchMetalHost.UInt256.self, capacity: totalPoints)
+            .bindMemory(to: KeySearchMetal.UInt256.self, capacity: totalPoints)
         
         let yPtr = pointSet.yBuffer.contents()
-            .bindMemory(to: KeySearchMetalHost.UInt256.self, capacity: totalPoints)
+            .bindMemory(to: KeySearchMetal.UInt256.self, capacity: totalPoints)
         
         let x = xPtr[index]
         let y = yPtr[index]
@@ -240,13 +240,13 @@ class KeySearch {
     
     
     
-    func uint256ToHex(_ v:  KeySearchMetalHost.UInt256) -> String {
+    func uint256ToHex(_ v:  KeySearchMetal.UInt256) -> String {
         let arr = [v.limbs.0, v.limbs.1, v.limbs.2, v.limbs.3,
                    v.limbs.4, v.limbs.5, v.limbs.6, v.limbs.7]
         return arr.reversed().map { String(format: "%08x", $0) }.joined()
     }
     
-    func limbsToHex(_ v: KeySearchMetalHost.UInt256) -> String {
+    func limbsToHex(_ v: KeySearchMetal.UInt256) -> String {
         let limbs = [v.limbs.0, v.limbs.1, v.limbs.2, v.limbs.3,
                      v.limbs.4, v.limbs.5, v.limbs.6, v.limbs.7]
         

@@ -1,7 +1,7 @@
 import Metal
 import Foundation
 
-public class KeySearchMetalHost {
+public class KeySearchMetal {
     
     
     // Metal layout mirrors (match your Metal structs exactly)
@@ -57,7 +57,7 @@ public class KeySearchMetalHost {
         self.threadsPerThreadgroupInit = MTLSize(width: threadsPerTgInit, height: 1, depth: 1)
         self.threadsPerGrid = MTLSize(width: gridSize, height: 1, depth: 1)
         
-        self.pointSet = KeySearchMetalHost.makePointSet(totalPoints: totalPoints, gridSize: gridSize, device: device)
+        self.pointSet = KeySearchMetal.makePointSet(totalPoints: totalPoints, gridSize: gridSize, device: device)
     }
     
     
