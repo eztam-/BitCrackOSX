@@ -68,7 +68,6 @@ kernel void step_points(
 
     uint dim = gridSize;
 
-    uint max = 100000;
     // --------------------------------------------------------------------
     // LOCAL POINTERS for strided traversal
     // --------------------------------------------------------------------
@@ -238,7 +237,6 @@ kernel void init_points(
     device   uint256   *yPtr              [[ buffer(3) ]],
     device   uint256&    deltaG_x          [[buffer(4)]],
     device   uint256&    deltaG_y          [[buffer(5)]],
-    device   uint      *last_private_key  [[ buffer(6) ]],  // optional: 8 limbs out
     uint                  tid             [[ thread_position_in_grid ]]
 )
 {
@@ -276,11 +274,11 @@ kernel void init_points(
         deltaG_y = deltaG.y;
 
         // lastPriv = startKey + totalPoints
-        uint256 lastPriv = field_add(startKey, deltaK);
-        #pragma unroll
-        for (int i = 0; i < 8; ++i) {
-            last_private_key[i] = lastPriv.limbs[i];
-        }
+        // uint256 lastPriv = field_add(startKey, deltaK);
+        // #pragma unroll
+        // for (int i = 0; i < 8; ++i) {
+        //    last_private_key[i] = lastPriv.limbs[i];
+        // }
     }
 }
 

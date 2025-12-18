@@ -117,7 +117,7 @@ class UI {
         
         let itemsPerSecond = Double(batchSize) / durationSeconds
         let mHashesPerSec = itemsPerSecond / 1_000_000.0
-        var statusStr = String(format: "  %.1f MKey/s ", mHashesPerSec)
+        let statusStr = String(format: "  %.1f MKey/s ", mHashesPerSec)
         
         
         let batchesPerS = batchCount - lastPrintBatchCount

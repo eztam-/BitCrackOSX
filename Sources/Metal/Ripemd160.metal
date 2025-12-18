@@ -265,7 +265,7 @@ inline void undoRMD160FinalRound(const thread uint hFinal[5],
 // Variant that starts from 20-byte hash160 big-endian
 // (This matches the bloom_insert input format.)
 // -------------------------------------------------------------
-inline void undoRMD160FinalRoundFromBytes(const thread const uchar hash160[20],
+inline void undoRMD160FinalRoundFromBytes(thread const uchar hash160[20],
                                           thread uint hOut[5])
 {
     uint hFinal[5];

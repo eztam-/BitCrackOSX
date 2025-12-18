@@ -74,13 +74,13 @@ class KeySearch {
     func run() throws {
 
         let commandQueue = device.makeCommandQueue()!
-        let keySearchMetal = try KeySearchMetalHost(on:  device, compressed: Properties.compressedKeySearch, startKeyHex: startKeyHex)
+        let keySearchMetal = try KeySearchMetalHost(on:  device, compressed: Properties.compressedKeySearch, startKeyHex: startKeyHex, totalPoints: totalPoints, gridSize: Properties.GRID_SIZE)
         
         // 1. Allocate point set
-        let pointSet = keySearchMetal.makePointSet(totalPoints: totalPoints, gridSize: Properties.GRID_SIZE)
+     
         let startKeyLE =  Helpers.hex256ToUInt32Limbs(startKeyHex)
         ui.startLiveStats()
-        try keySearchMetal.runInitKernel(pointSet: pointSet, startKeyLE: startKeyLE, commandBuffer: commandQueue.makeCommandBuffer()!)
+        try keySearchMetal.runInitKernel(startKeyLE: startKeyLE, commandBuffer: commandQueue.makeCommandBuffer()!)
         
         //dumpPoint(0, pointSet: pointSet)
 
@@ -95,10 +95,10 @@ class KeySearch {
             
             let commandBuffer = commandQueue.makeCommandBuffer()!
 
-            try keySearchMetal.appendStepKernel(pointSet: pointSet,
+            try keySearchMetal.appendStepKernel(
                                            commandBuffer: commandBuffer,
                                            bloomFilter: bloomFilter,
-                                           bloomFilterHitsBuffer: slot.bloomFilterHitsBuffer,
+                                           hitsBuffer: slot.bloomFilterHitsBuffer,
                                            hitCountBuffer: slot.hitCountBuffer)
 
             // --- Async CPU callback when GPU finishes this batch ---
