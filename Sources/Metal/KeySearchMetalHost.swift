@@ -28,7 +28,6 @@ public class KeySearchMetalHost {
     
     private let compressed: Bool
     private let publicKeyLength: Int
-    private let startKeyHex: String
     
     private let pointSet: PointSet
     
@@ -44,11 +43,11 @@ public class KeySearchMetalHost {
         let gridSizeBuffer: MTLBuffer
     }
     
-    public init(on device: MTLDevice, compressed: Bool, startKeyHex: String, totalPoints: Int, gridSize: Int) throws {
+    public init(on device: MTLDevice, compressed: Bool, totalPoints: Int, gridSize: Int) throws {
         self.device = device
         self.compressed = compressed
         self.publicKeyLength = compressed ? 33 : 65
-        self.startKeyHex = startKeyHex
+
         self.initPipeline = try Helpers.buildPipelineState(kernelFunctionName: "init_points")
         self.stepPipeline = try Helpers.buildPipelineState(kernelFunctionName: "step_points")
         

@@ -72,16 +72,14 @@ class KeySearch {
     func run() throws {
         
         let commandQueue = device.makeCommandQueue()!
-        let keySearchMetal = try KeySearchMetalHost(on:  device, compressed: Properties.compressedKeySearch, startKeyHex: startKeyHex, totalPoints: totalPoints, gridSize: Properties.GRID_SIZE)
+        let keySearchMetal = try KeySearchMetalHost(on:  device, compressed: Properties.compressedKeySearch, totalPoints: totalPoints, gridSize: Properties.GRID_SIZE)
         
-        // 1. Allocate point set
+        ui.startLiveStats()
         
         let startKeyLE =  Helpers.hex256ToUInt32Limbs(startKeyHex)
-        ui.startLiveStats()
         try keySearchMetal.runInitKernel(startKeyLE: startKeyLE, commandBuffer: commandQueue.makeCommandBuffer()!)
         
         //dumpPoint(0, pointSet: pointSet)
-        
         //var appStartNS = DispatchTime.now().uptimeNanoseconds
         
         for batchCount in 1..<Int.max{ // TODO
@@ -237,22 +235,12 @@ class KeySearch {
         
         //Helpers.printLimbs(limbs: [x.limbs.0,x.limbs.1,x.limbs.2,x.limbs.3,x.limbs.4,x.limbs.5,x.limbs.6,x.limbs.7] )
         
-        print("Public Key Point[\(index)] X=\(uint256ToHex2(x)) Y=\(uint256ToHex2(y))")
+        print("Public Key Point[\(index)] X=\(uint256ToHex(x)) Y=\(uint256ToHex(y))")
     }
     
     
     
-    func uint256ToHex(leLimbs: [UInt32]) -> String {
-        precondition(leLimbs.count == 8)
-        var s = ""
-        for i in (0..<8).reversed() {           // MS limb first
-            s += String(format: "%08x", leLimbs[i])
-        }
-        return s
-    }
-    
-    
-    func uint256ToHex2(_ v:  KeySearchMetalHost.UInt256) -> String {
+    func uint256ToHex(_ v:  KeySearchMetalHost.UInt256) -> String {
         let arr = [v.limbs.0, v.limbs.1, v.limbs.2, v.limbs.3,
                    v.limbs.4, v.limbs.5, v.limbs.6, v.limbs.7]
         return arr.reversed().map { String(format: "%08x", $0) }.joined()
