@@ -125,29 +125,25 @@ public class KeySearchMetal {
     
     
     /// Perform one  step: Q[i] += ΔG for all points.
-    func appendStepKernel(commandBuffer: MTLCommandBuffer, bloomFilter: BloomFilter, hitsBuffer: MTLBuffer, hitCountBuffer: MTLBuffer) throws {
-        let encoder = commandBuffer.makeComputeCommandEncoder()!
-        
-        encoder.setComputePipelineState(stepPipeline)
-        
-        encoder.setBuffer(pointSet.totalPointsBuffer, offset: 0, index: 0)
-        encoder.setBuffer(pointSet.gridSizeBuffer, offset: 0, index: 1)
-        encoder.setBuffer(pointSet.chainBuffer, offset: 0, index: 2)
-        encoder.setBuffer(pointSet.xBuffer, offset: 0, index: 3)
-        encoder.setBuffer(pointSet.yBuffer, offset: 0, index: 4)
-        encoder.setBuffer(pointSet.deltaGXBuffer, offset: 0, index: 5)
-        encoder.setBuffer(pointSet.deltaGYBuffer, offset: 0, index: 6)
-        encoder.setBuffer(bloomFilter.getBitsBuffer(),  offset: 0, index: 7)
-        encoder.setBuffer(bloomFilter.getMbitsBuffer(), offset: 0, index: 8)
-        encoder.setBuffer(hitCountBuffer, offset: 0, index: 9)
-        encoder.setBuffer(hitsBuffer,    offset: 0, index: 10)
+    func appendStepKernel(commandEncoder: MTLComputeCommandEncoder, bloomFilter: BloomFilter, hitsBuffer: MTLBuffer, hitCountBuffer: MTLBuffer) throws {
+       
+        commandEncoder.setComputePipelineState(stepPipeline)
+        commandEncoder.setBuffer(pointSet.totalPointsBuffer, offset: 0, index: 0)
+        commandEncoder.setBuffer(pointSet.gridSizeBuffer, offset: 0, index: 1)
+        commandEncoder.setBuffer(pointSet.chainBuffer, offset: 0, index: 2)
+        commandEncoder.setBuffer(pointSet.xBuffer, offset: 0, index: 3)
+        commandEncoder.setBuffer(pointSet.yBuffer, offset: 0, index: 4)
+        commandEncoder.setBuffer(pointSet.deltaGXBuffer, offset: 0, index: 5)
+        commandEncoder.setBuffer(pointSet.deltaGYBuffer, offset: 0, index: 6)
+        commandEncoder.setBuffer(bloomFilter.getBitsBuffer(),  offset: 0, index: 7)
+        commandEncoder.setBuffer(bloomFilter.getMbitsBuffer(), offset: 0, index: 8)
+        commandEncoder.setBuffer(hitCountBuffer, offset: 0, index: 9)
+        commandEncoder.setBuffer(hitsBuffer,    offset: 0, index: 10)
         //var compression: UInt32 = Properties.compressedKeySearch ? 1 : 0
-        //encoder.setBytes(&compression, length: MemoryLayout<UInt32>.stride, index: 11)
+        //commandEncoder.setBytes(&compression, length: MemoryLayout<UInt32>.stride, index: 11)
         
         // Dispatch exactly gridSize threads (as the kernel expects)
-        encoder.dispatchThreads(self.threadsPerGrid, threadsPerThreadgroup: self.threadsPerThreadgroupStep)
-        encoder.endEncoding()
-        
+        commandEncoder.dispatchThreads(self.threadsPerGrid, threadsPerThreadgroup: self.threadsPerThreadgroupStep)
     }
     
 }

@@ -103,8 +103,10 @@ Key parameters to adjust for optimal performance on a specific GPU:
   Currently I have solved this issue by introducing a ring buffer which works OK with size 4 on M1 Pro. However the batches are processed even on M1 almost to fast which can be seen in the live stats (4-5 batches per second). 
   Looking at BitCracks CL code for a reference, there is just a CPU sided loop that calls the step kernel per iteration. But in Bitcrack OpenCL, there is almost no CPU overhead as we have in Metal 3 so we need to find a different solution.
   Possible solutions:
-  1. Swith to Metal 4 which supports more efficient command encoding (this is partly done in branch "metal4").
-  2. Increase the ring buffer size even further.
+  1. Increase the ring buffer size even further.
+  2. Encode several steps per CommandEncoder (this is cenceptually already atted but uncommented in the code)
+  3. Swith to Metal 4 which supports more efficient command encoding (this is partly done in branch "metal4").
+
     
 - Mixing Jacobian and Affine (“Mixed Addition”).
   this is what other high performance OpenCL based secp256k1 implementations like hashcats do as well and I have adopted this in my implementation already.<br>

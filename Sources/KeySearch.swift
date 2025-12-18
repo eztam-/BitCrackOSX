@@ -82,7 +82,8 @@ class KeySearch {
         //dumpPoint(0, pointSet: pointSet)
         //var appStartNS = DispatchTime.now().uptimeNanoseconds
         
-        for batchCount in 1..<Int.max{ // TODO
+        var batchCount = 1  // TODO: Use larger type to avoid overrun
+        while true {
             
             let batchStartNS = DispatchTime.now().uptimeNanoseconds
             let slotIndex = batchCount % maxInFlight
@@ -90,55 +91,55 @@ class KeySearch {
             slot.semaphore.wait()
             
             let commandBuffer = commandQueue.makeCommandBuffer()!
+            let commandEncoder = commandBuffer.makeComputeCommandEncoder()!
             
-            try keySearchMetal.appendStepKernel(
-                commandBuffer: commandBuffer,
-                bloomFilter: bloomFilter,
-                hitsBuffer: slot.bloomFilterHitsBuffer,
-                hitCountBuffer: slot.hitCountBuffer)
-            
-            // --- Async CPU callback when GPU finishes this batch ---
-            commandBuffer.addCompletedHandler { [weak self] _ in
-                // Theres no guarantee that CompletedHandlers are executed in the same order of submission (despite the command buffers are always executed in sequence)
-                // So we cannot increment the base key from here
+            // To reduce CPU overhead for faster GPUs (not a problem on M1 Pro) we could submit several steps per commandEncoder.
+            // This should work fine, only the MKey/s ui value would need to be calculated differnetly
+            //let STEPS_PER_BATCH = 4
+            //for _ in 0..<STEPS_PER_BATCH {
+                try keySearchMetal.appendStepKernel(
+                    commandEncoder: commandEncoder,
+                    bloomFilter: bloomFilter,
+                    hitsBuffer: slot.bloomFilterHitsBuffer,
+                    hitCountBuffer: slot.hitCountBuffer)
                 
-                let falsePositiveCnt = self!.checkBloomFilterResults(bloomFilterHitsBuffer: slot.bloomFilterHitsBuffer, hitCountBuffer: slot.hitCountBuffer, batchCount: batchCount )
+                addCompletionHandler(slot, batchCount, commandBuffer: commandBuffer)
+               
                 
-                // if falsePositiveCnt > 15 {
-                //     self!.ui.printMessage("TMP DEBUG / batchCnt: \(batchCount) slotIndex: \(slotIndex) FP: \(falsePositiveCnt) ")
-                // }
-                self!.ui.bfFalsePositiveCnt.append(falsePositiveCnt)
-                
-                // RESET BEFORE EACH DISPATCH
-                slot.hitCountBuffer.contents().storeBytes(of: 0, as: UInt32.self)
-                slot.semaphore.signal()
-            }
+            // batchCount += 1
+            //}
+            commandEncoder.endEncoding()
             commandBuffer.commit()
-            
+     
             let batchEndNS = DispatchTime.now().uptimeNanoseconds
             
-            // DON'T REMOVE
-            // This prints a smoother longer term MKeys/s figure, for porformance testing. Let it run for 30-60! The normal measure is too jumpy and volatile
-            /*
-             if batchCount > maxInFlight && batchCount % maxInFlight == 0 {
-             let durationSeconds = Double(batchEndNS - appStartNS) / 1_000_000_000.0
-             let itemsPerSecond = Double(pubKeyBatchSize * (batchCount - maxInFlight)) / durationSeconds
-             let mHashesPerSec = itemsPerSecond / 1_000_000.0
-             ui.printMessage("\(mHashesPerSec) M hashes/s")
-             } else if batchCount <= maxInFlight {
-             appStartNS = DispatchTime.now().uptimeNanoseconds
-             }
-             */
-            
-            // TODO make this async
             ui.updateStats(
                 totalStartTime: batchStartNS,
                 totalEndTime: batchEndNS,
                 batchCount: batchCount
             )
+            batchCount += 1
         }
     }
     
+    fileprivate func addCompletionHandler(_ slot: KeySearch.BatchSlot, _ batchCount: Int, commandBuffer: MTLCommandBuffer) {
+        // --- Async CPU callback when GPU finishes this batch ---
+        commandBuffer.addCompletedHandler { [weak self] _ in
+            // Theres no guarantee that CompletedHandlers are executed in the same order of submission (despite the command buffers are always executed in sequence)
+            // So we cannot increment the base key from here
+            
+            let falsePositiveCnt = self!.checkBloomFilterResults(bloomFilterHitsBuffer: slot.bloomFilterHitsBuffer, hitCountBuffer: slot.hitCountBuffer, batchCount: batchCount )
+            
+            //if falsePositiveCnt > 40 {
+            //     self!.ui.printMessage("TMP DEBUG / batchCnt: \(batchCount) slotIndex: \(slotIndex) FP: \(falsePositiveCnt) ")
+            // }
+            self!.ui.bfFalsePositiveCnt.append(falsePositiveCnt)
+            
+            // RESET BEFORE EACH DISPATCH
+            slot.hitCountBuffer.contents().storeBytes(of: 0, as: UInt32.self)
+            slot.semaphore.signal()
+        }
+    }
     
     func checkBloomFilterResults(bloomFilterHitsBuffer: MTLBuffer, hitCountBuffer: MTLBuffer, batchCount: Int) -> Int {
         
