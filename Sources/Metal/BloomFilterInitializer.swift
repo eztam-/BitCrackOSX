@@ -12,8 +12,8 @@ public class BloomFilter {
     private let bitCount: Int
     
     private let insertPipeline: MTLComputePipelineState
-    private let insert_threadsPerThreadgroup: MTLSize
-    private let insert_threadgroupsPerGrid: MTLSize
+    private let threadsPerThreadgroup: MTLSize
+    private let threadgroupsPerGrid: MTLSize
     private var insertItemsBuffer: MTLBuffer
     private var countBuffer: MTLBuffer
     private var mBitsBuffer: MTLBuffer
@@ -98,8 +98,8 @@ public class BloomFilter {
         // ------------------------------
         self.insertPipeline = try Helpers.buildPipelineState(kernelFunctionName: "bloom_insert")
         
-        (self.insert_threadsPerThreadgroup,
-         self.insert_threadgroupsPerGrid) = try Helpers.getThreadConfig(
+        (self.threadsPerThreadgroup,
+         self.threadgroupsPerGrid) = try Helpers.getThreadConfig(
             pipelineState: insertPipeline,
             batchSize: batchSize,
             threadsPerThreadgroupMultiplier: 16
@@ -143,7 +143,7 @@ public class BloomFilter {
         // mask
         encoder.setBuffer(mBitsBuffer, offset: 0, index: 3)
         
-        encoder.dispatchThreadgroups(insert_threadgroupsPerGrid, threadsPerThreadgroup: insert_threadsPerThreadgroup)
+        encoder.dispatchThreadgroups(threadgroupsPerGrid, threadsPerThreadgroup: threadsPerThreadgroup)
         encoder.endEncoding()
         cmdBuffer.commit()
     }
