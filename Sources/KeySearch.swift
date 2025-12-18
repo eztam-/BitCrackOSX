@@ -97,6 +97,8 @@ class KeySearch {
             // This should work fine, only the MKey/s ui value would need to be calculated differnetly
             //let STEPS_PER_BATCH = 4
             //for _ in 0..<STEPS_PER_BATCH {
+                //let slotIndex = batchCount % maxInFlight
+                //let slot = slots[slotIndex]
                 try keySearchMetal.appendStepKernel(
                     commandEncoder: commandEncoder,
                     bloomFilter: bloomFilter,
@@ -145,10 +147,10 @@ class KeySearch {
         
         // Get bloom filter hit count
         let hitCount = hitCountBuffer.contents().load(as: UInt32.self)
-        if hitCount > BLOOM_MAX_HITS {
+        if hitCount > BLOOM_MAX_HITS - 1 {
             ui.printMessage("WARNING: Bloom filter hit count \(hitCount) exceeds maximum \(BLOOM_MAX_HITS)! Uptime: \(ui.elapsedTimeString()) batchCnt: \(batchCount)" )
         }
-        let finalCount = Int(min(hitCount, UInt32(BLOOM_MAX_HITS)))
+        let finalCount = Int(min(hitCount, UInt32(BLOOM_MAX_HITS - 1)))
         
         
         let rawPtr = bloomFilterHitsBuffer.contents()
