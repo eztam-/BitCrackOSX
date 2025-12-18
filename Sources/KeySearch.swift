@@ -16,7 +16,7 @@ struct HitResult {
 }
 
 class KeySearch {
-
+    
     struct BatchSlot {
         let bloomFilterHitsBuffer: MTLBuffer
         let hitCountBuffer: MTLBuffer
@@ -67,25 +67,25 @@ class KeySearch {
                 hitCountBuffer: resultCountBuffer
             )
         }
-       
+        
         
     }
     
     func run() throws {
-
+        
         let commandQueue = device.makeCommandQueue()!
         let keySearchMetal = try KeySearchMetalHost(on:  device, compressed: Properties.compressedKeySearch, startKeyHex: startKeyHex, totalPoints: totalPoints, gridSize: Properties.GRID_SIZE)
         
         // 1. Allocate point set
-     
+        
         let startKeyLE =  Helpers.hex256ToUInt32Limbs(startKeyHex)
         ui.startLiveStats()
         try keySearchMetal.runInitKernel(startKeyLE: startKeyLE, commandBuffer: commandQueue.makeCommandBuffer()!)
         
         //dumpPoint(0, pointSet: pointSet)
-
+        
         //var appStartNS = DispatchTime.now().uptimeNanoseconds
-
+        
         for batchCount in 1..<Int.max{ // TODO
             
             let batchStartNS = DispatchTime.now().uptimeNanoseconds
@@ -94,23 +94,23 @@ class KeySearch {
             slot.semaphore.wait()
             
             let commandBuffer = commandQueue.makeCommandBuffer()!
-
+            
             try keySearchMetal.appendStepKernel(
-                                           commandBuffer: commandBuffer,
-                                           bloomFilter: bloomFilter,
-                                           hitsBuffer: slot.bloomFilterHitsBuffer,
-                                           hitCountBuffer: slot.hitCountBuffer)
-
+                commandBuffer: commandBuffer,
+                bloomFilter: bloomFilter,
+                hitsBuffer: slot.bloomFilterHitsBuffer,
+                hitCountBuffer: slot.hitCountBuffer)
+            
             // --- Async CPU callback when GPU finishes this batch ---
             commandBuffer.addCompletedHandler { [weak self] _ in
                 // Theres no guarantee that CompletedHandlers are executed in the same order of submission (despite the command buffers are always executed in sequence)
                 // So we cannot increment the base key from here
                 
                 let falsePositiveCnt = self!.checkBloomFilterResults(bloomFilterHitsBuffer: slot.bloomFilterHitsBuffer, hitCountBuffer: slot.hitCountBuffer, batchCount: batchCount )
-      
-               // if falsePositiveCnt > 15 {
-               //     self!.ui.printMessage("TMP DEBUG / batchCnt: \(batchCount) slotIndex: \(slotIndex) FP: \(falsePositiveCnt) ")
-               // }
+                
+                // if falsePositiveCnt > 15 {
+                //     self!.ui.printMessage("TMP DEBUG / batchCnt: \(batchCount) slotIndex: \(slotIndex) FP: \(falsePositiveCnt) ")
+                // }
                 self!.ui.bfFalsePositiveCnt.append(falsePositiveCnt)
                 
                 // RESET BEFORE EACH DISPATCH
@@ -118,28 +118,28 @@ class KeySearch {
                 slot.semaphore.signal()
             }
             commandBuffer.commit()
-
+            
             let batchEndNS = DispatchTime.now().uptimeNanoseconds
-              
+            
             // DON'T REMOVE
             // This prints a smoother longer term MKeys/s figure, for porformance testing. Let it run for 30-60! The normal measure is too jumpy and volatile
             /*
-            if batchCount > maxInFlight && batchCount % maxInFlight == 0 {
-                let durationSeconds = Double(batchEndNS - appStartNS) / 1_000_000_000.0
-                let itemsPerSecond = Double(pubKeyBatchSize * (batchCount - maxInFlight)) / durationSeconds
-                let mHashesPerSec = itemsPerSecond / 1_000_000.0
-                ui.printMessage("\(mHashesPerSec) M hashes/s")
-            } else if batchCount <= maxInFlight {
-                appStartNS = DispatchTime.now().uptimeNanoseconds
-            }
-            */
+             if batchCount > maxInFlight && batchCount % maxInFlight == 0 {
+             let durationSeconds = Double(batchEndNS - appStartNS) / 1_000_000_000.0
+             let itemsPerSecond = Double(pubKeyBatchSize * (batchCount - maxInFlight)) / durationSeconds
+             let mHashesPerSec = itemsPerSecond / 1_000_000.0
+             ui.printMessage("\(mHashesPerSec) M hashes/s")
+             } else if batchCount <= maxInFlight {
+             appStartNS = DispatchTime.now().uptimeNanoseconds
+             }
+             */
             
-             // TODO make this async
-             ui.updateStats(
-                 totalStartTime: batchStartNS,
-                 totalEndTime: batchEndNS,
-                 batchCount: batchCount
-             )
+            // TODO make this async
+            ui.updateStats(
+                totalStartTime: batchStartNS,
+                totalEndTime: batchEndNS,
+                batchCount: batchCount
+            )
         }
     }
     
@@ -156,25 +156,25 @@ class KeySearch {
         
         let rawPtr = bloomFilterHitsBuffer.contents()
         let hitPtr = rawPtr.bindMemory(to: HitResult.self, capacity: finalCount)
-
+        
         var falsePositiveCnt = 0
         
         for i in 0..<finalCount {
             let hit = hitPtr[i]
             let hash160String = digestToHexString(hit.hash160)
-                        
+            
             let addresses = try! db.getAddresses(for: hash160String)
             
             if addresses.isEmpty {
                 falsePositiveCnt += 1
             } else {
-
+                
                 // Calculating the private key
                 let batchIndex = batchCount - 1  // because hashes are for previous batch d
                 let pointIndex = Int(hit.index)
                 let privKeyVal = startKey + BInt(batchIndex) * BInt(Properties.TOTAL_POINTS) + BInt(pointIndex)
                 
-
+                
                 var privKeyHex = privKeyVal.asString(radix: 16)
                 privKeyHex = String(repeating: "0", count: max(0, 64 - privKeyHex.count)) + privKeyHex
                 
@@ -190,11 +190,11 @@ class KeySearch {
                 try! appendToResultFile(
                     text: "Found private key: \(privKeyHex) for addresses: \(addresses.map(\.address).joined(separator: ", ")) \n"
                 )
-
+                
                 ui.sendNotification( message: "\(privKeyHex)", title: "Found private key")
             }
         }
-
+        
         return falsePositiveCnt
     }
     
@@ -224,7 +224,7 @@ class KeySearch {
         
         return s
     }
-
+    
     
     
     func dumpPoint(_ index: Int, pointSet: KeySearchMetalHost.PointSet) {
@@ -280,6 +280,6 @@ class KeySearch {
     
 }
 
-    
+
 
 

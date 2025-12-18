@@ -66,17 +66,17 @@ _________                        __     ____  __.               _________       
         @Option( name: .shortAndLong,
                  help: "Path to the output file. The file will contain the found private keys and their corresponding addresses. If not provided, then the output will be written into 'result.txt'.")
         var outputFile: String = "result.txt"
-
+        
         
         @Option( name: [.customShort("d"), .customLong("database-file")],
                  help: "Path to the database file with .sqlite3 extension.")
         var dbFile: String = "CryptKeySearch.sqlite3"
-
-
+        
+        
         
         @Flag(name: [.customShort("c")], help: "Search for compressed key types (Legacy and SegWit P2WPKH). This is the default. If combined with uncompressed key search then there will be a small impact to performance.")
         var compressedKeySearch: Bool = false
-
+        
         @Flag(name: [.customShort("u")], help: "Search for uncompressed key types (legacy). If combined with compressed key search then there will be a small impact to performance")
         var uncompressedKeySearch: Bool = false
         
@@ -116,7 +116,7 @@ _________                        __     ____  __.               _________       
                     try KeySearch(bloomFilter: bloomFilter, database: db, outputFile: outputFile, startKeyHex: startKey).run()
                 }
                 print("Invalid start key provided. Please provide a valid 32 byte hex string.")
-
+                
             } catch {
                 print("Caught error: \(error)")
                 print("Type: \(type(of: error))")

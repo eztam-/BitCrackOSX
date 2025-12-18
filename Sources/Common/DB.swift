@@ -45,13 +45,13 @@ public class DB {
         
         try db.transaction{
             
-        // Create table
-        try db.run(
-            addressesTbl.create(ifNotExists: true) { t in
-                t.column(addressCol, primaryKey: true)     // TEXT PRIMARY KEY NOT NULL
-                t.column(publicKeyHashCol)                 // TEXT
-            }
-        )
+            // Create table
+            try db.run(
+                addressesTbl.create(ifNotExists: true) { t in
+                    t.column(addressCol, primaryKey: true)     // TEXT PRIMARY KEY NOT NULL
+                    t.column(publicKeyHashCol)                 // TEXT
+                }
+            )
         }
     }
     
@@ -72,7 +72,7 @@ public class DB {
     
     public func insertBatch(_ rows: [AddressRow]) throws {
         guard !rows.isEmpty else { return }
-
+        
         // Build placeholders (?, ?) for each row
         let valuePlaceholders = Array(repeating: "(?, ?)", count: rows.count).joined(separator: ", ")
         

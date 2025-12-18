@@ -10,7 +10,7 @@ public class BloomFilter {
     private var mBits: UInt32
     private let bitsBuffer: MTLBuffer
     private let bitCount: Int
-        
+    
     private let insertPipeline: MTLComputePipelineState
     private let insert_threadsPerThreadgroup: MTLSize
     private let insert_threadgroupsPerGrid: MTLSize
@@ -24,7 +24,7 @@ public class BloomFilter {
     }
     
     public convenience init(db: DB, batchSize: Int) throws {
-       
+        
         print("🚀 Initializing Bloom Filter")
         
         let cnt = try db.getAddressCount()
@@ -35,7 +35,7 @@ public class BloomFilter {
         try self.init(expectedInsertions: cnt, batchSize: batchSize)
         print("\n🌀 Start loading \(cnt) public key hashes from database into the bloom filter.")
         let startTime = CFAbsoluteTimeGetCurrent()
-
+        
         var batch = [Data]()
         let batchSize = 50_000
         let rows = try db.getAllAddresses() // keeping this outside of the loop iterates only over the cursers instead of loading all into the memory?
@@ -57,7 +57,7 @@ public class BloomFilter {
     public init(expectedInsertions: Int, batchSize: Int) throws {
         self.batchSize = batchSize
         self.device = Helpers.getSharedDevice()
-
+        
         // ------------------------------
         // bloom sizing
         // ------------------------------
@@ -65,15 +65,15 @@ public class BloomFilter {
         let bitCount = BloomFilter.nextPowerOfTwo(approxBits)        // MUST be power-of-two
         self.bitCount = bitCount
         self.mBits = UInt32(bitCount - 1)                // mask = bitCount - 1
-
+        
         let wordCount = bitCount / 32
         let bufferSize = wordCount * MemoryLayout<UInt32>.stride
-
+        
         print("   ▢▢▣▢▣▢▢")
         print("    Insertions  :  \(expectedInsertions)")
         print("    BitCount    :  \(bitCount) bits  (\(bufferSize / 1024) KB)")
         print("    Mask        :  0x\(String(self.mBits, radix:16))")
-
+        
         // ------------------------------
         // Allocate bloom bit array
         // ------------------------------
@@ -81,7 +81,7 @@ public class BloomFilter {
                                      options: .storageModeShared)!
         memset(bits.contents(), 0, bufferSize)
         self.bitsBuffer = bits
-
+        
         // ------------------------------
         // Buffer for items to insert
         // ------------------------------
@@ -92,29 +92,29 @@ public class BloomFilter {
         
         self.mBitsBuffer = device.makeBuffer(length: MemoryLayout<UInt32>.size, options: .storageModeShared)!
         memcpy(mBitsBuffer.contents(), &mBits, MemoryLayout<UInt32>.size)
-
+        
         // ------------------------------
         // Build compute pipeline
         // ------------------------------
         self.insertPipeline = try Helpers.buildPipelineState(kernelFunctionName: "bloom_insert")
-
+        
         (self.insert_threadsPerThreadgroup,
          self.insert_threadgroupsPerGrid) = try Helpers.getThreadConfig(
             pipelineState: insertPipeline,
             batchSize: batchSize,
             threadsPerThreadgroupMultiplier: 16
-        )
+         )
     }
-
+    
     
     public func insert(_ items: [Data]) throws {
         guard !items.isEmpty else { return }
-
+        
         // ---------------------------------------
         // Upload items (20-byte hash160 each)
         // ---------------------------------------
         let ptr = insertItemsBuffer.contents().assumingMemoryBound(to: UInt8.self)
-
+        
         for (i, item) in items.enumerated() {
             let offset = i * 20
             let copyCount = min(item.count, 20)
@@ -123,46 +123,46 @@ public class BloomFilter {
                 memset(ptr.advanced(by: offset + copyCount), 0, 20 - copyCount)
             }
         }
-
+        
         // ---------------------------------------
         // Dispatch bloom_insert kernel
         // ---------------------------------------
         let queue = device.makeCommandQueue()!
         let cmdBuffer = queue.makeCommandBuffer()!
         let encoder = cmdBuffer.makeComputeCommandEncoder()!
-
+        
         encoder.setComputePipelineState(insertPipeline)
         encoder.setBuffer(insertItemsBuffer, offset: 0, index: 0) // 20-byte inputs
-    
+        
         var countU = UInt32(items.count)
         memcpy(countBuffer.contents(), &countU, MemoryLayout<UInt32>.size)
         encoder.setBuffer(countBuffer, offset: 0, index: 1)
-
+        
         encoder.setBuffer(bitsBuffer, offset: 0, index: 2)
         
         // mask
         encoder.setBuffer(mBitsBuffer, offset: 0, index: 3)
-
+        
         encoder.dispatchThreadgroups(insert_threadgroupsPerGrid, threadsPerThreadgroup: insert_threadsPerThreadgroup)
         encoder.endEncoding()
         cmdBuffer.commit()
     }
-
+    
     
     private static func nextPowerOfTwo(_ n: Int) -> Int {
         var v = 1
         while v < n { v <<= 1 }
         return v
     }
-
     
-        
+    
+    
     public func getBitsBuffer() -> MTLBuffer {
-            return bitsBuffer
+        return bitsBuffer
     }
     
     public func getMbitsBuffer() -> MTLBuffer {
-            return mBitsBuffer
+        return mBitsBuffer
     }
     
 }

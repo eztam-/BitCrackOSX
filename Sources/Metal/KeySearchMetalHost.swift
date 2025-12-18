@@ -21,7 +21,7 @@ public class KeySearchMetalHost {
     private let device: MTLDevice
     private let initPipeline: MTLComputePipelineState
     private let stepPipeline: MTLComputePipelineState
-
+    
     private let threadsPerThreadgroupStep: MTLSize
     private let threadsPerThreadgroupInit: MTLSize
     private let threadsPerGrid: MTLSize
@@ -79,11 +79,11 @@ public class KeySearchMetalHost {
         var totalPointsL = totalPoints
         let totalPointsBuffer = device.makeBuffer(length: MemoryLayout<UInt32>.size, options: .storageModeShared)!
         memcpy(totalPointsBuffer.contents(), &totalPointsL, MemoryLayout<UInt32>.size)
-
+        
         var gridSizeU32 = UInt32(gridSize)
         let gridSizeBuffer = device.makeBuffer(length: MemoryLayout<UInt32>.size, options: .storageModeShared)!
         memcpy(gridSizeBuffer.contents(), &gridSizeU32, MemoryLayout<UInt32>.size)
-
+        
         return PointSet(
             gridSize: gridSize,
             totalPointsBuffer: totalPointsBuffer,
@@ -144,11 +144,11 @@ public class KeySearchMetalHost {
         encoder.setBuffer(hitsBuffer,    offset: 0, index: 10)
         //var compression: UInt32 = Properties.compressedKeySearch ? 1 : 0
         //encoder.setBytes(&compression, length: MemoryLayout<UInt32>.stride, index: 11)
-
+        
         // Dispatch exactly gridSize threads (as the kernel expects)
         encoder.dispatchThreads(self.threadsPerGrid, threadsPerThreadgroup: self.threadsPerThreadgroupStep)
         encoder.endEncoding()
-
+        
     }
     
 }

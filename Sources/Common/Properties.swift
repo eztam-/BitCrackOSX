@@ -19,6 +19,6 @@ struct Properties{
     nonisolated(unsafe) public static var verbose: Bool = false
     nonisolated(unsafe) public static var compressedKeySearch: Bool = true
     nonisolated(unsafe) public static var uncompressedKeySearch: Bool = false
-
+    
 }
 
