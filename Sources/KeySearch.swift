@@ -7,10 +7,10 @@ import simd
 
 // This needs to be exactly aligned with the corresponding value on host side!
 // Maximum number of bloom filter hits supported per batch. To save memory we cannot make this the full size of totalPoints
-let BLOOM_MAX_HITS = 100_000
+public let BLOOM_MAX_HITS = 100_000
 
 
-struct HitResult {
+public struct HitResult {
     var index: UInt32
     var hash160: (UInt32, UInt32, UInt32, UInt32, UInt32)
 }
@@ -74,11 +74,12 @@ class KeySearch {
         let commandQueue = device.makeCommandQueue()!
         let keySearchMetal = try KeySearchMetal(on:  device, compressed: Properties.compressedKeySearch, totalPoints: totalPoints, gridSize: Properties.GRID_SIZE)
         
-        ui.startLiveStats()
         
         let startKeyLE =  Helpers.hex256ToUInt32Limbs(startKeyHex)
         try keySearchMetal.runInitKernel(startKeyLE: startKeyLE, commandBuffer: commandQueue.makeCommandBuffer()!)
         
+        ui.startLiveStats()
+
         //dumpPoint(0, pointSet: pointSet)
         //var appStartNS = DispatchTime.now().uptimeNanoseconds
         
@@ -146,7 +147,7 @@ class KeySearch {
     func checkBloomFilterResults(bloomFilterHitsBuffer: MTLBuffer, hitCountBuffer: MTLBuffer, batchCount: Int) -> Int {
         
         // Get bloom filter hit count
-        let hitCount = hitCountBuffer.contents().load(as: UInt32.self)
+        let hitCount: UInt32 = hitCountBuffer.contents().load(as: UInt32.self)
         if hitCount > BLOOM_MAX_HITS - 1 {
             ui.printMessage("WARNING: Bloom filter hit count \(hitCount) exceeds maximum \(BLOOM_MAX_HITS)! Uptime: \(ui.elapsedTimeString()) batchCnt: \(batchCount)" )
         }

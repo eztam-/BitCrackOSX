@@ -6,11 +6,11 @@ import P256K
 import BigNumber
 
 final class Secp256k1Tests: TestBase {
-
+    
     init() {
-        super.init(kernelFunctionName: "test_field_sub") // dummy
+        super.init(kernelFunctionName: "step_points")
     }
-
+    
     func cpuCalculateExpectedPublicKey(privKey: BInt, compressed: Bool) -> String {
         if compressed {
             let privateKey = try! P256K.Signing.PrivateKey(
@@ -26,130 +26,203 @@ final class Secp256k1Tests: TestBase {
             return privateKey.publicKey.dataRepresentation.hexString.lowercased()
         }
     }
-
-@Test func testGPUKeyGenerationMatchesCPU() throws {
-    /*
-        // Small test values
-        let batchSize     = 64       // number of threads
-        let keysPerThread = 16       // keys per thread
-        let compressed    = true
-        let pubKeyLength  = compressed ? 33 : 65
-
-        let startKeyHex = Helpers.generateRandom256BitHex()
-
-        let secp = try MetalEngine(
-            on: device,
-            batchSize: batchSize,
-            keysPerThread: keysPerThread,
-            compressed: compressed,
-            startKeyHex: startKeyHex
+    
+    func cpuCalcPublicKeyPoint(privKeyBint: BInt) -> (String, String) {
+        let privateKey = try! P256K.Signing.PrivateKey(
+            dataRepresentation: privKeyToData(privKey: privKeyBint),
+            format: .uncompressed
         )
-
-        // Step 1: Initialize base points
-        secp.initializeBasePoints()
-
-        // Step 2: Run GPU once
-        let commandQueue = device.makeCommandQueue()!
-        let cmd = commandQueue.makeCommandBuffer()!
-        secp.appendCommandEncoder(commandBuffer: cmd)
-        cmd.commit()
-        cmd.waitUntilCompleted()
-
-        // Step 3: Read GPU public keys
-        let gpuBuf = secp.getPublicKeyBuffer()
-        let totalKeys = batchSize * keysPerThread
-
-        var gpuHexKeys: [String] = []
-        gpuHexKeys.reserveCapacity(totalKeys)
-
-        for i in 0..<totalKeys {
-            let ptr = gpuBuf.contents().advanced(by: i * pubKeyLength)
-            let raw = UnsafeBufferPointer(
-                start: ptr.assumingMemoryBound(to: UInt8.self),
-                count: pubKeyLength
-            )
-            let hex = raw.map { String(format: "%02x", $0) }.joined()
-            gpuHexKeys.append(hex.lowercased())
-        }
-
-        // ---- Correct scalar sequence ----
-        // We *know* the starting scalar from startKeyHex:
-        let startKeyBig = BInt(startKeyHex, radix: 16)!
-
-        // Step 4: Compute CPU-side expected public keys with correct mapping
-        var cpuHexKeys: [String] = []
-        cpuHexKeys.reserveCapacity(totalKeys)
-
-        for pubIndex in 0..<totalKeys {
-            // Decode buffer index → (threadIdx, keyRow)
-            let threadIdx = pubIndex % batchSize
-            let keyRow    = pubIndex / batchSize       // integer division
-
-            // Same formula as in your bloom-filter code:
-            // offsetWithinBatch = threadIdx * KEYS_PER_THREAD + keyRow
-            let offsetWithinBatch = threadIdx * keysPerThread + keyRow
-
-            let scalar = startKeyBig + BInt(offsetWithinBatch)
-
-            let expected = cpuCalculateExpectedPublicKey(
-                privKey: scalar,
-                compressed: compressed
-            )
-            cpuHexKeys.append(expected)
-        }
-
-        // Step 5: Compare and print scalar on failure
-        for pubIndex in 0..<totalKeys {
-            let threadIdx = pubIndex % batchSize
-            let keyRow    = pubIndex / batchSize
-            let offsetWithinBatch = threadIdx * keysPerThread + keyRow
-            let scalar = startKeyBig + BInt(offsetWithinBatch)
-
-            var privHex = scalar.asString(radix: 16)
-            if privHex.count < 64 {
-                privHex = String(repeating: "0", count: 64 - privHex.count) + privHex
-            }
-
-            assert(
-                gpuHexKeys[pubIndex] == cpuHexKeys[pubIndex],
-                """
-                ❌ Mismatch at index \(pubIndex)
-                   threadIdx=\(threadIdx), keyRow=\(keyRow), offset=\(offsetWithinBatch)
-
-                   Private Key (hex BE):
-                       \(privHex)
-
-                   GPU Public Key:
-                       \(gpuHexKeys[pubIndex])
-
-                   Expected CPU Public Key:
-                       \(cpuHexKeys[pubIndex])
-                """
-            )
- 
-        }
-        print("✅ \(totalKeys) keys passed")
-     */
+        let uncompPubKeyStr = privateKey.publicKey.dataRepresentation
+        let xBytes = uncompPubKeyStr[1..<33]
+        let yBytes = uncompPubKeyStr[33..<65]
+        let xHex = xBytes.map { String(format: "%02x", $0) }.joined()
+        let yHex = yBytes.map { String(format: "%02x", $0) }.joined()
+        return (xHex, yHex)
     }
+    
+    
+    fileprivate func comparePoints(_ pointSet: KeySearchMetal.PointSet, _ TOTAL_POINTS: Int, _ startKeyBint: BInt) -> Int {
+        let xPtr = pointSet.xBuffer.contents().bindMemory(to: KeySearchMetal.UInt256.self, capacity: TOTAL_POINTS)
+        let yPtr = pointSet.yBuffer.contents().bindMemory(to: KeySearchMetal.UInt256.self, capacity: TOTAL_POINTS)
+        
+        
+        var failCnt = 0
+        for i in 0..<TOTAL_POINTS {
+            let xGpu = uint256ToHex(xPtr[i])
+            let yGpu = uint256ToHex(yPtr[i])
+            
+            let (xCpu,yCpu) = cpuCalcPublicKeyPoint(privKeyBint: startKeyBint.advanced(by: i))
+            
+            if xGpu != xCpu || yGpu != yCpu {
+                print("❌ Mismatch at index \(i)")
+                print("   GPU Point X=\(xGpu) Y=\(yGpu)")
+                print("   CPU Point X=\(xCpu) Y=\(yCpu)\n")
+                failCnt += 1
+            }
+        }
+        return failCnt
+    }
+    
+    @Test func testPointInit() throws {
+        
+        
+        let KEYS_PER_THREAD = 16
+        let GRID_SIZE = 64 // The number of threads. Must be <= totalPoints
+        
+        // This is effectively the batch size and reflects the number of public keys to be calculated per batch.
+        // Must be a multiple of grid size
+        let TOTAL_POINTS: Int = GRID_SIZE * KEYS_PER_THREAD // DON'T CHANGE THIS!
+        
+        //let commandQueue = device.makeCommandQueue()!
+        let keySearchMetal = try KeySearchMetal(on:  device, compressed: true, totalPoints: TOTAL_POINTS, gridSize: GRID_SIZE)
+        
+        let startKeyHexStr = Helpers.generateRandom256BitHex()
+        let startKeyBint = BInt(startKeyHexStr, radix: 16)!
+        let startKeyLE = Helpers.hex256ToUInt32Limbs(startKeyHexStr)
+        try keySearchMetal.runInitKernel(startKeyLE: startKeyLE, commandBuffer: commandQueue.makeCommandBuffer()!)
+        
+        let failCnt = comparePoints(keySearchMetal.getPointSet(), TOTAL_POINTS, startKeyBint)
+        assert(failCnt == 0)
+        print("✅ Point Initialization Passed")
+        
+        
+        
+        let hitsBuffer = device.makeBuffer(
+            length: BLOOM_MAX_HITS * MemoryLayout<HitResult>.size,
+            options: .storageModeShared
+        )!
+        
+        let resultCount: UInt32 = 0
+        let hitCountBuffer = device.makeBuffer(
+            bytes: [resultCount],
+            length: MemoryLayout<UInt32>.size,
+            options: .storageModeShared
+        )!
+        
+        let bloomFilter = try BloomFilter(entries: ["b87a8987babdf766f47ad399609d88dc2fd5e5a5"], batchSize: 1)
+        
+        let cmdBuff = super.commandQueue.makeCommandBuffer()!
+        let encoder = cmdBuff.makeComputeCommandEncoder()!
+        
+        try keySearchMetal.appendStepKernel(
+            commandEncoder: encoder,
+            bloomFilter: bloomFilter,
+            hitsBuffer: hitsBuffer,
+            hitCountBuffer: hitCountBuffer)
+        encoder.endEncoding()
+        cmdBuff.commit()
+        cmdBuff.waitUntilCompleted()
+        
+        
+        //comparePoints(keySearchMetal.getPointSet(), TOTAL_POINTS, startKeyBint)
 
+    }
+    
+    
+    /*     // Step 2: Run GPU once
+     let commandQueue = device.makeCommandQueue()!
+     let cmd = commandQueue.makeCommandBuffer()!
+     secp.appendCommandEncoder(commandBuffer: cmd)
+     cmd.commit()
+     cmd.waitUntilCompleted()
+     
+     
+     // Step 3: Read GPU public keys
+     let gpuBuf = keySearchMetal.
+     let totalKeys = batchSize * keysPerThread
+     
+     var gpuHexKeys: [String] = []
+     gpuHexKeys.reserveCapacity(totalKeys)
+     
+     for i in 0..<totalKeys {
+     let ptr = gpuBuf.contents().advanced(by: i * pubKeyLength)
+     let raw = UnsafeBufferPointer(
+     start: ptr.assumingMemoryBound(to: UInt8.self),
+     count: pubKeyLength
+     )
+     let hex = raw.map { String(format: "%02x", $0) }.joined()
+     gpuHexKeys.append(hex.lowercased())
+     }
+     
+     // ---- Correct scalar sequence ----
+     // We *know* the starting scalar from startKeyHex:
+     let startKeyBig = BInt(startKeyHex, radix: 16)!
+     
+     // Step 4: Compute CPU-side expected public keys with correct mapping
+     var cpuHexKeys: [String] = []
+     cpuHexKeys.reserveCapacity(totalKeys)
+     
+     for pubIndex in 0..<totalKeys {
+     // Decode buffer index → (threadIdx, keyRow)
+     let threadIdx = pubIndex % batchSize
+     let keyRow    = pubIndex / batchSize       // integer division
+     
+     // Same formula as in your bloom-filter code:
+     // offsetWithinBatch = threadIdx * KEYS_PER_THREAD + keyRow
+     let offsetWithinBatch = threadIdx * keysPerThread + keyRow
+     
+     let scalar = startKeyBig + BInt(offsetWithinBatch)
+     
+     let expected = cpuCalculateExpectedPublicKey(
+     privKey: scalar,
+     compressed: compressed
+     )
+     cpuHexKeys.append(expected)
+     }
+     
+     // Step 5: Compare and print scalar on failure
+     for pubIndex in 0..<totalKeys {
+     let threadIdx = pubIndex % batchSize
+     let keyRow    = pubIndex / batchSize
+     let offsetWithinBatch = threadIdx * keysPerThread + keyRow
+     let scalar = startKeyBig + BInt(offsetWithinBatch)
+     
+     var privHex = scalar.asString(radix: 16)
+     if privHex.count < 64 {
+     privHex = String(repeating: "0", count: 64 - privHex.count) + privHex
+     }
+     
+     assert(
+     gpuHexKeys[pubIndex] == cpuHexKeys[pubIndex],
+     """
+     ❌ Mismatch at index \(pubIndex)
+     threadIdx=\(threadIdx), keyRow=\(keyRow), offset=\(offsetWithinBatch)
+     
+     Private Key (hex BE):
+     \(privHex)
+     
+     GPU Public Key:
+     \(gpuHexKeys[pubIndex])
+     
+     Expected CPU Public Key:
+     \(cpuHexKeys[pubIndex])
+     """
+     )
+     
+     }
+     print("✅ \(totalKeys) keys passed")
+     
+     }
+     */
+    
     func privKeyToData(privKey: BInt) -> Data {
         // Convert to hex (without 0x)
         var hex = privKey.asString(radix: 16)
-
+        
         // Pad to 64 hex characters (32 bytes)
         if hex.count < 64 {
             hex = String(repeating: "0", count: 64 - hex.count) + hex
         }
-
+        
         // Ensure length is exactly 64 (32 bytes)
         if hex.count > 64 {
             fatalError("Private key larger than 256 bits: \(hex)")
         }
-
+        
         // Convert padded hex to Data
         var data = Data(capacity: 32)
         var index = hex.startIndex
-
+        
         while index < hex.endIndex {
             let nextIndex = hex.index(index, offsetBy: 2)
             let byteStr = hex[index..<nextIndex]
@@ -157,7 +230,14 @@ final class Secp256k1Tests: TestBase {
             data.append(byte)
             index = nextIndex
         }
-
+        
         return data   // big-endian 32-byte data
+    }
+    
+    
+    func uint256ToHex(_ v:  KeySearchMetal.UInt256) -> String {
+        let arr = [v.limbs.0, v.limbs.1, v.limbs.2, v.limbs.3,
+                   v.limbs.4, v.limbs.5, v.limbs.6, v.limbs.7]
+        return arr.reversed().map { String(format: "%08x", $0) }.joined()
     }
 }

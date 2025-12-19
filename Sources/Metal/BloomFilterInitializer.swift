@@ -5,8 +5,9 @@ import Metal
 // TODO: Create two separate constuctors, one for query the other for insert?
 public class BloomFilter {
     
+    
     private let device: MTLDevice
-    private let batchSize: Int
+    private let batchSize: Int  // TODO: Batch size can be removed !
     private var mBits: UInt32
     private let bitsBuffer: MTLBuffer
     private let bitCount: Int
@@ -40,6 +41,9 @@ public class BloomFilter {
         let batchSize = 50_000
         let rows = try db.getAllAddresses() // keeping this outside of the loop iterates only over the cursers instead of loading all into the memory?
         for row in rows {
+            //if row.address == "bc1qxcjufgh2jarkp2qkx68azh08w9v5gah854mwt2" || row.address == "15wJjXvfQzo3SXqoWGbWZmNYND1Si4siqV" {
+           //     continue
+           //	 }
             batch.append(Data(hex: row.publicKeyHash)!)
             if batch.count >= batchSize {
                 try self.insert(batch)
@@ -54,14 +58,27 @@ public class BloomFilter {
         
     }
     
-    public init(expectedInsertions: Int, batchSize: Int) throws {
+    
+    /**
+        Constructor only used by uinit tests
+     */
+    public convenience init(entries: [String], batchSize: Int) throws {
+        try self.init(expectedInsertions: entries.count, batchSize: batchSize)
+        var batch = [Data]()
+        for row in entries {
+            batch.append(Data(hex: row)!)
+        }
+        try self.insert(batch)
+    }
+    
+
+    public init(expectedInsertions: Int, batchSize: Int) throws {  // TODO: Batch size can be removed !
         self.batchSize = batchSize
         self.device = Helpers.getSharedDevice()
         
         // ------------------------------
-        // bloom sizing
-        // ------------------------------
-        let approxBits = expectedInsertions * 32
+        // bloom sizing	
+        let approxBits = expectedInsertions * Properties.BLOOM_BIT_SIZE_PER_ITEM
         let bitCount = BloomFilter.nextPowerOfTwo(approxBits)        // MUST be power-of-two
         self.bitCount = bitCount
         self.mBits = UInt32(bitCount - 1)                // mask = bitCount - 1

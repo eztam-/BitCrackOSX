@@ -24,7 +24,8 @@ public class KeySearchMetal {
     
     private let threadsPerThreadgroupStep: MTLSize
     private let threadsPerThreadgroupInit: MTLSize
-    private let threadsPerGrid: MTLSize
+    private let threadsPerGridStep: MTLSize
+    private let threadsPerGridInit: MTLSize
     
     private let compressed: Bool
     private let publicKeyLength: Int
@@ -33,14 +34,14 @@ public class KeySearchMetal {
     
     
     public struct PointSet {
-        let gridSize: Int          // number of threads in grid (1D)
-        let totalPointsBuffer: MTLBuffer
-        let xBuffer: MTLBuffer
-        let yBuffer: MTLBuffer
-        let chainBuffer: MTLBuffer
-        let deltaGXBuffer: MTLBuffer
-        let deltaGYBuffer: MTLBuffer
-        let gridSizeBuffer: MTLBuffer
+        public let gridSize: Int          // number of threads in grid (1D)
+        public let totalPointsBuffer: MTLBuffer
+        public let xBuffer: MTLBuffer
+        public let yBuffer: MTLBuffer
+        public let chainBuffer: MTLBuffer
+        public let deltaGXBuffer: MTLBuffer
+        public let deltaGYBuffer: MTLBuffer
+        public let gridSizeBuffer: MTLBuffer
     }
     
     public init(on device: MTLDevice, compressed: Bool, totalPoints: Int, gridSize: Int) throws {
@@ -55,7 +56,8 @@ public class KeySearchMetal {
         self.threadsPerThreadgroupStep = MTLSize(width: threadsPerTgStep, height: 1, depth: 1)
         let threadsPerTgInit = min(initPipeline.maxTotalThreadsPerThreadgroup, gridSize)
         self.threadsPerThreadgroupInit = MTLSize(width: threadsPerTgInit, height: 1, depth: 1)
-        self.threadsPerGrid = MTLSize(width: gridSize, height: 1, depth: 1)
+        self.threadsPerGridStep = MTLSize(width: gridSize, height: 1, depth: 1) // Gridsize because it internally loops over POINTS_PER_THREAD
+        self.threadsPerGridInit = MTLSize(width: totalPoints, height: 1, depth: 1) // totalPoints because it calculates one point per thread (no loop)
         
         self.pointSet = KeySearchMetal.makePointSet(totalPoints: totalPoints, gridSize: gridSize, device: device)
     }
@@ -63,8 +65,8 @@ public class KeySearchMetal {
     
     private static func makePointSet(totalPoints: Int, gridSize: Int, device: MTLDevice) -> PointSet {
         // x / y arrays: one UInt256 per point
-        let xBuffer = device.makeBuffer(length: totalPoints * MemoryLayout<UInt256>.stride, options: .storageModePrivate)!
-        let yBuffer = device.makeBuffer(length: totalPoints * MemoryLayout<UInt256>.stride, options: .storageModePrivate)!
+        let xBuffer = device.makeBuffer(length: totalPoints * MemoryLayout<UInt256>.stride, options: Helpers.getStorageModePrivate())!
+        let yBuffer = device.makeBuffer(length: totalPoints * MemoryLayout<UInt256>.stride, options: Helpers.getStorageModePrivate())!
         
         // chain size: ceil(totalPoints / gridSize) * gridSize
         let batches = (totalPoints + gridSize - 1) / gridSize
@@ -99,7 +101,7 @@ public class KeySearchMetal {
     /// Initialize the points with a starting private key and compute ΔG.
     ///
     /// `startKeyLE` must be 8×UInt32 in little-endian limb order as expected by Metal `field_add` / scalar arithmetic.
-    func runInitKernel(startKeyLE: [UInt32], commandBuffer: MTLCommandBuffer) throws {
+    public func runInitKernel(startKeyLE: [UInt32], commandBuffer: MTLCommandBuffer) throws {
         
         precondition(startKeyLE.count == 8)
         
@@ -117,7 +119,7 @@ public class KeySearchMetal {
         encoder.setBuffer(pointSet.deltaGXBuffer, offset: 0, index: 4)
         encoder.setBuffer(pointSet.deltaGYBuffer, offset: 0, index: 5)
         
-        encoder.dispatchThreads(self.threadsPerGrid, threadsPerThreadgroup: self.threadsPerThreadgroupInit)
+        encoder.dispatchThreads(self.threadsPerGridInit, threadsPerThreadgroup: self.threadsPerThreadgroupInit)
         encoder.endEncoding()
         commandBuffer.commit()
         commandBuffer.waitUntilCompleted()
@@ -125,7 +127,7 @@ public class KeySearchMetal {
     
     
     /// Perform one  step: Q[i] += ΔG for all points.
-    func appendStepKernel(commandEncoder: MTLComputeCommandEncoder, bloomFilter: BloomFilter, hitsBuffer: MTLBuffer, hitCountBuffer: MTLBuffer) throws {
+    public func appendStepKernel(commandEncoder: MTLComputeCommandEncoder, bloomFilter: BloomFilter, hitsBuffer: MTLBuffer, hitCountBuffer: MTLBuffer) throws {
        
         commandEncoder.setComputePipelineState(stepPipeline)
         commandEncoder.setBuffer(pointSet.totalPointsBuffer, offset: 0, index: 0)
@@ -143,7 +145,11 @@ public class KeySearchMetal {
         //commandEncoder.setBytes(&compression, length: MemoryLayout<UInt32>.stride, index: 11)
         
         // Dispatch exactly gridSize threads (as the kernel expects)
-        commandEncoder.dispatchThreads(self.threadsPerGrid, threadsPerThreadgroup: self.threadsPerThreadgroupStep)
+        commandEncoder.dispatchThreads(self.threadsPerGridStep, threadsPerThreadgroup: self.threadsPerThreadgroupStep)
+    }
+    
+    public func getPointSet() -> PointSet {
+        return pointSet
     }
     
 }

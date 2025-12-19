@@ -122,6 +122,11 @@ kernel void step_points(
             // Clamp index so it never exceeds maxResults-1.
             slot = min(slot, BLOOM_MAX_HITS - 1);
             
+          //  if (slot >= BLOOM_MAX_HITS) {
+                // optionally decrement count here
+          //      return;
+          //  }
+            
             HitResult r;
             r.index = iForward;
             for (uint k = 0; k < 5; ++k)
@@ -228,7 +233,6 @@ inline uint256 u256_from_u32(uint v) {
  *       deltaK   = totalPoints
  *       deltaG   = deltaK · G
  *       deltaG_out = deltaG
- *       (optional) lastPriv = startKey + totalPoints
  */
 kernel void init_points(
     constant uint      &totalPoints        [[ buffer(0) ]],
