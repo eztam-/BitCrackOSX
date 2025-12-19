@@ -236,6 +236,7 @@ inline uint256 u256_from_u32(uint v) {
  */
 kernel void init_points(
     constant uint      &totalPoints        [[ buffer(0) ]],
+    constant uint      &gridSize           [[ buffer(6) ]],
     device   const uint*start_key_limbs   [[ buffer(1) ]],  // 8 limbs (LE)
     device   uint256   *xPtr              [[ buffer(2) ]],
     device   uint256   *yPtr              [[ buffer(3) ]],
@@ -244,47 +245,39 @@ kernel void init_points(
     uint                  tid             [[ thread_position_in_grid ]]
 )
 {
-    if (tid >= totalPoints) {
-        return;
-    }
-
-    // ---- Load startKey (uint256) from 8 limbs ----
+    // Load startKey
     uint256 startKey;
     #pragma unroll
-    for (int i = 0; i < 8; ++i) {
-        startKey.limbs[i] = start_key_limbs[i];
-    }
+    for (int j = 0; j < 8; ++j)
+        startKey.limbs[j] = start_key_limbs[j];
 
-    // ---- Compute k_i = startKey + i ----
-    uint256 k_i = startKey;
-    uint256 offset = u256_from_u32(tid);   // we assume totalPoints fits in limb[0]
-    k_i = field_add(k_i, offset);         // modular add in secp256k1 order domain
-
-    // ---- P_i = k_i · G (affine) ----
-    Point P_i = point_mul(k_i, G_TABLE256, G_DOUBLES);
-
-    // ---- Store affine coordinates into xPtr / yPtr ----
-    xPtr[tid] = P_i.x;
-    yPtr[tid] = P_i.y;
-
-    // ---- Thread 0: compute ΔG and last private key ----
+    // Thread 0: compute ΔG
     if (tid == 0) {
-        // Δk = totalPoints
         uint256 deltaK = u256_from_u32(totalPoints);
-
-        // ΔG = Δk · G
         Point deltaG = point_mul(deltaK, G_TABLE256, G_DOUBLES);
         deltaG_x = deltaG.x;
         deltaG_y = deltaG.y;
+    }
 
-        // lastPriv = startKey + totalPoints
-        // uint256 lastPriv = field_add(startKey, deltaK);
-        // #pragma unroll
-        // for (int i = 0; i < 8; ++i) {
-        //    last_private_key[i] = lastPriv.limbs[i];
-        // }
+    uint stride = gridSize;
+
+    // Strided initialization: each thread writes multiple points
+    for (uint i = tid; i < totalPoints; i += stride)
+    {
+        // compute k_i = startKey + i
+        // i fits in 32-bit limb0 (you already assumed this elsewhere)
+        uint256 offset = u256_from_u32(i);
+        uint256 k_i = field_add(startKey, offset);
+
+        // P_i = k_i * G
+        Point P_i = point_mul(k_i, G_TABLE256, G_DOUBLES);
+
+        // store
+        xPtr[i] = P_i.x;
+        yPtr[i] = P_i.y;
     }
 }
+
 
 
 kernel void bloom_insert(
