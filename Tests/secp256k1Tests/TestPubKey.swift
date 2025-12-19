@@ -65,57 +65,47 @@ final class Secp256k1Tests: TestBase {
     
     @Test func testPointInit() throws {
         
-        
         let KEYS_PER_THREAD = 16
-        let GRID_SIZE = 64 // The number of threads. Must be <= totalPoints
-        
-        // This is effectively the batch size and reflects the number of public keys to be calculated per batch.
-        // Must be a multiple of grid size
+        let GRID_SIZE = 64
         let TOTAL_POINTS: Int = GRID_SIZE * KEYS_PER_THREAD // DON'T CHANGE THIS!
-        
-        //let commandQueue = device.makeCommandQueue()!
         let keySearchMetal = try KeySearchMetal(on:  device, compressed: true, totalPoints: TOTAL_POINTS, gridSize: GRID_SIZE)
-        
+        let bloomFilter = try BloomFilter(entries: ["b87a8987babdf766f47ad399609d88dc2fd5e5a5"], batchSize: 1)
+
         let startKeyHexStr = Helpers.generateRandom256BitHex()
         let startKeyBint = BInt(startKeyHexStr, radix: 16)!
         let startKeyLE = Helpers.hex256ToUInt32Limbs(startKeyHexStr)
+    
+        // TEST POINT INIT KERNEL
         try keySearchMetal.runInitKernel(startKeyLE: startKeyLE, commandBuffer: commandQueue.makeCommandBuffer()!)
-        
-        let failCnt = comparePoints(keySearchMetal.getPointSet(), TOTAL_POINTS, startKeyBint)
-        assert(failCnt == 0)
+        let initFailCnt = comparePoints(keySearchMetal.getPointSet(), TOTAL_POINTS, startKeyBint)
+        assert(initFailCnt == 0)
         print("✅ Point Initialization Passed")
         
         
-        
-        let hitsBuffer = device.makeBuffer(
-            length: BLOOM_MAX_HITS * MemoryLayout<HitResult>.size,
-            options: .storageModeShared
-        )!
-        
-        let resultCount: UInt32 = 0
-        let hitCountBuffer = device.makeBuffer(
-            bytes: [resultCount],
-            length: MemoryLayout<UInt32>.size,
-            options: .storageModeShared
-        )!
-        
-        let bloomFilter = try BloomFilter(entries: ["b87a8987babdf766f47ad399609d88dc2fd5e5a5"], batchSize: 1)
-        
-        let cmdBuff = super.commandQueue.makeCommandBuffer()!
-        let encoder = cmdBuff.makeComputeCommandEncoder()!
-        
-        try keySearchMetal.appendStepKernel(
-            commandEncoder: encoder,
-            bloomFilter: bloomFilter,
-            hitsBuffer: hitsBuffer,
-            hitCountBuffer: hitCountBuffer)
-        encoder.endEncoding()
-        cmdBuff.commit()
-        cmdBuff.waitUntilCompleted()
-        
-        
-        //comparePoints(keySearchMetal.getPointSet(), TOTAL_POINTS, startKeyBint)
-
+        // TEST POINT STEP KERNEL
+        for i in 1..<4 { // Testing three steps
+            let hitsBuffer = device.makeBuffer(length: BLOOM_MAX_HITS * MemoryLayout<HitResult>.size, options: .storageModeShared)!
+            let resultCount: UInt32 = 0
+            let hitCountBuffer = device.makeBuffer(bytes: [resultCount], length: MemoryLayout<UInt32>.size, options: .storageModeShared)!
+            
+            let cmdBuff = super.commandQueue.makeCommandBuffer()!
+            let encoder = cmdBuff.makeComputeCommandEncoder()!
+            
+            try keySearchMetal.appendStepKernel(
+                commandEncoder: encoder,
+                bloomFilter: bloomFilter,
+                hitsBuffer: hitsBuffer,
+                hitCountBuffer: hitCountBuffer)
+            encoder.endEncoding()
+            cmdBuff.commit()
+            cmdBuff.waitUntilCompleted()
+            
+            
+            let stepFailCnt = comparePoints(keySearchMetal.getPointSet(), TOTAL_POINTS, startKeyBint.advanced(by: TOTAL_POINTS*i))
+            assert(stepFailCnt == 0)
+            print("✅ Point Step \(i) Passed")
+        }
+       
     }
     
     
