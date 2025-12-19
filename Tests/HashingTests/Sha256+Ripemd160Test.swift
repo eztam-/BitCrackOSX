@@ -22,14 +22,11 @@ final class HashKernelTests: TestBase {
         let pubkeyHex = "0279be667ef9dcbbac55a06295ce870b07029bfcdb2dce28d959f2815b16f81798"
         let pubkeyBytes = Array<UInt8>(hex: pubkeyHex)
         
-
+        
         //----------------------------------------------------------------------
         // 2. Build buffers
         //----------------------------------------------------------------------
-        let pubkeyBuf = device.makeBuffer(bytes: pubkeyBytes,
-                                          length: 33,
-                                          options: [])!
-
+        let pubkeyBuf = device.makeBuffer(bytes: pubkeyBytes, length: 33, options: [])!
         let shaBuf    = device.makeBuffer(length: 8 * MemoryLayout<UInt32>.size, options: [])!
         let rmdTmpBuf = device.makeBuffer(length: 5 * MemoryLayout<UInt32>.size, options: [])!
         let hashBuf   = device.makeBuffer(length: 5 * MemoryLayout<UInt32>.size, options: [])!
@@ -48,8 +45,7 @@ final class HashKernelTests: TestBase {
         encoder.setBuffer(hashBuf,   offset: 0, index: 3)
 
         let threads = MTLSize(width: 1, height: 1, depth: 1)
-        encoder.dispatchThreads(threads,
-            threadsPerThreadgroup: MTLSize(width: 1, height: 1, depth: 1))
+        encoder.dispatchThreads(threads, threadsPerThreadgroup: MTLSize(width: 1, height: 1, depth: 1))
 
         encoder.endEncoding()
         commandBuffer.commit()
@@ -63,8 +59,7 @@ final class HashKernelTests: TestBase {
         //----------------------------------------------------------------------
         // 6. Read GPU output
         //----------------------------------------------------------------------
-        let gpuWords = hashBuf.contents().bindMemory(to: UInt32.self,
-                                                     capacity: 5)
+        let gpuWords = hashBuf.contents().bindMemory(to: UInt32.self, capacity: 5)
         var gpuBytes = Data()
         for i in 0..<5 {
             let w = gpuWords[i]
@@ -76,6 +71,7 @@ final class HashKernelTests: TestBase {
                 UInt8((w      ) & 0xff),
             ])
         }
+  
 
         //----------------------------------------------------------------------
         // 7. Compare CPU and GPU results
