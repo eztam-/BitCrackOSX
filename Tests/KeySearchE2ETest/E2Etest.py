@@ -7,7 +7,7 @@ KEYS_PER_S = 150000000 # The max keys per second, that CryptKeySearch will check
 TEST_DURATION_S = 30 # How long should the test take?
 NUM_MATCHES = 5000
 
-ADDR_FILE_PATH = f"{os.getcwd()}/test.txt"
+ADDR_FILE_PATH = f"{os.getcwd()}/test.tsv"
 DB_FILE_PATH = f"{os.getcwd()}/test.sqlite3"
 
 KEY_SEARCH_PATH = "../../build/Build/Products/Release/keysearch"

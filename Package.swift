@@ -26,7 +26,10 @@ let package = Package(
             exclude: [
                 // We need to exclude metal files that are included into others from the compilation sources.
                 // Otherwise, the linker will encounter multiple definitions of the same functions and throw an error.
-                //"RIPEMD160/RIPEMD160.metal"
+                "Metal/Ripemd160.metal",
+                "Metal/Secp256k1.metal",
+                "Metal/Sha256.metal",
+                "Metal/BloomFilter.metal"
             ],
             resources: [
                 /*

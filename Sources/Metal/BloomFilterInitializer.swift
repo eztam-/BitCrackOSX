@@ -26,7 +26,7 @@ public class BloomFilter {
     
     public convenience init(db: DB, batchSize: Int) throws {
         
-        print("🚀 Initializing Bloom Filter")
+        print("🚀 Configuring Bloom Filter")
         
         let cnt = try db.getAddressCount()
         if cnt == 0 {
@@ -34,7 +34,8 @@ public class BloomFilter {
             exit(1)
         }
         try self.init(expectedInsertions: cnt, batchSize: batchSize)
-        print("\n🌀 Start loading \(cnt) public key hashes from database into the bloom filter.")
+        print("\n🌀 Initializing")
+        print("   → Start loading \(cnt) public key hashes from database into the bloom filter.")
         let startTime = CFAbsoluteTimeGetCurrent()
         
         var batch = [Data]()
@@ -54,7 +55,7 @@ public class BloomFilter {
             try self.insert(batch)
         }
         let endTime = CFAbsoluteTimeGetCurrent()
-        print("   → Initialization with \(cnt) addresses. Took \(Int(endTime-startTime)) seconds.")
+        print("   → Bloom filter initialization with \(cnt) addresses. Took \(Int(endTime-startTime)) seconds.")
         
     }
     

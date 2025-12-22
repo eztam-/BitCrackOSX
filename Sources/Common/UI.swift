@@ -121,6 +121,10 @@ class UI {
         let statusStr = String(format: "%.1f MKey/s ", smooth)
         
         let batchesPerS = batchCount - lastPrintBatchCount
+        var batchRateWarning = ""
+        if batchesPerS > Properties.RING_BUFFER_SIZE {
+            batchRateWarning = " ⚠️  Batch rate is too high and impacts performance! Adjust your settings."
+        }
 
         // Calculate bloom filter FPR
         let fprEma = bfFalsePositiveRateEma.getValue()!
@@ -146,7 +150,7 @@ class UI {
         \(clearLine())    Start key   :  \(startHexKey.uppercased())
         \(clearLine())    Current Key :  \(currKey)
         \(clearLine())    Elapsed Time:  \(elapsedTimeString())
-        \(clearLine())    Batch Count :  \(batchCount) (\(batchesPerS)/s)
+        \(clearLine())    Batch Count :  \(batchCount) (\(batchesPerS)/s) \(batchRateWarning)
         \(clearLine())    Bloom Filter:  \(bloomFilterString)
         \(clearLine())    Throughput  :  \(statusStr)
         """)

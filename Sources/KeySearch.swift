@@ -143,6 +143,12 @@ class KeySearch {
 
             // RESET BEFORE EACH DISPATCH
             slot.hitCountBuffer.contents().storeBytes(of: 0, as: UInt32.self)
+            
+            
+            if commandBuffer.status != .completed {
+                print("INIT status:", commandBuffer.status.rawValue, "error:", String(describing: commandBuffer.error))
+                exit(-1)
+            }
             slot.semaphore.signal()
         }
     }
@@ -184,7 +190,7 @@ class KeySearch {
                 ui.printMessage(
                 """
                 ──────────────────────────────────────────────────────────────────────────────────────
-                💰 Private key found: \(privKeyHex) 
+                💰 Private key found: \(privKeyHex)
                    For addresses:
                     \(addresses.map { $0.address }.joined(separator: "\n    "))
                 """)
