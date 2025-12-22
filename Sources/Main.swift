@@ -94,6 +94,7 @@ _________                        __     ____  __.               _________       
         var verbose: Bool = false
         
         mutating func run() {
+            
             Properties.verbose = verbose
             do {
                 if uncompressedKeySearch && compressedKeySearch {

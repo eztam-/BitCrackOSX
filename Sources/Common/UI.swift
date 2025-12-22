@@ -6,7 +6,7 @@ import Metal
 class UI {
     
     private let BF_FPR_WARNING_THRESHOLD = 0.00002
-    private static let STATS_LINES = 8
+    private static let STATS_LINES = 7
     
     // Per batch stats
     var totalStartTime: UInt64 = 0
@@ -140,14 +140,16 @@ class UI {
         }
         
         print("\u{1B}[\(UI.STATS_LINES)A", terminator: "")
-        print("")
-        print("📊 Live Stats")
-        print("\(clearLine())    Start key   :  \(startHexKey.uppercased())")
-        print("\(clearLine())    Current Key :  \(currKey)")
-        print("\(clearLine())    Elapsed Time:  \(elapsedTimeString())")
-        print("\(clearLine())    Batch Count :  \(batchCount) (\(batchesPerS)/s)")
-        print("\(clearLine())    Bloom Filter:  \(bloomFilterString)")
-        print("\(clearLine())    Throughput  :  \(statusStr)")
+        
+        print("""
+        📊 Live Stats
+        \(clearLine())    Start key   :  \(startHexKey.uppercased())
+        \(clearLine())    Current Key :  \(currKey)
+        \(clearLine())    Elapsed Time:  \(elapsedTimeString())
+        \(clearLine())    Batch Count :  \(batchCount) (\(batchesPerS)/s)
+        \(clearLine())    Bloom Filter:  \(bloomFilterString)
+        \(clearLine())    Throughput  :  \(statusStr)
+        """)
         fflush(stdout)
         
         // TODO: This is skipping the last few key checks, because there is always a delay when the keys are actually printed
