@@ -117,6 +117,38 @@ Key parameters to adjust for optimal performance on a specific GPU:
     - Replacing the current field_inv with Fermat's Little Theorem with an optimized addition chain as. e.g. done in bitcoin-core lib
 
 
+
+### Expected perfromance of Apple Silicon GPU
+The following analysis of potential performance that we can expect on Apple Silicon GPUs taking the RTX2080 Ti and Bitcrack as a reference.
+
+#### Performance estimate
+In general, Apple Silicon GPUs deliver strong performance for many workloads, but they are relatively weak when it comes to integer ALU operations. Solving Bitcoin puzzles relies heavily on 32-bit integer arithmetic, and CryptKeySearch is therefore primarily ALU-bound. This makes overall performance closely tied to a GPU’s integer ALU throughput.
+Unfortunately, there is no widely adopted GPU benchmark that directly measures this specific capability. As a rough point of comparison, the GFXBench 5 ALU2 benchmark can be used as a proxy. By combining known Bitcrack performance data with GFXBench 5 ALU2 results for an NVIDIA RTX 2080 Ti, we can estimate a realistic performance range for Apple Silicon GPUs.
+
+A good reference for Bitcracks average performance in a pool of GPUs is: https://btcpuzzle.info/benchmark
+According to that, an RTX2080 Ti can do on average 1.4 B Keys/s.
+
+So lets take the ALU2 benchmark results from: [here](https://nanoreview.net/en/gpu-compare/geforce-rtx-2080-ti-vs-apple-m1-pro-gpu)
+
+RTX2080 Ti --> 4775.9 FPS    
+M1 Pro (16 Core) --> 598.5 FPS
+
+That means M1 is roughly 8 times slower than the RTX2080 Ti. Since the RTX2080 Ti can do on average 1.4 B Keys/s we can devide that by 8, which results in 175 M Keys/s which are realistic on an M1 Pro.
+
+Doing the same math for other Apple Silicon GPUs:
+| GPU  | Known avg. Bitcrack Performance |GFXBench 5 ALU2|Expected Performance|Measured CryptKeySearch Performance (Puzzle 71)|
+| ------------- | ------------- |--------------|--------------|--------------|
+| RTX2080 Ti  | 1.4 B Keys/s |4775.9 FPS|||
+| M1 Pro (16 Core)  | n/a  |598.5 FPS|175 M Keys/s|150 M Keys/s|
+| M4 (10 Core)  | n/a  |432.2 FPS|127 M Keys/s|190 M Keys/s|
+| M4 Pro (20 Core)  | n/a  |912.2 FPS|267 M Keys/s||
+| M4 Max (40 Core)  | n/a  |1756 FPS|518 M Keys/s||
+
+The uptick between M1 Pro (16 Core) and M4 (10 Core) despite lower benchmark looks promising.
+
+
+
+
 ## Known Issues  
 - Loading large address files takes very long, which could be improved.
 - support for uncompressed keys has been temporary removed  
