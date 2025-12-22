@@ -35,7 +35,7 @@ class KeySearch {
     let totalPoints: Int = Properties.TOTAL_POINTS
     let maxInFlight: Int
     
-    public init(bloomFilter: BloomFilter, database: DB, outputFile: String, startKeyHex: String) {
+    public init(bloomFilter: BloomFilter, database: DB, outputFile: String, startKeyHex: String, endKey: BInt?) {
         self.bloomFilter = bloomFilter
         self.db = database
         self.outputFile = outputFile
@@ -43,7 +43,7 @@ class KeySearch {
         self.startKey = BInt(startKeyHex, radix: 16)!
 
         self.keyIncrement = BInt(totalPoints)
-        self.ui = UI(batchSize: totalPoints, startKeyHex: startKeyHex)
+        self.ui = UI(batchSize: totalPoints, startKeyHex: startKeyHex, endKey: endKey)
         self.maxInFlight = Properties.RING_BUFFER_SIZE
         
         // Initialize ring buffer with MTLBuffers

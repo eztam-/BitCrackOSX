@@ -17,6 +17,7 @@ class UI {
     var bfFalsePositiveCnt: [Int] = []
     var startHexKey: String = ""
     var startKey: BInt = BInt.zero
+    var endKey: BInt?
     var batchCount: Int = 0
     
     var lastPrintBatchCount = 0
@@ -31,10 +32,12 @@ class UI {
     
     private let appStartTime = DispatchTime.now()
     
-    public init(batchSize: Int, startKeyHex: String){
+    public init(batchSize: Int, startKeyHex: String, endKey: BInt?){
         self.batchSize = batchSize
         self.startHexKey = startKeyHex
         self.startKey = BInt(startKeyHex, radix: 16)!
+        self.endKey = endKey != nil ? endKey! + 150000000 * 10 : nil // TODO: This is a very dirty hack to avoid skipping the last few key checks, because there is always a delay when the keys are actually printed
+
     }
     
     func elapsedTimeString() -> String {
@@ -147,6 +150,12 @@ class UI {
         print("\(clearLine())    Bloom Filter:  \(bloomFilterString)")
         print("\(clearLine())    Throughput  :\(statusStr)")
         fflush(stdout)
+        
+        // TODO: This is skipping the last few key checks, because there is always a delay when the keys are actually printed
+        if endKey != nil && currentKey > endKey!{
+            print("\n\nEnd key reached. Exiting.")
+            exit(0);
+        }
         
         bfFalsePositiveCnt.removeAll()
         lastPrintBatchCount = batchCount

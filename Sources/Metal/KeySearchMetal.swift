@@ -58,7 +58,6 @@ public class KeySearchMetal {
         self.threadsPerThreadgroupInit = MTLSize(width: threadsPerTgInit, height: 1, depth: 1)
         self.threadsPerGridStep = MTLSize(width: gridSize, height: 1, depth: 1) // Gridsize because it internally loops over POINTS_PER_THREAD
         self.threadsPerGridInit = MTLSize(width: totalPoints, height: 1, depth: 1) // totalPoints because it calculates one point per thread (no loop)
-        
         self.pointSet = KeySearchMetal.makePointSet(totalPoints: totalPoints, gridSize: gridSize, device: device)
     }
     
@@ -69,9 +68,8 @@ public class KeySearchMetal {
         let yBuffer = device.makeBuffer(length: totalPoints * MemoryLayout<UInt256>.stride, options: Helpers.getStorageModePrivate())!
         
         // chain size: ceil(totalPoints / gridSize) * gridSize
-        let batches = (totalPoints + gridSize - 1) / gridSize
-        let chainCount = batches * gridSize
-        let chainBuffer = device.makeBuffer(length: chainCount * MemoryLayout<UInt256>.stride, options: .storageModeShared)!
+        let chainCount = ((totalPoints + gridSize - 1) / gridSize) * gridSize
+        let chainBuffer = device.makeBuffer(length: chainCount * MemoryLayout<UInt256>.stride, options: .storageModePrivate)!
         
         // single Point for ΔG
         let deltaGXBuffer = device.makeBuffer(length: MemoryLayout<UInt256>.stride, options: .storageModeShared)!

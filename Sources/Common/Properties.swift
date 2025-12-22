@@ -13,7 +13,7 @@ struct Properties{
     
     
     // Increase this to lower the false positive rate of the bloom filter. Or decrease to reduce memory.
-    public static let BLOOM_BIT_SIZE_PER_ITEM = 64
+    public static let BLOOM_BIT_SIZE_PER_ITEM = 128
     
     
     public static let RING_BUFFER_SIZE = 8

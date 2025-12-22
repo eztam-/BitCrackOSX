@@ -1,6 +1,7 @@
 import Foundation
 import Metal
 import ArgumentParser
+import BigNumber
 
 @main
 struct Main: ParsableCommand {
@@ -63,6 +64,14 @@ _________                        __     ____  __.               _________       
         var startKey: String
         
         
+        @Option(
+            name: [.customShort("e"), .customLong("end-key")],
+            help: ArgumentHelp("A private key for the end of the search like: 0000000000000000000000000000000000000000000000000000000000100001. If this key is reached, then the application will end.",
+                               valueName: "<end-key>",
+                              ))
+        var endKey: String = ""
+        
+        
         @Option( name: .shortAndLong,
                  help: "Path to the output file. The file will contain the found private keys and their corresponding addresses. If not provided, then the output will be written into 'result.txt'.")
         var outputFile: String = "result.txt"
@@ -104,6 +113,12 @@ _________                        __     ____  __.               _________       
                 try UI.printGPUInfo()
                 let db = try DB(dbPath: dbFile)
                 let bloomFilter = try BloomFilter(db: db, batchSize: Properties.TOTAL_POINTS) // TODO: bad access of BATCH_SIZE in KeySearch
+                
+                var endKeyBint: BInt? = nil
+                if !endKey.isEmpty {
+                    endKeyBint = BInt(endKey, radix: 16)
+                }
+                
                 if startKey == "RANDOM" {
                     startKey = Helpers.randomHex256(in: ("1", "FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFEBAAEDCE6AF48A03BBFD25E8CD0364140")) // Max range for BTC keys
                 }
@@ -113,7 +128,7 @@ _________                        __     ____  __.               _________       
                 }
                 
                 if startKey.count == 64 && startKey.allSatisfy(\.isHexDigit) {
-                    try KeySearch(bloomFilter: bloomFilter, database: db, outputFile: outputFile, startKeyHex: startKey).run()
+                    try KeySearch(bloomFilter: bloomFilter, database: db, outputFile: outputFile, startKeyHex: startKey, endKey: endKeyBint).run()
                 }
                 print("Invalid start key provided. Please provide a valid 32 byte hex string.")
                 
