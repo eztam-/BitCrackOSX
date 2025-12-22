@@ -108,7 +108,7 @@ public class KeySearchMetal {
     ///
     /// `startKeyLE` must be 8×UInt32 in little-endian limb order as expected by Metal `field_add` / scalar arithmetic.
     public func runInitKernel(startKeyLE: [UInt32], commandBuffer: MTLCommandBuffer) throws {
-        print("   → Calculating initial points.")
+        //print("   → Calculating initial points.")
 
         precondition(startKeyLE.count == 8)
         
