@@ -117,25 +117,8 @@ Key parameters to adjust for optimal performance on a specific GPU:
     - Replacing the current field_inv with Fermat's Little Theorem with an optimized addition chain as. e.g. done in bitcoin-core lib
 
 
-## Known Issues
-- Loading very large address sets (GBs) causes either the bloom filter to fail. Or what I rather suspect, is an issue with the DB query which might have concurrency issues.
-  The problem shows itself, that each singe private key matches.
-  
-- The bloom filter matches almost all keys in a batch according to a specific pattern. This happen very rarely and doesn't affect functionality.
-  This has been introduced with commit 7512bd3b0f6de630fb6e05181d06a5a8a9165973
-  The pattern is, that it always happens exactly at a very specific batch number. And this batch number differentiates also for different KEYS_PER_THREAD settings
-  The quickest way to reproduice is to use KEYS_PER_THREAD=128
-  
-  Here is when it happens:
-  With KEYS_PER_THREAD=1024 it breaks at batch 33868
-  With KEYS_PER_THREAD=512 it breaks at batch 4045
-  With KEYS_PER_THREAD=256 it breaks at batch 24115
-  With KEYS_PER_THREAD=128 it breaks at batch 4498 
-  
-- After running the app for a few hours, the bloomfilter seems to crash. Theres suddenly the MAX amount of matches exceeded and the palse positive rate jumps and stays very high.
-
+## Known Issues  
 - Loading large address files takes very long, which could be improved.
-
 - support for uncompressed keys has been temporary removed  
 
 ## Architecture
