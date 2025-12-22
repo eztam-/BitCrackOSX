@@ -77,7 +77,8 @@ public class BloomFilter {
         self.device = Helpers.getSharedDevice()
         
         // ------------------------------
-        // bloom sizing	
+        // bloom sizing
+        // ------------------------------
         let approxBits = expectedInsertions * Properties.BLOOM_BIT_SIZE_PER_ITEM
         let bitCount = BloomFilter.nextPowerOfTwo(approxBits)        // MUST be power-of-two
         self.bitCount = bitCount

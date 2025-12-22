@@ -117,7 +117,7 @@ class UI {
         guard durationNs > 0 else { return }
         let mHashesPerSec = Double(batchSize) * 1_000.0 / Double(durationNs)
         guard mHashesPerSec.isFinite else { return }
-        let smooth = throughputEma.add(mHashesPerSec)
+        let smooth = throughputEma.add(mHashesPerSec) // TODO: This is OK but not perfect since it calculates the EMA from the last value of each second. More accurate would be to take every value.
         let statusStr = String(format: "%.1f MKey/s ", smooth)
         
         let batchesPerS = batchCount - lastPrintBatchCount
