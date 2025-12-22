@@ -34,7 +34,7 @@ public class BloomFilter {
             exit(1)
         }
         try self.init(expectedInsertions: cnt, batchSize: batchSize)
-        print("    Initializing:")
+        print("    Loading Data:")
         print("    → Start loading \(cnt) public key hashes from database into the bloom filter.")
         let startTime = CFAbsoluteTimeGetCurrent()
         
@@ -55,7 +55,7 @@ public class BloomFilter {
             try self.insert(batch)
         }
         let endTime = CFAbsoluteTimeGetCurrent()
-        print("    → Bloom filter initialization with \(cnt) addresses. Took \(Int(endTime-startTime)) seconds.")
+        print("    → Bloom filter initialization with \(cnt) addresses took \(Int(endTime-startTime)) seconds.")
         
     }
     
@@ -88,7 +88,7 @@ public class BloomFilter {
         let wordCount = bitCount / 32
         let bufferSize = wordCount * MemoryLayout<UInt32>.stride
         
-        print("   ▢▢▣▢▣▢▢")
+        //print("   ▢▢▣▢▣▢▢")
         print("    Insertions  :  \(expectedInsertions)")
         print("    BitCount    :  \(bitCount) bits  (\(bufferSize / 1024) KB)")
         print("    Mask        :  0x\(String(self.mBits, radix:16))")
