@@ -281,3 +281,36 @@ public class Helpers{
     }
 }
 
+
+
+final class ExponentialMovingAverage {
+    private let alpha: Double
+    private var value: Double?
+    
+    /// alpha ∈ (0,1], higher = more responsive
+    ///| α      | Effect             |
+    ///| ----- | --------------- |
+    ///| 0.05 | Very smooth  |
+    ///| 0.1   | Good default |
+    ///| 0.2   | Responsive   |
+    ///| 0.3   | Almost raw    |
+    init(alpha: Double) {
+        self.alpha = alpha
+    }
+    
+    func add(_ newValue: Double) -> Double {
+        if let current = value {
+            let updated = alpha * newValue + (1.0 - alpha) * current
+            value = updated
+            return updated
+        } else {
+            value = newValue
+            return newValue
+        }
+    }
+    
+    public func getValue() -> Double? {
+        return value
+    }
+
+}

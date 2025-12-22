@@ -126,18 +126,21 @@ class KeySearch {
     }
     
     fileprivate func addCompletionHandler(_ slot: KeySearch.BatchSlot, _ batchCount: Int, commandBuffer: MTLCommandBuffer) {
-        // --- Async CPU callback when GPU finishes this batch ---
+        
+        // Async CPU callback when GPU finishes this batch
         commandBuffer.addCompletedHandler { [weak self] _ in
             // Theres no guarantee that CompletedHandlers are executed in the same order of submission (despite the command buffers are always executed in sequence)
             // So we cannot increment the base key from here
             
-            let falsePositiveCnt = self!.checkBloomFilterResults(bloomFilterHitsBuffer: slot.bloomFilterHitsBuffer, hitCountBuffer: slot.hitCountBuffer, batchCount: batchCount )
+            let falsePositiveCnt = self!.checkBloomFilterResults(
+                bloomFilterHitsBuffer: slot.bloomFilterHitsBuffer,
+                hitCountBuffer: slot.hitCountBuffer,
+                batchCount: batchCount
+            )
             
-            //if falsePositiveCnt > 40 {
-            //     self!.ui.printMessage("TMP DEBUG / batchCnt: \(batchCount) slotIndex: \(slotIndex) FP: \(falsePositiveCnt) ")
-            // }
-            self!.ui.bfFalsePositiveCnt.append(falsePositiveCnt)
-            
+            // TODO: It's costy doing the EMA math for each result. At the moment it seems to be still fine on M1 Pro since it is async but might become an issue.
+            _ = self!.ui.bfFalsePositiveRateEma.add(Double(falsePositiveCnt))
+
             // RESET BEFORE EACH DISPATCH
             slot.hitCountBuffer.contents().storeBytes(of: 0, as: UInt32.self)
             slot.semaphore.signal()

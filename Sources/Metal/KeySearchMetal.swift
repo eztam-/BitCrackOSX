@@ -51,14 +51,22 @@ public class KeySearchMetal {
 
         self.initPipeline = try Helpers.buildPipelineState(kernelFunctionName: "init_points")
         self.stepPipeline = try Helpers.buildPipelineState(kernelFunctionName: "step_points")
-        
-        let threadsPerTgStep = min(stepPipeline.maxTotalThreadsPerThreadgroup, gridSize)
+    
+        let threadsPerTgStep = min(stepPipeline.maxTotalThreadsPerThreadgroup, Properties.THREADS_PER_THREADGROUP)
         self.threadsPerThreadgroupStep = MTLSize(width: threadsPerTgStep, height: 1, depth: 1)
-        let threadsPerTgInit = min(initPipeline.maxTotalThreadsPerThreadgroup, gridSize)
+        let threadsPerTgInit = min(initPipeline.maxTotalThreadsPerThreadgroup, Properties.THREADS_PER_THREADGROUP)
         self.threadsPerThreadgroupInit = MTLSize(width: threadsPerTgInit, height: 1, depth: 1)
         self.threadsPerGridStep = MTLSize(width: gridSize, height: 1, depth: 1) // Gridsize because it internally loops over POINTS_PER_THREAD
         self.threadsPerGridInit = MTLSize(width: totalPoints, height: 1, depth: 1) // totalPoints because it calculates one point per thread (no loop)
         self.pointSet = KeySearchMetal.makePointSet(totalPoints: totalPoints, gridSize: gridSize, device: device)
+        
+        // Print info
+        if stepPipeline.maxTotalThreadsPerThreadgroup < Properties.THREADS_PER_THREADGROUP {
+            print("\n⚠️  Clamping THREADS_PER_THREADGROUP to init pipeline limit of \(stepPipeline.maxTotalThreadsPerThreadgroup) which might not be optimal.")
+        }
+        if initPipeline.maxTotalThreadsPerThreadgroup < Properties.THREADS_PER_THREADGROUP {
+            print("⚠️  Clamping THREADS_PER_THREADGROUP to step pipeline limit of \(stepPipeline.maxTotalThreadsPerThreadgroup) which might not be optimal.")
+        }
     }
     
     

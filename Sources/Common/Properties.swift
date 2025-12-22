@@ -11,13 +11,12 @@ struct Properties{
     // This is effectively the batch size and reflects the number of public keys to be calculated per batch. Must be a multiple of grid size
     public static let TOTAL_POINTS: Int = GRID_SIZE * KEYS_PER_THREAD // DON'T CHANGE THIS!
     
+    public static let THREADS_PER_THREADGROUP = 128  // Keep this a power of 2. If choosen too high it will be clamped to a not perfect size (a message will be printed then)
     
-    // Increase this to lower the false positive rate of the bloom filter. Or decrease to reduce memory.
-    public static let BLOOM_BIT_SIZE_PER_ITEM = 128
-    
+    // Increase this to lower the false positive rate of the bloom filter. Or decrease to reduce memory usage (helpful for large address sets).
+    public static let BLOOM_BIT_SIZE_PER_ITEM = 64
     
     public static let RING_BUFFER_SIZE = 8
-    
     
     public static let APP_COMMAND_NAME = "keysearch"
     
