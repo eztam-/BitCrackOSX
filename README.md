@@ -118,10 +118,7 @@ Key parameters to adjust for optimal performance on a specific GPU:
 
 
 
-### Expected perfromance of Apple Silicon GPU
-The following analysis of potential performance that we can expect on Apple Silicon GPUs taking the RTX2080 Ti and Bitcrack as a reference.
-
-#### Performance estimate
+### Expected Perfromance of Apple Silicon GPUs
 In general, Apple Silicon GPUs deliver strong performance for many workloads, but they are relatively weak when it comes to integer ALU operations. Solving Bitcoin puzzles relies heavily on 32-bit integer arithmetic, and CryptKeySearch is therefore primarily ALU-bound. This makes overall performance closely tied to a GPU’s integer ALU throughput.
 Unfortunately, there is no widely adopted GPU benchmark that directly measures this specific capability. As a rough point of comparison, the GFXBench 5 ALU2 benchmark can be used as a proxy. By combining known Bitcrack performance data with GFXBench 5 ALU2 results for an NVIDIA RTX 2080 Ti, we can estimate a realistic performance range for Apple Silicon GPUs.
 
