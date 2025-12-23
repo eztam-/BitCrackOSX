@@ -95,17 +95,19 @@ Here are some recommended settings, tested on various GPUs:
 
 ## Roadmap
 - Improve performance
-    - secp256k1 EC claculations are partly a performance bottleneck but can still be improved further. 
+    - secp256k1 EC claculations are partly a performance bottleneck but can still be improved further.
+        - fild_mul (field multiplication) and the reduction function are the main bottleneck and can be optimized further.
     - Switch to Metal 4 which should perform better since the CPU footprint for encoding and submitting work can be kept significantly smaller.
     - Improve the address file load time for very large files.
       The loading of addresses from file into the DB and Bloomfilter is very slow, when loading large files >1GB.
       Possible solutions:
-        - Disk-backed key/value store (LMDB / RocksDB / LevelDB)
-        - Memory-mapped sorted file + binary search
-        - In mem hash map? -> the limit is the memory
-   - Fix bloom filter issues:
-        - Crashing after several hours of running
-        - Each key matches when using very large address sets
+        - Disk-backed key/value store (LMDB / RocksDB / LevelDB).
+        - Memory-mapped sorted file + binary search.
+        - In mem hash map? -> the limit is the memory.
+    - If the address list is lower than 8 or 16 use a list search instead of bloom filter (thats how it's done in Bitcrack)
+- Allow users to specify a custom command to be executed on key match.
+- Support for uncompressed keys has been temporary removed but could be added back.  
+
         
 ## Performance Improvement Notes
 - The application is ALU bound so further optimizations should target the 32 Bit arithmetic functions. 
@@ -157,12 +159,6 @@ Doing the same math for other Apple Silicon GPUs:
 
 The uptick between M1 Pro (16 Core) and M4 (10 Core) despite lower benchmark looks promising.
 
-
-
-
-## Known Issues  
-- Loading large address files takes very long, which could be improved.
-- support for uncompressed keys has been temporary removed  
 
 ## Architecture
 The GPU is used for:
