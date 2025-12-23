@@ -1,19 +1,11 @@
 <h1 align="center">🧮 CryptKeySearch</h1>
-
+<br>
 <p align="center">
-  <span>High-performance macOS application for Bitcoin puzzle solving</span><br>
+  <span>A high-performance macOS application for Bitcoin puzzle solving</span><br>
   <em>Leveraging Apples Metal framework for accelerated private-key search on Silicon GPUs</em>
 </p>
 
-
-<p align="center">
-  <a href="#building-and-running-the-application">Building and Running the Application</a> •
-  <a href="#fine-tuning">Fine Tuning</a> •
-  <a href="#performance">Performance</a>
-</p>
-
 ---
-
 
 <img src="https://raw.githubusercontent.com/eztam-/CryptKeySearch/refs/heads/main/img/screenshot.png">
 
