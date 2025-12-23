@@ -37,7 +37,7 @@ public class DB {
     public func initializeDB() throws {
         
         // TODO only do this during insert and reverse / remove again after insert is done
-        try db.run("PRAGMA journal_mode = WAL;")
+        // try db.run("PRAGMA journal_mode = WAL;")
         try db.run("PRAGMA synchronous = OFF;")
         try db.run("PRAGMA temp_store = MEMORY;")
         try db.run("PRAGMA cache_size = 100000;")
