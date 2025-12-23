@@ -34,7 +34,7 @@ class TestBase {
     
     // =============== Test Helper Methods ================ //
     // Convert hex string to little-endian limbs
-     func hexToLimbs(_ hex: String) -> [UInt32] {
+    func hexToLimbs(_ hex: String) -> [UInt32] {
         var result = [UInt32](repeating: 0, count: 8)
         let clean = hex.replacingOccurrences(of: "0x", with: "")
         let padded = String(repeating: "0", count: max(0, 64 - clean.count)) + clean
@@ -53,15 +53,11 @@ class TestBase {
     }
     
     // Convert little-endian limbs to hex string
-     func limbsToHex(_ limbs: [UInt32]) -> String {
+    func limbsToHex(_ limbs: [UInt32]) -> String {
         var result = ""
         for i in (0..<8).reversed() {
             result += String(format: "%08X", limbs[i])
         }
         return result
     }
-    
-    
-    
-    	
 }

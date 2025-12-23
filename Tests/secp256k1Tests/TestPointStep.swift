@@ -10,22 +10,7 @@ final class PointStepTest: TestBase {
     init() {
         super.init(kernelFunctionName: "step_points")
     }
-    
-    func cpuCalculateExpectedPublicKey(privKey: BInt, compressed: Bool) -> String {
-        if compressed {
-            let privateKey = try! P256K.Signing.PrivateKey(
-                dataRepresentation: privKeyToData(privKey: privKey),
-                format: .compressed
-            )
-            return privateKey.publicKey.dataRepresentation.hexString.lowercased()
-        } else {
-            let privateKey = try! P256K.Signing.PrivateKey(
-                dataRepresentation: privKeyToData(privKey: privKey),
-                format: .uncompressed
-            )
-            return privateKey.publicKey.dataRepresentation.hexString.lowercased()
-        }
-    }
+
     
     func cpuCalcPublicKeyPoint(privKeyBint: BInt) -> (String, String) {
         let privateKey = try! P256K.Signing.PrivateKey(
@@ -70,11 +55,11 @@ final class PointStepTest: TestBase {
         let TOTAL_POINTS: Int = GRID_SIZE * KEYS_PER_THREAD // DON'T CHANGE THIS!
         let keySearchMetal = try KeySearchMetal(on:  device, compressed: true, totalPoints: TOTAL_POINTS, gridSize: GRID_SIZE)
         let bloomFilter = try BloomFilter(entries: ["b87a8987babdf766f47ad399609d88dc2fd5e5a5"], batchSize: 1)
-
+        
         let startKeyHexStr = Helpers.generateRandom256BitHex()
         let startKeyBint = BInt(startKeyHexStr, radix: 16)!
         let startKeyLE = Helpers.hex256ToUInt32Limbs(startKeyHexStr)
-    
+        
         // TEST POINT INIT KERNEL
         try keySearchMetal.runInitKernel(startKeyLE: startKeyLE, commandBuffer: commandQueue.makeCommandBuffer()!)
         let initFailCnt = comparePoints(keySearchMetal.getPointSet(), TOTAL_POINTS, startKeyBint)
@@ -105,7 +90,7 @@ final class PointStepTest: TestBase {
             assert(stepFailCnt == 0)
             print("✅ Point Step \(i) Passed")
         }
-       
+        
     }
     
     
@@ -134,7 +119,6 @@ final class PointStepTest: TestBase {
             data.append(byte)
             index = nextIndex
         }
-        
         return data   // big-endian 32-byte data
     }
     
