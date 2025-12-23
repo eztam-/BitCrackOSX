@@ -47,12 +47,12 @@ To manage multiple databases, use the -d <DB FILE NAME> option to specify which 
 keysearch load <path_to_your_file> 
 ```
 
-Once the database was popuated we can start the key search from a given start address:
+#### 2. Start the key search:
 ```
-# Run with given start key
+# Example 1: Run with given start key
 keysearch run -s 0000000000000000000000000000000000000000000000000000000000000001
 
-# Run with random start key within a given range (Puzzle 71)
+# Example 2: Run with random start key within a given range (Puzzle 71)
 keysearch run -s RANDOM:400000000000000000:7fffffffffffffffff 
 
 # For more options see:
