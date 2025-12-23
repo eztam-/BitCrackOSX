@@ -1,14 +1,13 @@
 # CryptKeySearch
 
-A tool for solving Bitcoin puzzles on macOS, optimized for Apple Silicon GPUs.
+A high-performance macOS application for Bitcoin puzzle solving, leveraging Apple Silicon GPUs for accelerated private-key search.
 
 <img src="https://raw.githubusercontent.com/eztam-/CryptKeySearch/refs/heads/main/img/screenshot.png">
 
 The application is built and optimized specifically for Apple Silicon GPUs, providing high-performance key search capabilities.
 Many existing tools such as BitCrack no longer work on macOS since Apple transitioned to its new Silicon architecture.
-This application aims to be a superior replacement in some regards, offering additional features such as support for modern Bitcoin address types including Taproot and SegWit.
-CryptKeySearch is implemented entirely from scratch for macOS and leverages Apple’s Metal framework to achieve maximum performance.
-The project is heavily inspired by [BitCrack](https://github.com/brichard19/BitCrack), so kudos to brichard19 for the original work.
+This application aims to be a superior replacement in some regards, offering additional features such as support for modern Bitcoin address types including SegWit.
+CryptKeySearch is implemented entirely from scratch but is heavily inspired by [BitCrack](https://github.com/brichard19/BitCrack).
 
 **NOTE!**
 - If something isn’t working or you’re missing a feature, please let me know so I can continue improving the project. In such cases, open a [new Issue](https://github.com/eztam-/CryptKeySearch/issues/new).
