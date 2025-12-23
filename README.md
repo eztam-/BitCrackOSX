@@ -21,8 +21,6 @@ CryptKeySearch is implemented entirely from scratch but is heavily inspired by [
 ## Building and Running the Application
 
 ### Building
-Do not run the application directly from Xcode except for development and debugging purposes. When executed within Xcode, performance may be significantly reduced and the user interface may not behave correctly compared to a proper release build launched from the terminal.
-
 To build the application, Xcode must be installed from the Mac App Store. After installation, open a terminal, navigate to the project directory, and run the following command:
 
 ```
@@ -31,16 +29,17 @@ xcodebuild -scheme CryptKeySearch -destination 'platform=macOS' -configuration R
 After the build completes successfully, you can run the application using the following command:
 ```
 cd ./build/Build/Products/Release/
+
 ./keysearch -h 
 ```
 
 ### Usage
-*Preparing the Address Database*
+#### 1. Preparing the Address Database
 Before starting a private-key search, the application builds a database containing all Bitcoin addresses to be included in the search scope.
 
 This initialization step is required only once per address list. After the database has been created, you can run any number of key searches without repeating the import process. The database needs to be rebuilt only when you want to use a different set of addresses.
 
-The address list must be provided as a text file, with exactly one address per line.
+The address list must be provided as a text file, with exactly one address per line (no duplications).
 
 To manage multiple databases, use the -d <DB FILE NAME> option to specify which database file the application should use.
 
@@ -53,7 +52,7 @@ Once the database was popuated we can start the key search from a given start ad
 # Run with given start key
 keysearch run -s 0000000000000000000000000000000000000000000000000000000000000001
 
-# Run with random start key within a given range
+# Run with random start key within a given range (Puzzle 71)
 keysearch run -s RANDOM:400000000000000000:7fffffffffffffffff 
 
 # For more options see:
