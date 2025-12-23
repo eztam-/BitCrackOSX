@@ -10,7 +10,7 @@ This application aims to be a superior replacement in some regards, offering add
 CryptKeySearch is implemented entirely from scratch but is heavily inspired by [BitCrack](https://github.com/brichard19/BitCrack).
 
 - Report an issue or request a feature: [new Issue](https://github.com/eztam-/CryptKeySearch/issues/new).
-- Support the project: :money_with_wings: BTC: 39QmdfngkM3y4KJbwrgspNRQZvwow5BFpg
+- Support the project: BTC: 39QmdfngkM3y4KJbwrgspNRQZvwow5BFpg
 
 
 ## Building and Running the Application
@@ -58,20 +58,36 @@ keysearch run -h
 ```
 
 ### Fine Tuning
+To achieve optimal performance on your specific GPU, certain parameters can be fine-tuned in `Sources/Common/Properties.swift.`
+Any changes to this file require recompiling the application.
 
-Key parameters to adjust for optimal performance on a specific GPU:
-- **Grid Size**
+The following parameters are most relevant for performance tuning:
+- **GRID_SIZE**
     This defines the number of threads submitted per batch.
-    If set too high, the application may consume excessive memory and potentially slow down the entire operating system.
+    If set too high, the application may consume excessive memory and potentially slowing down the entire operating system.
 
-- **Keys per Thread**
+- **KEYS_PER_THREAD**
     This value should be set as high as possible for maximum throughput.
-    However, if set too high, it can cause memory overruns. In such cases, the application may appear to run normally (and even very fast) but will silently fail to match any keys.
-    Always verify that key matching still works when experimenting with this setting.
+    However, if set too high, it can cause memory overruns. 
     
-- **Ring Buffer Size**
-    If the two parameters above are set too low—or if your GPU is particularly powerful—the number of batches processed per second will increase, which introduces another performance bottleneck (see the performance optimization section below).
+- **THREADS_PER_THREADGROUP**
+    Keep this a power of 2. If choosen too high it will be clamped to a not perfect size (a message will be printed then)
+    
+- **BLOOM_BIT_SIZE_PER_ITEM**
+    Increase this to lower the false positive rate of the bloom filter. Or decrease to reduce memory usage (helpful for large address sets).    
+    
+- **RING_BUFFER_SIZE**
+    If the two parameters above are set too low —or if your GPU is particularly powerful— the number of batches processed per second will increase, which introduces another performance bottleneck (see the performance optimization section below).
     In those cases, you may also need to increase the ring buffer size.
+
+
+Always verify that key matching still works when experimenting with this setting!
+
+Here are some recommended settings, tested on various GPUs:
+
+
+
+
 
 
 ## Roadmap
