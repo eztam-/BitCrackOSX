@@ -9,25 +9,16 @@ Many existing tools such as BitCrack no longer work on macOS since Apple transit
 This application aims to be a superior replacement in some regards, offering additional features such as support for modern Bitcoin address types including SegWit.
 CryptKeySearch is implemented entirely from scratch but is heavily inspired by [BitCrack](https://github.com/brichard19/BitCrack).
 
-**NOTE!**
-- If something isn’t working or you’re missing a feature, please let me know so I can continue improving the project. In such cases, open a [new Issue](https://github.com/eztam-/CryptKeySearch/issues/new).
-- Contributions are very welcome — feel free to submit a merge request.
-- I had no prior experience with Swift or Metal when starting this project, so I greatly appreciate any code reviews, feedback, or suggestions for improvement.
-- This application is intended for solving Bitcoin puzzles. Any illegal use is strictly prohibited.
-
-Many hours of work have gone into this project — and many more will. If you’d like to support its development, you can:
-- Give the GitHub repository a star :star:
-- Contribute to the code :computer:
-- Make a donation :money_with_wings: BTC: 39QmdfngkM3y4KJbwrgspNRQZvwow5BFpg
+- Report an issue or request a feature: [new Issue](https://github.com/eztam-/CryptKeySearch/issues/new).
+- Support the project: :money_with_wings: BTC: 39QmdfngkM3y4KJbwrgspNRQZvwow5BFpg
 
 
 ## Building and Running the Application
 
 ### Building
-Do not run the application directly from Xcode for anything other than development purposes.
-Running inside Xcode might be significantly slower, and the UI behaves incorrectly compared to a proper release build executed from the terminal.
-However, to build the application, you must first install Xcode from the App Store.
-Once Xcode is installed, open a terminal, navigate to the project directory, and run the following command:
+Do not run the application directly from Xcode except for development and debugging purposes. When executed within Xcode, performance may be significantly reduced and the user interface may not behave correctly compared to a proper release build launched from the terminal.
+
+To build the application, Xcode must be installed from the Mac App Store. After installation, open a terminal, navigate to the project directory, and run the following command:
 
 ```
 xcodebuild -scheme CryptKeySearch -destination 'platform=macOS' -configuration Release -derivedDataPath ./build
@@ -35,17 +26,18 @@ xcodebuild -scheme CryptKeySearch -destination 'platform=macOS' -configuration R
 After the build completes successfully, you can run the application using the following command:
 ```
 cd ./build/Build/Products/Release/
-
 ./keysearch -h 
 ```
 
 ### Usage
 *Preparing the Address Database*
-Before starting a private key search, the application needs to build a database containing all addresses you want to include in the search process.
-This setup step only needs to be done once. Afterwards, you can run as many key searches as you like without repeating the database creation.
-You only need to repeat this step if you want to use a different address list.
-The address list must be supplied as a file in which each line contains exactly one address.
-If you want to maintain multiple databases, use the -d <DB FILE NAME> argument to specify which database file to work with.
+Before starting a private-key search, the application builds a database containing all Bitcoin addresses to be included in the search scope.
+
+This initialization step is required only once per address list. After the database has been created, you can run any number of key searches without repeating the import process. The database needs to be rebuilt only when you want to use a different set of addresses.
+
+The address list must be provided as a text file, with exactly one address per line.
+
+To manage multiple databases, use the -d <DB FILE NAME> option to specify which database file the application should use.
 
 ```
 keysearch load <path_to_your_file> 
