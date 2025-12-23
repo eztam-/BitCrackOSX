@@ -1,6 +1,10 @@
 # CryptKeySearch
 
-A tool for solving Bitcoin puzzles on macOS. The application is built and optimized specifically for Apple Silicon GPUs, providing high-performance key search capabilities.
+A tool for solving Bitcoin puzzles on macOS, optimized for Apple Silicon GPUs.
+
+<img src="https://raw.githubusercontent.com/eztam-/CryptKeySearch/refs/heads/main/img/screenshot.png">
+
+The application is built and optimized specifically for Apple Silicon GPUs, providing high-performance key search capabilities.
 Many existing tools such as BitCrack no longer work on macOS since Apple transitioned to its new Silicon architecture.
 This application aims to be a superior replacement in some regards, offering additional features such as support for modern Bitcoin address types including Taproot and SegWit.
 CryptKeySearch is implemented entirely from scratch for macOS and leverages Apple’s Metal framework to achieve maximum performance.
@@ -176,13 +180,13 @@ The CPU handles:
 
 ### Address Calculation from Private Key
 The following diagram shows the individual stepps to calculate a bitcoin address from a private key
-<img src="https://raw.githubusercontent.com/eztam-/BitCrackOSX/refs/heads/main/img/calc_by_address_types.drawio.svg">
+<img src="https://raw.githubusercontent.com/eztam-/CryptKeySearch/refs/heads/main/img/calc_by_address_types.drawio.svg">
 
 To make the key search loop as efficient as possible, we only want the non-reversible calculations within the loop.
 The reversible calculations will be reversed before inserting the addresses from the file into the bloomfilter. 
 This leads us to the following application architecture:
 
-<img src="https://raw.githubusercontent.com/eztam-/BitCrackOSX/refs/heads/main/img/architecture.drawio.svg">
+<img src="https://raw.githubusercontent.com/eztam-/CryptKeySearch/refs/heads/main/img/architecture.drawio.svg">
 
 The bloom filter ingestion only happens once during application start.
 

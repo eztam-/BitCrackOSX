@@ -34,7 +34,7 @@ public class BloomFilter {
             exit(1)
         }
         try self.init(expectedInsertions: cnt, batchSize: batchSize)
-        print("    Loading Data:")
+        print("    Loading...")
         print("    → Start loading \(cnt) public key hashes from database into the bloom filter.")
         let startTime = CFAbsoluteTimeGetCurrent()
         
@@ -55,7 +55,7 @@ public class BloomFilter {
             try self.insert(batch)
         }
         let endTime = CFAbsoluteTimeGetCurrent()
-        print("    → Bloom filter initialization with \(cnt) addresses took \(Int(endTime-startTime)) seconds.")
+        print("    → Bloom filter initialization with \(cnt) hashes took \(Int(endTime-startTime)) seconds.")
         
     }
     
