@@ -85,7 +85,10 @@ Always verify that key matching still works when experimenting with this setting
 
 Here are some recommended settings, tested on various GPUs:
 
-
+|GPU|GRID_SIZE|KEYS_PER_THREAD|THREADS_PER_THREADGROUP|RING_BUFFER_SIZE|
+|---|---------|---------------|-----------------------|----------------|
+|M1 Pro 16 Core|1024|1024 \* 32|128|8|
+|M4 10 Core||||
 
 
 
