@@ -11,7 +11,6 @@ class UI {
     // Per batch stats
     var totalStartTime: UInt64 = 0
     var totalEndTime: UInt64 = 0
-    var startHexKey: String = ""
     var startKey: BInt = BInt.zero
     var endKey: BInt?
     var batchCount: Int = 0
@@ -22,28 +21,24 @@ class UI {
     let timer = DispatchSource.makeTimerSource()
     var isFirstRun = true
     private let lock = NSLock()
-    private let appStartTime = DispatchTime.now()
+    private var appStartTime = DispatchTime.now()
     let batchSize: Int
+    let runConfig: RunConfig
     
-    
-    public init(batchSize: Int, startKeyHex: String, endKey: BInt?){
+    public init(batchSize: Int, runConfig: RunConfig){
         self.batchSize = batchSize
-        self.startHexKey = startKeyHex
-        self.startKey = BInt(startKeyHex, radix: 16)!
-        self.endKey = endKey != nil ? endKey! + 150000000 * 10 : nil // TODO: This is a very dirty hack to avoid skipping the last few key checks, because there is always a delay when the keys are actually printed
+        self.endKey = runConfig.endKey != nil ? runConfig.endKey! + 150000000 * 10 : nil // TODO: This is a very dirty hack to avoid skipping the last few key checks, because there is always a delay until the keys are actually printed
+        self.runConfig = runConfig
     }
     
     
     func elapsedTimeString() -> String {
         let elapsed = DispatchTime.now().uptimeNanoseconds - appStartTime.uptimeNanoseconds
-        
         let totalSeconds = elapsed / 1_000_000_000
-        
         let days = totalSeconds / 86_400
         let hours = (totalSeconds % 86_400) / 3_600
         let minutes = (totalSeconds % 3_600) / 60
         let seconds = totalSeconds % 60
-        
         return String(format: "%d:%02d:%02d:%02d", days, hours, minutes, seconds)
     }
     
@@ -58,6 +53,7 @@ class UI {
             self.printStats()
         }
         timer.resume()
+        appStartTime = DispatchTime.now() // Start from here to only measure time when the actual key search starts (excluding init points)
     }
     
     
@@ -72,41 +68,35 @@ class UI {
         self.batchCount = batchCount
     }
     
-    
-    @inline(__always)
-    private func raw(_ s: String) {
-        fputs(s, stdout)
-    }
-    
+
     public func printMessage(_ msg: String) {
-        //lock.lock()
-        //defer { lock.unlock() }
-        
-        // Move to top of footer block
-        raw("\u{1B}[\(UI.STATS_LINES)A")
-        
-        // Clear footer lines WITHOUT emitting newlines
-        for _ in 0..<UI.STATS_LINES {
-            raw("\u{1B}[2K")     // clear entire line
-            raw("\u{1B}[1B")     // move cursor down one line
-        }
-        
-        // Back to where the message should start
-        raw("\u{1B}[\(UI.STATS_LINES)A")
-        
-        // Print the message (may be multi-line; will scroll naturally)
-        print(msg)
-        printFooterPadding()
-        printStats()
-        fflush(stdout)
-        
-    }
-    
-    
-    func printStats(){
         lock.lock()
         defer { lock.unlock() }
         
+        // Move to top of footer block
+        fputs("\u{1B}[\(UI.STATS_LINES)A", stdout)
+        
+        // Clear footer lines WITHOUT emitting newlines
+        for _ in 0..<UI.STATS_LINES {
+            fputs("\u{1B}[2K", stdout)    // clear entire line
+            fputs("\u{1B}[1B", stdout)    // move cursor down one line
+        }
+        
+        // Back to where the message should start
+        fputs("\u{1B}[\(UI.STATS_LINES)A", stdout)
+        
+        print(msg)
+        printFooterPadding()
+        printStatsUnlocked()
+    }
+    
+    public func printStats() {
+        lock.lock()
+        defer { lock.unlock() }
+        printStatsUnlocked()
+    }
+    
+    private func printStatsUnlocked(){
         // Skip the first few batch submissions, since they are not representative
         if batchCount <= Properties.RING_BUFFER_SIZE {
             return
@@ -134,21 +124,15 @@ class UI {
             bloomFilterString.append(" ⚠️  FPR is too high and impacts performance! Adjust your settings.")
         }
 
-        // Calculate current key
-        let currentKey = startKey + batchSize * batchCount
-        var currKey: String = ""
-        if currentKey > 0 {
-            currKey = currentKey.asString(radix: 16)
-            currKey = Helpers.addTrailingZeros(key: currKey)
-            currKey = underlineFirstDifferentCharacter(base: startHexKey.uppercased(), modified: currKey.uppercased())
-        }
-        
+        let (currKeyStr, currKey) = runConfig.calcCurrentKey(batchIndex: batchCount, offset: 0)
+        let currKeyStrNice = underlineFirstDifferentCharacter(base: runConfig.startKeyStr, modified: currKeyStr)
+
         print("\u{1B}[\(UI.STATS_LINES)A", terminator: "")
         
         print("""
         📊 Live Stats
-        \(clearLine())    Start key   :  \(startHexKey.uppercased())
-        \(clearLine())    Current Key :  \(currKey)
+        \(clearLine())    Start key   :  \(runConfig.startKeyStr)
+        \(clearLine())    Current Key :  \(currKeyStrNice)
         \(clearLine())    Elapsed Time:  \(elapsedTimeString())
         \(clearLine())    Batch Count :  \(batchCount) (\(batchesPerS)/s) \(batchRateWarning)
         \(clearLine())    Bloom Filter:  \(bloomFilterString)
@@ -157,7 +141,7 @@ class UI {
         fflush(stdout)
         
         // TODO: This is skipping the last few key checks, because there is always a delay when the keys are actually printed
-        if endKey != nil && currentKey > endKey!{
+        if endKey != nil && currKey > endKey!{
             print("\n\nEnd key reached. Exiting.")
             exit(0);
         }

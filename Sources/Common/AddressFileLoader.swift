@@ -76,7 +76,10 @@ class AddressFileLoader {
         try db.createIndex() // We create the index after insertion for better performance of b-tree index -> log(n)
         let endTime2 = CFAbsoluteTimeGetCurrent()
         
-        print("Data load took: \((endTime-startTime)/60.0))min, indexing took: \((endTime2-startTime)/60)min)")
+        let dataLoadTimeM = String(format: "%.2f", (endTime-startTime)/60.0)
+        let indexingTimeM = String(format: "%.2f", (endTime2-startTime)/60.0)
+        
+        print("Data load took: \(dataLoadTimeM)min, indexing took: \(indexingTimeM)min)")
         
     }
     

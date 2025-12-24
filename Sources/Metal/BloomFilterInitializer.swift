@@ -19,11 +19,6 @@ public class BloomFilter {
     private var countBuffer: MTLBuffer
     private var mBitsBuffer: MTLBuffer
     
-    enum BloomFilterError: Error {
-        case initializationFailed
-        case bitSizeExceededMax
-    }
-    
     public convenience init(db: DB, batchSize: Int) throws {
         
         print("🌀 Initializing Bloom Filter")

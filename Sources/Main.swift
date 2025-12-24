@@ -6,8 +6,6 @@ import BigNumber
 @main
 struct Main: ParsableCommand {
     
-    
-    
     static let banner = """
 _________                        __     ____  __.               _________                           .__     
 \\_   ___ \\_______ ___.__._______/  |_  |    |/ _|____ ___.__.  /   _____/ ____ _____ _______   ____ |  |__  
@@ -16,7 +14,6 @@ _________                        __     ____  __.               _________       
  \\______  /|__|   / ____||   __/|__|   |____|__ \\___  > ____| /_______  /\\___  >____  /__|    \\___  >___|  /
         \\/        \\/     |__|                  \\/   \\/\\/              \\/     \\/     \\/            \\/     \\/ 
 """
-    
     
     
     struct FileLoadCommand: ParsableCommand {
@@ -28,7 +25,6 @@ _________                        __     ____  __.               _________       
         
         @Argument(help: "A file containing bitcoin addresses (one address per row) to be included in the key search.")
         var filePath: String
-        
         
         @Option( name: [.customShort("d"), .customLong("database-file")],
                  help: "Path to the database file with .sqlite3 extension.")
@@ -58,18 +54,10 @@ _________                        __     ____  __.               _________       
         
         @Option(
             name: [.customShort("s"), .customLong("start-key")],
-            help: ArgumentHelp("Either a private key from which the search will start like: 0000000000000000000000000000000000000000000000000000000000000001. Or 'RANDOM' to start with a random private key. Or a random number withing a range of private keys like: RANDOM:1:1000",
-                               valueName: "<start-key>|RANDOM|RANDOM:<start>:<end>",
+            help: ArgumentHelp("Either a private key in hexadecimal format from which the search will start like: 02C0FFEEBABE.\n Or 'RANDOM' to start with a random private key.\n Or a random number withing a range of private keys like: RANDOM:1:1FFFF.\n Or a start and end key like: 02C0FFEEBABE:FFFFFFFFFFFF.",
+                               valueName: "<start-key>|<start-key>:<end-key>|RANDOM|RANDOM:<start>:<end>",
                               ))
         var startKey: String
-        
-        
-        @Option(
-            name: [.customShort("e"), .customLong("end-key")],
-            help: ArgumentHelp("A private key for the end of the search like: 0000000000000000000000000000000000000000000000000000000000100001. If this key is reached, then the application will end.",
-                               valueName: "<end-key>",
-                              ))
-        var endKey: String = ""
         
         
         @Option( name: .shortAndLong,
@@ -95,44 +83,27 @@ _________                        __     ____  __.               _________       
         
         mutating func run() {
             
-            Properties.verbose = verbose
             do {
                 if uncompressedKeySearch && compressedKeySearch {
                     print("Combined search for compressed and uncompressed keys is not yet supported. Please use one of the two options separately.")
                     return
                 } else if uncompressedKeySearch {
-                    print("Support for uncompressed keys has been droped")
+                    print("Support for uncompressed keys has been dropped")
                     return
-                } else if !uncompressedKeySearch && !compressedKeySearch{
-                    Properties.compressedKeySearch = true
-                } else {
-                    Properties.compressedKeySearch = compressedKeySearch
-                    Properties.uncompressedKeySearch = uncompressedKeySearch
                 }
                 
                 print(banner)
+                
+                let runConfig = try RunConfig(
+                    startKeyStr: startKey,
+                    outputFile: outputFile,
+                    dbFile: dbFile,
+                    compressed: compressedKeySearch,
+                    verbose: verbose
+                )
                 try UI.printGPUInfo()
-                let db = try DB(dbPath: dbFile)
-                let bloomFilter = try BloomFilter(db: db, batchSize: Properties.TOTAL_POINTS) // TODO: bad access of BATCH_SIZE in KeySearch
-                
-                var endKeyBint: BInt? = nil
-                if !endKey.isEmpty {
-                    endKeyBint = BInt(endKey, radix: 16)
-                }
-                
-                if startKey == "RANDOM" {
-                    startKey = Helpers.randomHex256(in: ("1", "FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFEBAAEDCE6AF48A03BBFD25E8CD0364140")) // Max range for BTC keys
-                }
-                else if startKey.starts(with: "RANDOM:") {
-                    let parts = startKey.split(separator: ":")
-                    startKey = Helpers.randomHex256(in: (String(parts[1]), String(parts[2])))
-                }
-                
-                if startKey.count == 64 && startKey.allSatisfy(\.isHexDigit) {
-                    try KeySearch(bloomFilter: bloomFilter, database: db, outputFile: outputFile, startKeyHex: startKey, endKey: endKeyBint).run()
-                }
-                print("Invalid start key provided. Please provide a valid 32 byte hex string.")
-                
+                let bloomFilter = try BloomFilter(db: runConfig.db, batchSize: Properties.TOTAL_POINTS) // TODO: bad access of BATCH_SIZE in KeySearch
+                try KeySearch(bloomFilter: bloomFilter, runConfig: runConfig).run()                
             } catch {
                 print("Caught error: \(error)")
                 print("Type: \(type(of: error))")

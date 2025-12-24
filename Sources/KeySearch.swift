@@ -25,25 +25,19 @@ class KeySearch {
     var slots: [BatchSlot] = []
     
     let bloomFilter: BloomFilter
-    let db: DB
-    let outputFile: String
     let device = Helpers.getSharedDevice()
     let ui: UI
-    let startKeyHex: String
-    var startKey: BInt
+
     let keyIncrement: BInt
     let totalPoints: Int = Properties.TOTAL_POINTS
     let maxInFlight: Int
+    let runConfig: RunConfig
     
-    public init(bloomFilter: BloomFilter, database: DB, outputFile: String, startKeyHex: String, endKey: BInt?) {
+    public init(bloomFilter: BloomFilter, runConfig: RunConfig) {
+        self.runConfig = runConfig
         self.bloomFilter = bloomFilter
-        self.db = database
-        self.outputFile = outputFile
-        self.startKeyHex = startKeyHex
-        self.startKey = BInt(startKeyHex, radix: 16)!
-
         self.keyIncrement = BInt(totalPoints)
-        self.ui = UI(batchSize: totalPoints, startKeyHex: startKeyHex, endKey: endKey)
+        self.ui = UI(batchSize: totalPoints, runConfig: runConfig)
         self.maxInFlight = Properties.RING_BUFFER_SIZE
         
         // Initialize ring buffer with MTLBuffers
@@ -65,19 +59,13 @@ class KeySearch {
                 hitCountBuffer: resultCountBuffer
             )
         }
-        
-        
     }
     
     func run() throws {
         
         let commandQueue = device.makeCommandQueue()!
         let keySearchMetal = try KeySearchMetal(on:  device, compressed: Properties.compressedKeySearch, totalPoints: totalPoints, gridSize: Properties.GRID_SIZE)
-        
-        
-        let startKeyLE =  Helpers.hex256ToUInt32Limbs(startKeyHex)
-        try keySearchMetal.runInitKernel(startKeyLE: startKeyLE, commandBuffer: commandQueue.makeCommandBuffer()!)
-        
+        try keySearchMetal.runInitKernel(startKeyHex: runConfig.startKeyStr , commandBuffer: commandQueue.makeCommandBuffer()!)
         ui.startLiveStats()
 
         //dumpPoint(0, pointSet: pointSet)
@@ -172,28 +160,20 @@ class KeySearch {
             let hit = hitPtr[i]
             let hash160String = digestToHexString(hit.hash160)
             
-            let addresses = try! db.getAddresses(for: hash160String)
+            let addresses = try! runConfig.db.getAddresses(for: hash160String)
             
             if addresses.isEmpty {
                 falsePositiveCnt += 1
-            } else {
-                
-                // Calculating the private key
-                let batchIndex = batchCount - 1  // because hashes are for previous batch d
-                let pointIndex = Int(hit.index)
-                let privKeyVal = startKey + BInt(batchIndex) * BInt(Properties.TOTAL_POINTS) + BInt(pointIndex)
-                
-                
-                var privKeyHex = privKeyVal.asString(radix: 16)
-                privKeyHex = String(repeating: "0", count: max(0, 64 - privKeyHex.count)) + privKeyHex
-                
+            }
+            else {
+                let (privKeyHex, _) = runConfig.calcCurrentKey(batchIndex: batchCount - 1, offset: Int(hit.index))
                 ui.printMessage(
-                """
-                ──────────────────────────────────────────────────────────────────────────────────────
-                💰 Private key found: \(privKeyHex)
-                   For addresses:
-                    \(addresses.map { $0.address }.joined(separator: "\n    "))
-                """)
+                    """
+                    ──────────────────────────────────────────────────────────────────────────────────────
+                    💰 Private key found: \(privKeyHex)
+                       For addresses:
+                        \(addresses.map { $0.address }.joined(separator: "\n    "))
+                    """)
                 
                 try! appendToResultFile(
                     text: "Found private key: \(privKeyHex) for addresses: \(addresses.map(\.address).joined(separator: ", ")) \n"
@@ -207,7 +187,7 @@ class KeySearch {
     }
     
     func appendToResultFile(text: String) throws {
-        let filePath = self.outputFile
+        let filePath = self.runConfig.outputFile
         let url = URL(fileURLWithPath: filePath)
         if FileManager.default.fileExists(atPath: url.path) {
             let fileHandle = try FileHandle(forWritingTo: url)

@@ -256,31 +256,25 @@ public class Helpers{
         // Scale into range with modulo (no infinite loop)
         let result = start + (r % diff)
         
-        let randomKey = String(result.asString(radix: 16))
-        let endKeyStr = end.asString(radix: 16)
+        let randomKey = String(result.asString(radix: 16)).uppercased()
+        let endKeyStr = end.asString(radix: 16).uppercased()
         
         print("\n🔑 Generating Random Key in Range")
-        print("    Range Start :  \(addTrailingZeros(key: start.asString(radix: 16), totalLength: endKeyStr.count))")
+        print("    Range Start :  \(addTrailingZeros(key: start.asString(radix: 16).uppercased(), totalLength: endKeyStr.count))")
         print("    Random Key  :  \(addTrailingZeros(key: randomKey, totalLength: endKeyStr.count))")
         print("    Range End   :  \(endKeyStr)")
         
         return Helpers.addTrailingZeros(key: randomKey)
     }
     
-    
-    
     public static func addTrailingZeros(key: String, totalLength: Int = 64)-> String{
-        if key.count < totalLength {
-            return String(repeating: "0", count: totalLength - key.count) + key
-        }
-        return key
+        return String(repeating: "0", count: max(0, totalLength - key.count)) + key
     }
     
     public static func getStorageModePrivate() -> MTLResourceOptions {
         return TEST_MODE ? .storageModeShared : .storageModePrivate
     }
 }
-
 
 
 final class ExponentialMovingAverage {

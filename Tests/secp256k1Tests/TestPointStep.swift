@@ -58,10 +58,10 @@ final class PointStepTest: TestBase {
         
         let startKeyHexStr = Helpers.generateRandom256BitHex()
         let startKeyBint = BInt(startKeyHexStr, radix: 16)!
-        let startKeyLE = Helpers.hex256ToUInt32Limbs(startKeyHexStr)
+       
         
         // TEST POINT INIT KERNEL
-        try keySearchMetal.runInitKernel(startKeyLE: startKeyLE, commandBuffer: commandQueue.makeCommandBuffer()!)
+        try keySearchMetal.runInitKernel(startKeyHex: startKeyHexStr, commandBuffer: commandQueue.makeCommandBuffer()!)
         let initFailCnt = comparePoints(keySearchMetal.getPointSet(), TOTAL_POINTS, startKeyBint)
         assert(initFailCnt == 0)
         print("✅ Point Initialization Passed")

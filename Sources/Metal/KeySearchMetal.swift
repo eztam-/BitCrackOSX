@@ -107,8 +107,9 @@ public class KeySearchMetal {
     /// Initialize the points with a starting private key and compute ΔG.
     ///
     /// `startKeyLE` must be 8×UInt32 in little-endian limb order as expected by Metal `field_add` / scalar arithmetic.
-    public func runInitKernel(startKeyLE: [UInt32], commandBuffer: MTLCommandBuffer) throws {
+    public func runInitKernel(startKeyHex: String, commandBuffer: MTLCommandBuffer) throws {
         //print("   → Calculating initial points.")
+        let startKeyLE =  Helpers.hex256ToUInt32Limbs(startKeyHex)
 
         precondition(startKeyLE.count == 8)
         
