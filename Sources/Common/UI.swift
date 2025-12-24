@@ -11,7 +11,6 @@ class UI {
     // Per batch stats
     var totalStartTime: UInt64 = 0
     var totalEndTime: UInt64 = 0
-    var startKey: BInt = BInt.zero
     var endKey: BInt?
     var batchCount: Int = 0
     var lastPrintBatchCount = 0
