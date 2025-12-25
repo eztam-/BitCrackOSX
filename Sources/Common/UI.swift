@@ -2,6 +2,9 @@ import Foundation
 import BigNumber
 import UserNotifications
 import Metal
+import Collections
+
+
 
 class UI {
     
@@ -23,6 +26,11 @@ class UI {
     private var appStartTime = DispatchTime.now()
     let batchSize: Int
     let runConfig: RunConfig
+    
+    var throughputHistoryDeque = Deque<Double>() //Deque<Double>(repeating: 0.0, count: 32)
+
+  
+    
     
     public init(batchSize: Int, runConfig: RunConfig){
         self.batchSize = batchSize
@@ -126,6 +134,13 @@ class UI {
         let (currKeyStr, currKey) = runConfig.calcCurrentKey(batchIndex: batchCount, offset: 0)
         let currKeyStrNice = underlineFirstDifferentCharacter(base: runConfig.startKeyStr, modified: currKeyStr)
 
+        
+        throughputHistoryDeque.prepend(smooth)
+        if throughputHistoryDeque.count > 49 {
+            throughputHistoryDeque.removeLast()
+        }
+
+        
         print("\u{1B}[\(UI.STATS_LINES)A", terminator: "")
         
         print("""
@@ -135,7 +150,7 @@ class UI {
         \(clearLine())    Elapsed Time:  \(elapsedTimeString())
         \(clearLine())    Batch Count :  \(batchCount) (\(batchesPerS)/s) \(batchRateWarning)
         \(clearLine())    Bloom Filter:  \(bloomFilterString)
-        \(clearLine())    Throughput  :  \(statusStr)
+        \(clearLine())    Throughput  :  \(statusStr) \(brailleChart(throughputHistoryDeque))
         """)
         fflush(stdout)
         
@@ -208,6 +223,40 @@ class UI {
         task.arguments = ["-e", script]
         task.launch()
     }
+    
+    
+    func brailleChart<C: Collection>(_ values: C) -> String
+    where C.Element == Double {
+        guard !values.isEmpty else { return "" }
+
+        //let blocks: [Character] = ["⣀", "⣄", "⣆", "⣇", "⣧", "⣷", "⣿"]
+        let blocks: [Character] = ["▁","▂","▃","▄","▅","▆","▇","█"]
+
+        let steps = blocks.count - 1
+
+        let minVal = values.min()!
+        let maxVal = values.max()!
+        let range = maxVal - minVal
+
+        // Handle flat signal
+        if range == 0 {
+            let line = String(repeating: String(blocks[steps / 2]),
+                              count: values.count)
+            return line
+        }
+
+        var output = ""
+
+        for v in values {
+            let normalized = (v - minVal) / range
+            let index = Int(round(normalized * Double(steps)))
+            output.append(blocks[index])
+        }
+
+        return output
+    }
+
+
     
 }
 

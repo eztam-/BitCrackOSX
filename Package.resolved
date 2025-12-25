@@ -1,5 +1,5 @@
 {
-  "originHash" : "c89a772c5b1e295b18799a8ee2c658544b93d9362f59e38f8bcdab980ec56781",
+  "originHash" : "15a9e54c75ef1284d24ea746761218eeec40b39bad79dadb6c3474fb145a33ad",
   "pins" : [
     {
       "identity" : "sqlite.swift",
@@ -26,6 +26,15 @@
       "state" : {
         "revision" : "b07e961f4c999671cf8c2dc80e740899e8946013",
         "version" : "2.3.0"
+      }
+    },
+    {
+      "identity" : "swift-collections",
+      "kind" : "remoteSourceControl",
+      "location" : "https://github.com/apple/swift-collections.git",
+      "state" : {
+        "revision" : "7b847a3b7008b2dc2f47ca3110d8c782fb2e5c7e",
+        "version" : "1.3.0"
       }
     },
     {

@@ -13,6 +13,7 @@ let package = Package(
         .package(url: "https://github.com/mkrd/Swift-BigInt", exact: "2.3.0"),
         .package(url: "https://github.com/apple/swift-argument-parser", from: "1.6.2"),
         .package(url: "https://github.com/stephencelis/SQLite.swift.git", from: "0.15.4"),
+        .package(url: "https://github.com/apple/swift-collections.git", .upToNextMinor(from: "1.3.0")),
     ],
     targets: [
         .executableTarget(
@@ -21,6 +22,8 @@ let package = Package(
                 .product(name: "ArgumentParser", package: "swift-argument-parser"),
                 .product(name: "SQLite", package: "SQLite.swift"),
                 .product(name: "BigNumber", package: "Swift-BigInt"),
+                .product(name: "BigNumber", package: "Swift-BigInt"),
+                .product(name: "Collections", package: "swift-collections")
             ],
             path: "Sources",
             exclude: [
