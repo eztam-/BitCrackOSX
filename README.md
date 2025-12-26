@@ -95,6 +95,7 @@ Here are some recommended settings, tested on various GPUs:
 |M4 10 Core||||
 
 
+Also be aware, that other programms like background processes consume GPU capacity at the same time or on unpredictable schedules, which might temporary slow down the performance. You can verify this in the Activity Monitor. I have observed that sometimes a reboot helps.
 
 
 ## Roadmap

@@ -136,34 +136,34 @@ class UI {
         let fprEma = bfFalsePositiveRateEma.getValue()!
         let falsePositiveRate = 100.0 / Double(batchSize * batchesPerS) * Double(fprEma)
         var bloomFilterString = String(format: "%.6f%% FPR (%d)", falsePositiveRate, Int(fprEma))
+        var bloomFilterWarning = ""
         if falsePositiveRate > BF_FPR_WARNING_THRESHOLD {
-            bloomFilterString.append(" ⚠️  FPR is too high and impacts performance! Adjust your settings.")
+            bloomFilterWarning.append(" ⚠️  FPR is too high and impacts performance! Adjust your settings.")
         }
 
         let (currKeyStr, currKey) = runConfig.calcCurrentKey(batchIndex: batchCount, offset: 0)
         let currKeyStrNice = underlineFirstDifferentCharacter(base: runConfig.startKeyStr, modified: currKeyStr)
 
-        bloomFprHistory.prepend(falsePositiveRate)
-        throughputHistory.prepend(smooth)
-        batchRateHistory.prepend(Double(batchesPerS))
-        if throughputHistory.count > 41 {
-            throughputHistory.removeLast()
-            bloomFprHistory.removeLast()
-            batchRateHistory.removeLast()
-        }
-        let batchesPerSstr = "\(batchCount)  (\(batchesPerS)/s)"
         
+        let chart1 = chart(values: &batchRateHistory, addValue: Double(batchesPerS))
+        let chart2 = chart(values: &bloomFprHistory, addValue: falsePositiveRate)
+        let chart3 = chart(values: &throughputHistory, addValue: Double(smooth))
+        
+        
+        
+        let batchesPerSstr = "\(batchCount)  (\(batchesPerS)/s)"
+      
+
         print("\u{1B}[\(UI.STATS_LINES)A", terminator: "")
-       // print(statusStr)
         print("""
         \(clearLine())📊 Live Stats ╭──────────────────────────────────────────────────────────────────────╮
         \(clearLine())╭─────────────╯    \(printAt(column: 85,"│"))
         \(clearLine())│   Start key   :  \(runConfig.startKeyStr) \(printAt(column: 85,"│"))
         \(clearLine())│   Current Key :  \(currKeyStrNice) \(printAt(column: 85,"│"))
         \(clearLine())│   Elapsed Time:  \(elapsedTimeString()) \(printAt(column: 85,"│"))
-        \(clearLine())│   Batch Count :  \(padOrTrim2(batchesPerSstr, to: 23))\(barChart(batchRateHistory)) \(batchRateWarning) \(printAt(column: 85,"│"))
-        \(clearLine())│   Bloom Filter:  \(padOrTrim2(bloomFilterString,to: 23))\(barChart(bloomFprHistory)) \(printAt(column: 85,"│"))
-        \(clearLine())│   Throughput  :  \(padOrTrim2(statusStr, to: 23))\(barChart(throughputHistory)) \(printAt(column: 85,"│"))
+        \(clearLine())│   Batch Count :  \(padOrTrim2(batchesPerSstr, to: 23))\(chart1) \(printAt(column: 85,"│")) \(batchRateWarning)
+        \(clearLine())│   Bloom Filter:  \(padOrTrim2(bloomFilterString,to: 23))\(chart2) \(printAt(column: 85,"│")) \(bloomFilterWarning)
+        \(clearLine())│   Throughput  :  \(padOrTrim2(statusStr, to: 23))\(chart3) \(printAt(column: 85,"│"))
         \(clearLine())│                                         ┌╴╴╴╴╴╴╴╴╴┬╴╴╴╴╴╴╴╴╴┬╴╴╴╴╴╴╴╴╴┬╴╴╴╴╴╴╴╴╴┐  │
         \(clearLine())│                                         0        10s       20s       30s       40s │
         \(clearLine())╰────────────────────────────────────────────────────────────────────────────────────╯
@@ -287,8 +287,16 @@ class UI {
     
     
    
+    func chart(values: inout Deque<Double>, addValue: Double) -> String {
+        if !addValue.isInfinite {
+            values.prepend(addValue)
+        }
+        if values.count > 41 {
+            values.removeLast()
+        }
+        return barChart(values)
+    }
 
-    
 
         //let blocks: [Character] = ["⣀", "⣄", "⣆", "⣇", "⣧", "⣷", "⣿"]
        // let blocks: [Character] = ["▁","▂","▃","▄","▅","▆","▇","█"]
