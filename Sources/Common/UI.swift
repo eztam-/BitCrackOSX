@@ -9,7 +9,7 @@ import Collections
 class UI {
     
     private let BF_FPR_WARNING_THRESHOLD = 0.00002
-    private static let STATS_LINES = 9
+    private static let STATS_LINES = 11
     
     // Per batch stats
     var totalStartTime: UInt64 = 0
@@ -105,6 +105,13 @@ class UI {
         printStatsUnlocked()
     }
     
+    func printAt(column: Int, _ text: String) -> String {
+        let esc = "\u{001B}"
+        return "\(esc)[s\(esc)[\(column + 1)G\(text)\(esc)[u"
+    }
+
+
+    
     private func printStatsUnlocked(){
         // Skip the first few batch submissions, since they are not representative
         if batchCount <= Properties.RING_BUFFER_SIZE {
@@ -147,17 +154,19 @@ class UI {
         let batchesPerSstr = "\(batchCount)  (\(batchesPerS)/s)"
         
         print("\u{1B}[\(UI.STATS_LINES)A", terminator: "")
-        
+       // print(statusStr)
         print("""
-        📊 Live Stats
-        \(clearLine())    Start key   :  \(runConfig.startKeyStr)
-        \(clearLine())    Current Key :  \(currKeyStrNice)
-        \(clearLine())    Elapsed Time:  \(elapsedTimeString())
-        \(clearLine())    Batch Count :  \(padOrTrim2(batchesPerSstr, to: 23))\(barChart(batchRateHistory)) \(batchRateWarning)
-        \(clearLine())    Bloom Filter:  \(padOrTrim2(bloomFilterString,to: 23))\(barChart(bloomFprHistory))
-        \(clearLine())    Throughput  :  \(padOrTrim2(statusStr, to: 23))\(barChart(throughputHistory))
-                                                  ┌╴╴╴╴╴╴╴╴╴┬╴╴╴╴╴╴╴╴╴┬╴╴╴╴╴╴╴╴╴┬╴╴╴╴╴╴╴╴╴┐
-                                                  0        10s       20s       30s       40s
+        \(clearLine())📊 Live Stats ╭──────────────────────────────────────────────────────────────────────╮
+        \(clearLine())╭─────────────╯    \(printAt(column: 85,"│"))
+        \(clearLine())│   Start key   :  \(runConfig.startKeyStr) \(printAt(column: 85,"│"))
+        \(clearLine())│   Current Key :  \(currKeyStrNice) \(printAt(column: 85,"│"))
+        \(clearLine())│   Elapsed Time:  \(elapsedTimeString()) \(printAt(column: 85,"│"))
+        \(clearLine())│   Batch Count :  \(padOrTrim2(batchesPerSstr, to: 23))\(barChart(batchRateHistory)) \(batchRateWarning) \(printAt(column: 85,"│"))
+        \(clearLine())│   Bloom Filter:  \(padOrTrim2(bloomFilterString,to: 23))\(barChart(bloomFprHistory)) \(printAt(column: 85,"│"))
+        \(clearLine())│   Throughput  :  \(padOrTrim2(statusStr, to: 23))\(barChart(throughputHistory)) \(printAt(column: 85,"│"))
+        \(clearLine())│                                         ┌╴╴╴╴╴╴╴╴╴┬╴╴╴╴╴╴╴╴╴┬╴╴╴╴╴╴╴╴╴┬╴╴╴╴╴╴╴╴╴┐  │
+        \(clearLine())│                                         0        10s       20s       30s       40s │
+        \(clearLine())╰────────────────────────────────────────────────────────────────────────────────────╯
         """)
         fflush(stdout)
         
@@ -322,7 +331,6 @@ class UI {
 
             output += "\(color)\(blocks[index])\(reset)"
         }
-
         return output
     }
 }
