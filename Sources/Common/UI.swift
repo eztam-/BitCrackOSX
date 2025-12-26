@@ -126,11 +126,14 @@ class UI {
         let smooth = throughputEma.add(mHashesPerSec) // TODO: This is OK but not perfect since it calculates the EMA from the last value of each second. More accurate would be to take every value.
         let statusStr = String(format: "%.1f MKey/s ", smooth)
         
+        // Batch rate
         let batchesPerS = batchCount - lastPrintBatchCount
         var batchRateWarning = ""
         if batchesPerS > Properties.RING_BUFFER_SIZE {
             batchRateWarning = " ⚠️  Batch rate is too high and impacts performance! Adjust your settings."
         }
+        let batchesPerSstr = "\(batchCount)  (\(batchesPerS)/s)"
+
 
         // Calculate bloom filter FPR
         let fprEma = bfFalsePositiveRateEma.getValue()!
@@ -144,26 +147,25 @@ class UI {
         let (currKeyStr, currKey) = runConfig.calcCurrentKey(batchIndex: batchCount, offset: 0)
         let currKeyStrNice = underlineFirstDifferentCharacter(base: runConfig.startKeyStr, modified: currKeyStr)
 
-        
+        // Charts
         let chart1 = chart(values: &batchRateHistory, addValue: Double(batchesPerS))
         let chart2 = chart(values: &bloomFprHistory, addValue: falsePositiveRate)
         let chart3 = chart(values: &throughputHistory, addValue: Double(smooth))
         
+        let endLine = printAt(column: 85,"│")
         
-        
-        let batchesPerSstr = "\(batchCount)  (\(batchesPerS)/s)"
       
 
         print("\u{1B}[\(UI.STATS_LINES)A", terminator: "")
         print("""
         \(clearLine())📊 Live Stats ╭──────────────────────────────────────────────────────────────────────╮
-        \(clearLine())╭─────────────╯    \(printAt(column: 85,"│"))
-        \(clearLine())│   Start key   :  \(runConfig.startKeyStr) \(printAt(column: 85,"│"))
-        \(clearLine())│   Current Key :  \(currKeyStrNice) \(printAt(column: 85,"│"))
-        \(clearLine())│   Elapsed Time:  \(elapsedTimeString()) \(printAt(column: 85,"│"))
-        \(clearLine())│   Batch Count :  \(padOrTrim2(batchesPerSstr, to: 23))\(chart1) \(printAt(column: 85,"│")) \(batchRateWarning)
-        \(clearLine())│   Bloom Filter:  \(padOrTrim2(bloomFilterString,to: 23))\(chart2) \(printAt(column: 85,"│")) \(bloomFilterWarning)
-        \(clearLine())│   Throughput  :  \(padOrTrim2(statusStr, to: 23))\(chart3) \(printAt(column: 85,"│"))
+        \(clearLine())╭─────────────╯    \(endLine)
+        \(clearLine())│   Start key   :  \(runConfig.startKeyStr) \(endLine)
+        \(clearLine())│   Current Key :  \(currKeyStrNice) \(endLine)
+        \(clearLine())│   Elapsed Time:  \(elapsedTimeString()) \(endLine)
+        \(clearLine())│   Batch Count :  \(arrow(batchesPerSstr, to: 23))\(chart1) \(endLine) \(batchRateWarning)
+        \(clearLine())│   Bloom Filter:  \(arrow(bloomFilterString,to: 23))\(chart2) \(endLine) \(bloomFilterWarning)
+        \(clearLine())│   Throughput  :  \(arrow(statusStr, to: 23))\(chart3) \(endLine)
         \(clearLine())│                                         ┌╴╴╴╴╴╴╴╴╴┬╴╴╴╴╴╴╴╴╴┬╴╴╴╴╴╴╴╴╴┬╴╴╴╴╴╴╴╴╴┐  │
         \(clearLine())│                                         0        10s       20s       30s       40s │
         \(clearLine())╰────────────────────────────────────────────────────────────────────────────────────╯
@@ -218,7 +220,7 @@ class UI {
         return string + String(repeating: " ", count: length - string.count)
     }
     
-    func padOrTrim2(_ string: String, to length: Int) -> String {
+    func arrow(_ string: String, to length: Int) -> String {
         let currentLength = string.count
 
         if currentLength == length {
