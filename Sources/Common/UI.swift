@@ -9,7 +9,7 @@ import Collections
 class UI {
     
     private let BF_FPR_WARNING_THRESHOLD = 0.00002
-    private static let STATS_LINES = 7
+    private static let STATS_LINES = 9
     
     // Per batch stats
     var totalStartTime: UInt64 = 0
@@ -27,7 +27,9 @@ class UI {
     let batchSize: Int
     let runConfig: RunConfig
     
-    var throughputHistoryDeque = Deque<Double>() //Deque<Double>(repeating: 0.0, count: 32)
+    var throughputHistory = Deque<Double>() //Deque<Double>(repeating: 0.0, count: 32)
+    var bloomFprHistory = Deque<Double>()
+    var batchRateHistory = Deque<Double>()
 
   
     
@@ -134,12 +136,15 @@ class UI {
         let (currKeyStr, currKey) = runConfig.calcCurrentKey(batchIndex: batchCount, offset: 0)
         let currKeyStrNice = underlineFirstDifferentCharacter(base: runConfig.startKeyStr, modified: currKeyStr)
 
-        
-        throughputHistoryDeque.prepend(smooth)
-        if throughputHistoryDeque.count > 49 {
-            throughputHistoryDeque.removeLast()
+        bloomFprHistory.prepend(falsePositiveRate)
+        throughputHistory.prepend(smooth)
+        batchRateHistory.prepend(Double(batchesPerS))
+        if throughputHistory.count > 41 {
+            throughputHistory.removeLast()
+            bloomFprHistory.removeLast()
+            batchRateHistory.removeLast()
         }
-
+        let batchesPerSstr = "\(batchCount)  (\(batchesPerS)/s)"
         
         print("\u{1B}[\(UI.STATS_LINES)A", terminator: "")
         
@@ -148,9 +153,11 @@ class UI {
         \(clearLine())    Start key   :  \(runConfig.startKeyStr)
         \(clearLine())    Current Key :  \(currKeyStrNice)
         \(clearLine())    Elapsed Time:  \(elapsedTimeString())
-        \(clearLine())    Batch Count :  \(batchCount) (\(batchesPerS)/s) \(batchRateWarning)
-        \(clearLine())    Bloom Filter:  \(bloomFilterString)
-        \(clearLine())    Throughput  :  \(statusStr) \(brailleChart(throughputHistoryDeque))
+        \(clearLine())    Batch Count :  \(padOrTrim2(batchesPerSstr, to: 23))\(barChart(batchRateHistory)) \(batchRateWarning)
+        \(clearLine())    Bloom Filter:  \(padOrTrim2(bloomFilterString,to: 23))\(barChart(bloomFprHistory))
+        \(clearLine())    Throughput  :  \(padOrTrim2(statusStr, to: 23))\(barChart(throughputHistory))
+                                                  ┌╴╴╴╴╴╴╴╴╴┬╴╴╴╴╴╴╴╴╴┬╴╴╴╴╴╴╴╴╴┬╴╴╴╴╴╴╴╴╴┐
+                                                  0        10s       20s       30s       40s
         """)
         fflush(stdout)
         
@@ -189,7 +196,52 @@ class UI {
         """)
     }
     
+    func padOrTrim(_ string: String, to length: Int) -> String {
+        if string.count == length {
+            return string
+        }
+
+        if string.count > length {
+            return String(string.prefix(length))
+        }
+
+        // string.count < length
+        return string + String(repeating: " ", count: length - string.count)
+    }
     
+    func padOrTrim2(_ string: String, to length: Int) -> String {
+        let currentLength = string.count
+
+        if currentLength == length {
+            return string
+        }
+
+        if currentLength > length {
+            return String(string.prefix(length))
+        }
+
+        // Padding needed
+        let paddingLength = length - currentLength
+
+        // If there's only room for one padding character, just use space
+        if paddingLength == 1 {
+            return string + " "
+        }
+        else if paddingLength == 2 {
+            return string + "  "
+        }
+        else if paddingLength == 3 {
+            return string + " ▹ "
+        }
+
+        // Build: ├ ╌╌… ╌ ▹
+        let middleCount = paddingLength - 3
+        let padding = " " + String(repeating: "╌", count: middleCount) + "▹ "
+
+        return string + padding
+    }
+
+
     
     func underlineFirstDifferentCharacter(base: String, modified: String) -> String {
         // ANSI formatting
@@ -225,39 +277,54 @@ class UI {
     }
     
     
-    func brailleChart<C: Collection>(_ values: C) -> String
+   
+
+    
+
+        //let blocks: [Character] = ["⣀", "⣄", "⣆", "⣇", "⣧", "⣷", "⣿"]
+       // let blocks: [Character] = ["▁","▂","▃","▄","▅","▆","▇","█"]
+       // let blocks: [Character] = ["⣀","⣀","⣤","⣤","⣶","⣶","⣿","⣿"]
+
+    func barChart<C: Collection>(_ values: C) -> String
     where C.Element == Double {
         guard !values.isEmpty else { return "" }
 
-        //let blocks: [Character] = ["⣀", "⣄", "⣆", "⣇", "⣧", "⣷", "⣿"]
         let blocks: [Character] = ["▁","▂","▃","▄","▅","▆","▇","█"]
-
         let steps = blocks.count - 1
 
         let minVal = values.min()!
         let maxVal = values.max()!
         let range = maxVal - minVal
 
+        let reset = "\u{001B}[0m"
+
+        // Subtle grayscale range
+        let grayMin = 238   // dark gray
+        let grayMax = 252   // light gray
+
         // Handle flat signal
         if range == 0 {
-            let line = String(repeating: String(blocks[steps / 2]),
-                              count: values.count)
-            return line
+            let color = "\u{001B}[38;5;\(grayMin + grayMax) / 2)m"
+            let mid = blocks[steps / 2]
+            return values.map { _ in "\(color)\(mid)\(reset)" }.joined()
         }
 
         var output = ""
 
         for v in values {
             let normalized = (v - minVal) / range
-            let index = Int(round(normalized * Double(steps)))
-            output.append(blocks[index])
+            let clamped = max(0.0, min(1.0, normalized))
+            let index = Int(round(clamped * Double(steps)))
+
+            // Grayscale intensity only
+            let gray = Int(Double(grayMin) + clamped * Double(grayMax - grayMin))
+            let color = "\u{001B}[38;5;\(gray)m"
+
+            output += "\(color)\(blocks[index])\(reset)"
         }
 
         return output
     }
-
-
-    
 }
 
 
