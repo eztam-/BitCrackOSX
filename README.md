@@ -158,7 +158,7 @@ Doing the same math for other Apple Silicon GPUs:
 | ------------- | ------------- |--------------|--------------|--------------|
 | RTX2080 Ti  | 1.4 B Keys/s |4775.9 FPS|||
 | M1 Pro (16 Core)  | n/a  |598.5 FPS|175 M Keys/s|157 M Keys/s|
-| M4 (10 Core)  | n/a  |432.2 FPS|127 M Keys/s|190 M Keys/s|
+| M4 (10 Core)  | n/a  |432.2 FPS|127 M Keys/s|195 M Keys/s|
 | M4 Pro (20 Core)  | n/a  |912.2 FPS|267 M Keys/s||
 | M4 Max (40 Core)  | n/a  |1756 FPS|518 M Keys/s||
 

@@ -132,8 +132,10 @@ class UI {
         let batchesPerS = batchCount - lastPrintBatchCount
         var batchRateWarning = ""
         if batchesPerS > Properties.RING_BUFFER_SIZE {
-            batchRateWarning = " ⚠️  Batch rate is too high and impacts performance! Adjust your settings."
+            batchRateWarning = "⚠️  Batch rate is too high!"
         }
+        batchRateWarning = padOrTrim(batchRateWarning, to: 36)
+
         let batchesPerSstr = "\(batchCount)  (\(batchesPerS)/s)"
 
 
@@ -143,8 +145,10 @@ class UI {
         var bloomFilterString = String(format: "%.6f%% FPR (%d)", falsePositiveRate, Int(fprEma))
         var bloomFilterWarning = ""
         if falsePositiveRate > BF_FPR_WARNING_THRESHOLD {
-            bloomFilterWarning.append(" ⚠️  FPR is too high and impacts performance! Adjust your settings.")
+            bloomFilterWarning = ("⚠️  FPR is too high!")
         }
+        bloomFilterWarning = padOrTrim(bloomFilterWarning, to: 36)
+
 
         let (currKeyStr, currKey) = runConfig.calcCurrentKey(batchIndex: batchCount, offset: 0)
         let currKeyStrNice = underlineFirstDifferentCharacter(base: runConfig.startKeyStr, modified: currKeyStr)
@@ -165,11 +169,11 @@ class UI {
         \(clearLine())│   Start key   :  \(runConfig.startKeyStr) \(endLine)
         \(clearLine())│   Current Key :  \(currKeyStrNice) \(endLine)
         \(clearLine())│   Elapsed Time:  \(elapsedTimeString()) \(endLine)
-        \(clearLine())│   Batch Count :  \(arrow(batchesPerSstr, to: 23))\(chart1) \(endLine) \(batchRateWarning)
-        \(clearLine())│   Bloom Filter:  \(arrow(bloomFilterString,to: 23))\(chart2) \(endLine) \(bloomFilterWarning)
+        \(clearLine())│   Batch Count :  \(arrow(batchesPerSstr, to: 23))\(chart1) \(endLine)
+        \(clearLine())│   Bloom Filter:  \(arrow(bloomFilterString,to: 23))\(chart2) \(endLine)
         \(clearLine())│   Throughput  :  \(arrow(statusStr, to: 23))\(chart3) \(endLine)
-        \(clearLine())│                                         ┌╴╴╴╴╴╴╴╴╴┬╴╴╴╴╴╴╴╴╴┬╴╴╴╴╴╴╴╴╴┬╴╴╴╴╴╴╴╴╴┐  │
-        \(clearLine())│                                         0        10s       20s       30s       40s │
+        \(clearLine())│   \(batchRateWarning  )  ┌╴╴╴╴╴╴╴╴╴┬╴╴╴╴╴╴╴╴╴┬╴╴╴╴╴╴╴╴╴┬╴╴╴╴╴╴╴╴╴┐  │
+        \(clearLine())│   \(bloomFilterWarning)  0        10s       20s       30s       40s │
         \(clearLine())╰────────────────────────────────────────────────────────────────────────────────────╯
         """)
         fflush(stdout)
