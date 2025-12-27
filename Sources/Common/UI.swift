@@ -3,13 +3,14 @@ import BigNumber
 import UserNotifications
 import Metal
 import Collections
-
+import Darwin
 
 
 class UI {
     
     private let BF_FPR_WARNING_THRESHOLD = 0.00002
     private static let STATS_LINES = 11
+    private static let MIN_TERMIAL_WIDTH = 90
     
     // Per batch stats
     var totalStartTime: UInt64 = 0
@@ -38,6 +39,7 @@ class UI {
         self.batchSize = batchSize
         self.endKey = runConfig.endKey != nil ? runConfig.endKey! + 150000000 * 10 : nil // TODO: This is a very dirty hack to avoid skipping the last few key checks, because there is always a delay until the keys are actually printed
         self.runConfig = runConfig
+        UI.checkTerminalWidth()
     }
     
     
@@ -343,6 +345,22 @@ class UI {
         }
         return output
     }
+    
+
+    private static func checkTerminalWidth() {
+        var w = winsize()
+        let result = ioctl(STDOUT_FILENO, TIOCGWINSZ, &w)
+        guard result == 0 else {
+            fputs("Error: Not running in a terminal.\n", stderr)
+            exit(EXIT_FAILURE)
+        }
+        let width = Int(w.ws_col)
+        if width < MIN_TERMIAL_WIDTH {
+            fputs("Terminal width (\(width)) is too small. Minimum is \(MIN_TERMIAL_WIDTH). Resize your terminal window.\n", stderr)
+            exit(EXIT_FAILURE)
+        }
+    }
+
 }
 
 
