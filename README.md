@@ -1,7 +1,7 @@
 <h1 align="center">🧮 CryptKeySearch</h1>
 <br>
 <p align="center">
-  <span>A high-performance macOS application for Bitcoin puzzle solving</span><br>
+  <span>A high-performance macOS engine for Bitcoin puzzle solving</span><br>
   <em>Leveraging Apples Metal framework for accelerated private-key search on Silicon GPUs</em>
 </p>
 
@@ -9,10 +9,12 @@
 
 <img src="https://raw.githubusercontent.com/eztam-/CryptKeySearch/refs/heads/main/img/screenshot.png">
 
-The application is built and optimized specifically for Apple Silicon GPUs, providing high-performance key search capabilities.
-Many existing tools such as BitCrack no longer work on macOS since Apple transitioned to its new Silicon architecture.
-This application aims to be a superior replacement in some regards, offering additional features such as support for modern Bitcoin address types including SegWit.
-CryptKeySearch is implemented entirely from scratch but is heavily inspired by [BitCrack](https://github.com/brichard19/BitCrack).
+CryptKeySearch runs natively on Apple Silicon GPUs, driving high-performance private-key search at full hardware capacity.
+As Apple transitioned to its Silicon architecture, many existing OpenCL-based tools, such as BitCrack, were left behind.
+CryptKeySearch was written from the ground up for this new terrain.
+While inspired by parts of [BitCrack’s](https://github.com/brichard19/BitCrack) concepts and architecture,
+the implementation is entirely from scratch and extended by additional features like support
+for modern Bitcoin address formats, including SegWit.
 
 - Report an issue or request a feature: [new Issue](https://github.com/eztam-/CryptKeySearch/issues/new).
 - Support the project: BTC: 39QmdfngkM3y4KJbwrgspNRQZvwow5BFpg

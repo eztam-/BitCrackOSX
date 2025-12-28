@@ -6,19 +6,17 @@ import BigNumber
 @main
 struct Main: ParsableCommand {
 
-    
 static let banner = """
 
-╭━━━╮        ╭╮ ╭╮╭━╮       ╭━━━╮          ╭╮
-┃╭━╮┃       ╭╯╰╮┃┃┃╭╯       ┃╭━╮┃          ┃┃
-┃┃ ╰╋━┳╮ ╭┳━┻╮╭╯┃╰╯╯╭━━┳╮ ╭╮┃╰━━┳━━┳━━┳━┳━━┫╰━╮
-┃┃ ╭┫╭┫┃ ┃┃╭╮┃┃ ┃╭╮┃┃┃━┫┃ ┃┃╰━━╮┃┃━┫╭╮┃╭┫╭━┫╭╮┃
-┃╰━╯┃┃┃╰━╯┃╰╯┃╰╮┃┃┃╰┫┃━┫╰━╯┃┃╰━╯┃┃━┫╭╮┃┃┃╰━┫┃┃┃
-╰━━━┻╯╰━╮╭┫╭━┻━╯╰╯╰━┻━━┻━╮╭╯╰━━━┻━━┻╯╰┻╯╰━━┻╯╰╯
-      ╭━╯┃┃┃           ╭━╯┃
-      ╰━━╯╰╯           ╰━━╯
+   o-o                o      o  o               o-o                    o   
+  /                   |      | /               |                       |   
+ O     o-o o  o o-o  -o-     OO   o-o o  o      o-o  o-o  oo  o-o  o-o O--o
+  \\    |   |  | |  |  |      | \\  |/  |  |         | |/  / |  |   |    |  |
+   o-o o   o--O O-o   o      o  o o-o o--O     o--o  o-o o-o- o    o-o o  o
+              | |                        |                                 
+           o--o o                     o--o                                 
 """
-    
+   
     
     struct FileLoadCommand: ParsableCommand {
         
